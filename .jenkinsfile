@@ -43,7 +43,7 @@ pipeline {
                     sh """
                     export JAVA_HOME=${JAVA_HOME}
                     export PATH=\$JAVA_HOME/bin:\$PATH
-                    ${MAVEN_HOME}/bin/mvn clean install -DskipTests -X
+                    ${MAVEN_HOME}/bin/mvn clean install
                     """
                 }
             }
