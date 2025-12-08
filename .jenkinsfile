@@ -68,7 +68,7 @@ pipeline {
                         fi
 
                         # Subir todos os serviços do ficheiro combinado
-                        docker-compose -f docker-compose-rabbitmq+postgres.yml up -d --force-recreate
+                        docker compose -f docker-compose-rabbitmq+postgres.yml up -d --force-recreate
                     """
                 }
             }
