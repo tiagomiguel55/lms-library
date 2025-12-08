@@ -1,5 +1,5 @@
 # Use the official OpenJDK 21 slim image (Debian-based, Ubuntu-compatible)
-FROM openjdk:21-jdk-slim
+FROM openjdk:17-jdk-slim
 
 # Set a working directory inside the container
 WORKDIR /app
