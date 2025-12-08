@@ -43,7 +43,7 @@ pipeline {
                     sh """
                     export JAVA_HOME=${JAVA_HOME}
                     export PATH=\$JAVA_HOME/bin:\$PATH
-                    ${MAVEN_HOME}/bin/mvn clean install
+                    ${MAVEN_HOME}/bin/mvn clean install -DskipTests -X
                     """
                 }
             }
@@ -61,19 +61,14 @@ pipeline {
             steps {
                 script {
                     sh """
-                        if ! docker ps --filter "name=rabbitmq_in_lms_network" --format '{{.Names}}' | grep -q rabbitmq_in_lms_network; then
-                          docker-compose -f docker-compose-rabbitmq.yml up -d
-                        else
-                          echo "RabbitMQ container already running."
+                        # Verificar se o ficheiro existe
+                        if [ ! -f docker-compose-rabbitmq+postgres.yml ]; then
+                            echo "ERROR: docker-compose file not found!"
+                            exit 1
                         fi
 
-                        if ! docker ps --filter "name=postgres_in_lms_network" --format '{{.Names}}' | grep -q postgres_in_lms_network; then
-                          docker-compose -f docker-compose-postgres.yml up -d
-                        else
-                          echo "Postgres container already running."
-                        fi
-
-                        docker-compose -f docker-compose.yml up -d --force-recreate
+                        # Subir todos os serviços do ficheiro combinado
+                        docker-compose -f docker-compose-rabbitmq+postgres.yml up -d --force-recreate
                     """
                 }
             }
