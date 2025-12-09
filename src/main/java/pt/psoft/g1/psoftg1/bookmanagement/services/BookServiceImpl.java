@@ -71,6 +71,68 @@ public class BookServiceImpl implements BookService {
         return bookCreated;
     }
 
+    @Override
+    public Book createWithAuthorAndGenre(CreateBookWithAuthorAndGenreRequest request) {
+        // Validate that the ISBN doesn't already exist
+        if (bookRepository.findByIsbn(request.getIsbn()).isPresent()) {
+            throw new ConflictException("Book with ISBN " + request.getIsbn() + " already exists");
+        }
+
+        // 1. Create or get Genre
+        Genre genre = genreRepository.findByString(request.getGenreName())
+                .orElseGet(() -> {
+                    Genre newGenre = new Genre(request.getGenreName());
+                    return genreRepository.save(newGenre);
+                });
+
+        // 2. Create Authors
+        List<Author> authors = new ArrayList<>();
+        for (CreateBookWithAuthorAndGenreRequest.AuthorData authorData : request.getAuthors()) {
+            // Check if author with same name already exists
+            List<Author> existingAuthors = authorRepository.searchByNameNameStartsWith(authorData.getName());
+            Author author = null;
+
+            // If exact match found, use existing author
+            for (Author existingAuthor : existingAuthors) {
+                if (existingAuthor.getName().equals(authorData.getName())) {
+                    author = existingAuthor;
+                    break;
+                }
+            }
+
+            // If no existing author found, create new one
+            if (author == null) {
+                author = new Author(
+                    authorData.getName(),
+                    authorData.getBio() != null ? authorData.getBio() : "",
+                    authorData.getPhotoURI()
+                );
+                author = authorRepository.save(author);
+            }
+
+            authors.add(author);
+        }
+
+        // 3. Create Book
+        Book newBook = new Book(
+            request.getIsbn(),
+            request.getTitle(),
+            request.getDescription(),
+            genre,
+            authors,
+            request.getBookPhotoURI()
+        );
+
+        Book savedBook = bookRepository.save(newBook);
+
+        // Publish event
+        if (savedBook != null) {
+            bookEventsPublisher.sendBookCreated(savedBook);
+        }
+
+        return savedBook;
+    }
+
     private Book create( String isbn,
                             String title,
                             String description,

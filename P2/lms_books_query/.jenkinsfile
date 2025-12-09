@@ -1,0 +1,84 @@
+pipeline {
+    agent any
+
+    environment {
+        MAVEN_HOME = '/usr/share/maven'
+        JAVA_HOME = '/usr/lib/jvm/java-17-openjdk-amd64'
+        GIT_REPO_URL = 'https://github.com/tiagomiguel55/lms-library.git'
+        GIT_BRANCH = 'main'
+        CREDENTIALS_ID = 'password_for_github_tiago'
+
+        PROJECT_DIR = 'P2/lms_books_query'
+        IMAGE_NAME = 'lmsbooks'
+        IMAGE_TAG = 'latest'
+        STACK_NAME = 'lms_stack'
+        COMPOSE_FILE = 'docker-compose.yml'   // ou docker-compose-rabbitmq+postgres.yml se for o caso
+    }
+
+    stages {
+
+        stage('Debug Environment') {
+            steps {
+                sh 'echo "Java:" && $JAVA_HOME/bin/java -version'
+                sh 'echo "Maven:" && $MAVEN_HOME/bin/mvn -v'
+                sh 'docker --version'
+            }
+        }
+
+        stage('Checkout') {
+            steps {
+                git branch: "${GIT_BRANCH}",
+                    url: "${GIT_REPO_URL}",
+                    credentialsId: "${CREDENTIALS_ID}"
+            }
+        }
+
+        stage('Clean and Build') {
+            steps {
+                dir("${PROJECT_DIR}") {
+                    sh """
+                        export JAVA_HOME=${JAVA_HOME}
+                        export PATH=\$JAVA_HOME/bin:\$PATH
+                        ${MAVEN_HOME}/bin/mvn clean package
+                    """
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                dir("${PROJECT_DIR}") {
+                    sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+                }
+            }
+        }
+
+        stage('Deploy via Docker Stack') {
+            steps {
+                dir("${PROJECT_DIR}") {
+                    sh """
+                        if [ ! -f ${COMPOSE_FILE} ]; then
+                            echo "ERROR: Docker Compose file not found!"
+                            exit 1
+                        fi
+
+                        # Deploy da stack
+                        docker stack deploy -c ${COMPOSE_FILE} ${STACK_NAME}
+
+                        # Mostrar status dos serviços
+                        docker stack services ${STACK_NAME}
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo '🚀 Pipeline completed successfully!'
+        }
+        failure {
+            echo '❌ Pipeline failed!'
+        }
+    }
+}

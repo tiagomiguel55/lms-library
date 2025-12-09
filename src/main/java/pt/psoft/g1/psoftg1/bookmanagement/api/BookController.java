@@ -16,6 +16,7 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import pt.psoft.g1.psoftg1.bookmanagement.model.Book;
 import pt.psoft.g1.psoftg1.bookmanagement.services.BookService;
 import pt.psoft.g1.psoftg1.bookmanagement.services.CreateBookRequest;
+import pt.psoft.g1.psoftg1.bookmanagement.services.CreateBookWithAuthorAndGenreRequest;
 import pt.psoft.g1.psoftg1.bookmanagement.services.SearchBooksQuery;
 import pt.psoft.g1.psoftg1.bookmanagement.services.UpdateBookRequest;
 import pt.psoft.g1.psoftg1.exceptions.ConflictException;
@@ -65,6 +66,45 @@ public class BookController {
         }
         // final var savedBook = bookService.save(book);
         final var newBookUri = ServletUriComponentsBuilder.fromCurrentRequestUri().pathSegment(book.getIsbn()).build()
+                .toUri();
+
+        return ResponseEntity.created(newBookUri).eTag(Long.toString(book.getVersion()))
+                .body(bookViewMapper.toBookView(book));
+    }
+
+    @Operation(summary = "Register a new Book with new Author(s) and Genre in one process")
+    @PostMapping(value = "/create-complete")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ResponseEntity<BookView> createWithAuthorAndGenre(@Valid @RequestBody CreateBookWithAuthorAndGenreRequest resource) {
+
+        // Handle book photo
+        resource.setBookPhotoURI(null);
+        MultipartFile bookFile = resource.getBookPhoto();
+        String bookFileName = fileStorageService.getRequestPhoto(bookFile);
+        if (bookFileName != null) {
+            resource.setBookPhotoURI(bookFileName);
+        }
+
+        // Handle author photos
+        for (CreateBookWithAuthorAndGenreRequest.AuthorData authorData : resource.getAuthors()) {
+            authorData.setPhotoURI(null);
+            MultipartFile authorFile = authorData.getPhoto();
+            String authorFileName = fileStorageService.getRequestPhoto(authorFile);
+            if (authorFileName != null) {
+                authorData.setPhotoURI(authorFileName);
+            }
+        }
+
+        Book book;
+        try {
+            book = bookService.createWithAuthorAndGenre(resource);
+        } catch (Exception e) {
+            throw new ConflictException("Could not create book with authors and genre: " + e.getMessage());
+        }
+
+        final var newBookUri = ServletUriComponentsBuilder.fromCurrentRequest()
+                .path("/{isbn}")
+                .buildAndExpand(book.getIsbn())
                 .toUri();
 
         return ResponseEntity.created(newBookUri).eTag(Long.toString(book.getVersion()))

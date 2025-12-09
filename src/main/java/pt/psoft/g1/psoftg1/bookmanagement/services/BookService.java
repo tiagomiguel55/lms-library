@@ -16,6 +16,8 @@ public interface BookService {
 
     Book create(BookViewAMQP bookViewAMQP); // AMQP request
 
+    Book createWithAuthorAndGenre(CreateBookWithAuthorAndGenreRequest request); // Create Book, Author(s) and Genre in one process
+
     Book findByIsbn(String isbn);
 
     Book update(UpdateBookRequest request, Long currentVersion);

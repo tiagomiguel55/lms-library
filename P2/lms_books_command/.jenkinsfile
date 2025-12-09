@@ -1,0 +1,88 @@
+pipeline {
+    agent any
+
+    environment {
+        MAVEN_HOME = '/usr/share/maven' // Caminho do Maven no Jenkins
+        JAVA_HOME = '/usr/lib/jvm/java-17-openjdk-amd64' // JDK 17 no Jenkins
+        GIT_REPO_URL = 'https://github.com/tiagomiguel55/lms-library.git'
+        GIT_BRANCH = 'main'
+        CREDENTIALS_ID = 'password_for_github_tiago'
+
+        SERVER_PORT = '2226'
+        IMAGE_NAME = 'lmsbooks'
+        IMAGE_TAG = 'latest'
+    }
+
+    stages {
+
+        stage('Debug Environment') {
+            steps {
+                sh 'echo "Using Java:" && $JAVA_HOME/bin/java -version'
+                sh 'echo "Using Maven:" && $MAVEN_HOME/bin/mvn -v'
+                sh 'env'
+            }
+        }
+
+        stage('Check Docker') {
+            steps {
+                sh 'docker --version'
+            }
+        }
+
+        stage('Checkout') {
+            steps {
+                git branch: "${GIT_BRANCH}",
+                    url: "${GIT_REPO_URL}",
+                    credentialsId: "${CREDENTIALS_ID}"
+            }
+        }
+
+        stage('Clean and Build') {
+            steps {
+                script {
+                    sh """
+                    export JAVA_HOME=${JAVA_HOME}
+                    export PATH=\$JAVA_HOME/bin:\$PATH
+                    ${MAVEN_HOME}/bin/mvn clean install
+                    """
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+                }
+            }
+        }
+
+        stage('Deploy with Docker Compose') {
+            steps {
+                script {
+                    sh """
+                        # Verificar se o ficheiro existe
+                        if [ ! -f docker-compose-rabbitmq+postgres.yml ]; then
+                            echo "ERROR: docker-compose file not found!"
+                            exit 1
+                        fi
+
+                        # Subir todos os serviços do ficheiro combinado
+                        docker-compose -f docker-compose-rabbitmq+postgres.yml down -v --remove-orphans
+                        docker-compose -f docker-compose-rabbitmq+postgres.yml up -d --force-recreate
+                        docker-compose -f docker-compose.yml up -d --force-recreate
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Pipeline completed successfully!'
+        }
+        failure {
+            echo 'Pipeline failed!'
+        }
+    }
+}
