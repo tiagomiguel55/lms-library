@@ -2,15 +2,16 @@ pipeline {
     agent any
 
     environment {
-        MAVEN_HOME = '/usr/share/maven' // Caminho do Maven no Jenkins
-        JAVA_HOME = '/usr/lib/jvm/java-17-openjdk-amd64' // JDK 17 no Jenkins
+        MAVEN_HOME = '/usr/share/maven'
+        JAVA_HOME = '/usr/lib/jvm/java-17-openjdk-amd64'
         GIT_REPO_URL = 'https://github.com/tiagomiguel55/lms-library.git'
         GIT_BRANCH = 'main'
         CREDENTIALS_ID = 'password_for_github_tiago'
 
-        SERVER_PORT = '2226'
         IMAGE_NAME = 'lmsbooks'
         IMAGE_TAG = 'latest'
+        STACK_NAME = 'lms_stack'
+        COMPOSE_FILE = 'docker-compose-swarm.yml'
     }
 
     stages {
@@ -39,39 +40,33 @@ pipeline {
 
         stage('Clean and Build') {
             steps {
-                script {
-                    sh """
+                sh """
                     export JAVA_HOME=${JAVA_HOME}
                     export PATH=\$JAVA_HOME/bin:\$PATH
                     ${MAVEN_HOME}/bin/mvn clean install
-                    """
-                }
+                """
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                script {
-                    sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
-                }
+                sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
             }
         }
 
-        stage('Deploy with Docker Compose') {
+        stage('Deploy Docker Swarm Stack') {
             steps {
                 script {
+                    // Verifica se o ficheiro existe
                     sh """
-                        # Verificar se o ficheiro existe
-                        if [ ! -f docker-compose-rabbitmq+postgres.yml ]; then
-                            echo "ERROR: docker-compose file not found!"
+                        if [ ! -f ${COMPOSE_FILE} ]; then
+                            echo "ERROR: ${COMPOSE_FILE} not found!"
                             exit 1
                         fi
-
-                        # Subir todos os serviços do ficheiro combinado
-                        docker-compose -f docker-compose-rabbitmq+postgres.yml down -v --remove-orphans
-                        docker-compose -f docker-compose-rabbitmq+postgres.yml up -d --force-recreate
-                        docker-compose -f docker-compose.yml up -d --force-recreate
                     """
+
+                    // Faz deploy da stack
+                    sh "docker stack deploy -c ${COMPOSE_FILE} ${STACK_NAME}"
                 }
             }
         }
