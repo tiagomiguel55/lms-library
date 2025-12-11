@@ -3,6 +3,7 @@ package pt.psoft.g1.psoftg1.genremanagement.model;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
+import lombok.Setter;
 
 @Entity
 @Table
@@ -17,6 +18,11 @@ public class Genre {
     @Column(unique = true, nullable = false, length = GENRE_MAX_LENGTH)
     @Getter
     String genre;
+
+    @Getter
+    @Setter
+    @Column(nullable = true, columnDefinition = "boolean default false")
+    private boolean finalized = false;
 
     protected Genre() {
     }

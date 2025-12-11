@@ -19,10 +19,13 @@ public class GenreViewAMQP {
 
     @Setter
     @Getter
+    private String bookId;
+
+    @Setter
+    @Getter
     private Map<String, Object> _links = new HashMap<>();
 
     public GenreViewAMQP(String genre) {
         this.genre = genre;
     }
 }
-

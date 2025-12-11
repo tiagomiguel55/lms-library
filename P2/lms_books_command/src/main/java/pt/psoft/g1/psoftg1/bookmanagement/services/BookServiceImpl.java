@@ -75,26 +75,18 @@ public class BookServiceImpl implements BookService {
             return null;
         }
 
-        // Find or create Genre (Genre can be created locally as it's simple data)
-        Genre genre = genreRepository.findByString(genreName)
-                .orElseGet(() -> {
-                    Genre newGenre = new Genre(genreName);
-                    return genreRepository.save(newGenre);
-                });
-
-        // Save pending request - we need to wait for AuthorCmd to create the author
+        // Save pending request - we need to wait for both AuthorCmd and GenreCmd
         PendingBookRequest newPendingRequest = new PendingBookRequest(isbn, authorName, genreName);
         pendingBookRequestRepository.save(newPendingRequest);
 
         System.out.println(" [x] Saved pending book request for ISBN: " + isbn);
 
-        // Publish BookRequestedEvent so that AuthorCmd microservice can create/find the author
-        // The author management will handle author creation and publish AuthorPendingCreated event
+        // Publish BookRequestedEvent - BOTH AuthorCmd and GenreCmd will listen to this event
         System.out.println(" [x] Publishing Book Requested event for ISBN: " + isbn);
         bookEventsPublisher.sendBookRequestedEvent(isbn, authorName, genreName);
 
         // Return null - the controller will handle this by returning HTTP 202 Accepted
-        // The actual book will be created asynchronously when AuthorPendingCreated event arrives
+        // The actual book will be created asynchronously when both AuthorPendingCreated and GenrePendingCreated events arrive
         return null;
     }
 
@@ -287,9 +279,9 @@ public class BookServiceImpl implements BookService {
     }
 
     @Override
-    public void publishBookFinalized(Long authorId, String authorName, String bookId) {
-        System.out.println(" [x] Publishing BOOK_FINALIZED event for Author ID: " + authorId + " - Book ID: " + bookId);
-        bookEventsPublisher.sendBookFinalizedEvent(authorId, authorName, bookId);
+    public void publishBookFinalized(Long authorId, String authorName, String bookId, String genreName) {
+        System.out.println(" [x] Publishing BOOK_FINALIZED event for Author ID: " + authorId + " - Book ID: " + bookId + " - Genre: " + genreName);
+        bookEventsPublisher.sendBookFinalizedEvent(authorId, authorName, bookId, genreName);
     }
 
     private List<Author> getAuthors(List<Long> authorNumbers) {

@@ -10,5 +10,10 @@ public interface GenreEventsPublisher {
     GenreViewAMQP sendGenreUpdated(Genre genre, Long currentVersion);
 
     GenreViewAMQP sendGenreDeleted(Genre genre, Long currentVersion);
-}
 
+    void sendGenrePendingCreated(String genreName, String bookId);
+
+    void sendGenreCreationFailed(String bookId, String genreName, String errorMessage);
+
+    void sendGenreCreated(Genre genre, String bookId);
+}

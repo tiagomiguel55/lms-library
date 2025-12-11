@@ -11,5 +11,5 @@ public class BookFinalizedEvent {
     private Long authorId;
     private String authorName;
     private String bookId;
+    private String genreName;
 }
-

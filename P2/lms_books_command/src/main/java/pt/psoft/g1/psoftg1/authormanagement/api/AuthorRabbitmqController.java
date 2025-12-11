@@ -24,19 +24,23 @@ public class AuthorRabbitmqController {
     private final AuthorEventsPublisher authorEventsPublisher;
     private final AuthorService authorService;
 
-    @RabbitListener(queues = "#{autoDeleteQueue_Book_Requested.name}")
+    @RabbitListener(queues = "#{autoDeleteQueue_Book_Requested_Author.name}")
     public void receiveBookRequested(Message msg) {
+        String bookId = null;
+        String authorName = null;
+        String genreName = null;
+
         try {
             ObjectMapper objectMapper = new ObjectMapper();
             String jsonReceived = new String(msg.getBody(), StandardCharsets.UTF_8);
             BookRequestedEvent bookRequestedEvent = objectMapper.readValue(jsonReceived, BookRequestedEvent.class);
 
-            System.out.println(" [x] Received Book Requested by AMQP: " + bookRequestedEvent.getBookId() +
+            System.out.println(" [x] Received Book Requested by AMQP (AuthorCmd): " + bookRequestedEvent.getBookId() +
                               " - Author: " + bookRequestedEvent.getAuthorName());
 
-            String authorName = bookRequestedEvent.getAuthorName();
-            String bookId = bookRequestedEvent.getBookId();
-            String genreName = bookRequestedEvent.getGenreName();
+            authorName = bookRequestedEvent.getAuthorName();
+            bookId = bookRequestedEvent.getBookId();
+            genreName = bookRequestedEvent.getGenreName();
 
             // Check if author already exists in the authors table
             List<Author> existingAuthors = authorRepository.searchByNameName(authorName);
@@ -75,31 +79,53 @@ public class AuthorRabbitmqController {
             System.out.println(" [x] Author pending created event sent for book: " + bookId);
         }
         catch(Exception ex) {
-            System.out.println(" [x] Exception receiving book requested event from AMQP: '" + ex.getMessage() + "'");
+            System.out.println(" [x] ❌ CRITICAL ERROR: Exception creating author for book requested event: '" + ex.getMessage() + "'");
             ex.printStackTrace();
+
+            // SAGA COMPENSATION: Publish AUTHOR_CREATION_FAILED event
+            if (bookId != null && authorName != null && genreName != null) {
+                try {
+                    System.out.println(" [x] 🔄 Publishing AUTHOR_CREATION_FAILED compensation event...");
+                    authorEventsPublisher.sendAuthorCreationFailed(bookId, authorName, genreName, ex.getMessage());
+                    System.out.println(" [x] ✅ AUTHOR_CREATION_FAILED event published successfully");
+                } catch (Exception publishEx) {
+                    System.out.println(" [x] ❌ FATAL: Failed to publish AUTHOR_CREATION_FAILED event: " + publishEx.getMessage());
+                    publishEx.printStackTrace();
+                }
+            } else {
+                System.out.println(" [x] ⚠️ Cannot publish AUTHOR_CREATION_FAILED: Missing required information");
+            }
         }
     }
 
-    @RabbitListener(queues = "#{autoDeleteQueue_Book_Finalized.name}")
+    @RabbitListener(queues = "#{autoDeleteQueue_Book_Finalized_Author.name}")
     public void receiveBookFinalized(Message msg) {
         try {
             ObjectMapper objectMapper = new ObjectMapper();
             String jsonReceived = new String(msg.getBody(), StandardCharsets.UTF_8);
             BookFinalizedEvent event = objectMapper.readValue(jsonReceived, BookFinalizedEvent.class);
 
-            System.out.println(" [x] Received Book Finalized by AMQP:");
+            System.out.println(" [x] Received Book Finalized by AMQP (AuthorCmd):");
             System.out.println("     - Author ID: " + event.getAuthorId());
             System.out.println("     - Author Name: " + event.getAuthorName());
             System.out.println("     - Book ID: " + event.getBookId());
 
             try {
-                // Find the author and mark as finalized
+                // Find the author
                 Optional<Author> authorOpt = authorRepository.findByAuthorNumber(event.getAuthorId());
 
                 if (authorOpt.isPresent()) {
                     Author author = authorOpt.get();
 
-                    // Mark the author as finalized (confirms the book was created successfully)
+                    // Check if already finalized
+                    if (author.isFinalized()) {
+                        System.out.println(" [x] ℹ️ Author already finalized: " + event.getAuthorName());
+                        // Don't publish event again
+                        return;
+                    }
+
+                    // Mark the author as finalized
+                    System.out.println(" [x] 🔧 Finalizing author: " + event.getAuthorName());
                     authorService.markAuthorAsFinalized(event.getAuthorId());
 
                     System.out.println(" [x] ✅ Author marked as finalized: " + event.getAuthorName() +
@@ -107,7 +133,7 @@ public class AuthorRabbitmqController {
 
                     // Publish AUTHOR_CREATED event to message broker WITH the associated bookId
                     authorEventsPublisher.sendAuthorCreated(author, event.getBookId());
-                    System.out.println(" [x] AUTHOR_CREATED event published for: " + event.getAuthorName() +
+                    System.out.println(" [x] 📤 AUTHOR_CREATED event published for: " + event.getAuthorName() +
                                      " (ID: " + event.getAuthorId() + ") with bookId: " + event.getBookId());
                 } else {
                     System.out.println(" [x] ERROR: Author not found with ID: " + event.getAuthorId());

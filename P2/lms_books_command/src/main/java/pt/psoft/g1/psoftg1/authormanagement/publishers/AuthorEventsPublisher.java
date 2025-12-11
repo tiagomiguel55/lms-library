@@ -1,5 +1,6 @@
 package pt.psoft.g1.psoftg1.authormanagement.publishers;
 
+import pt.psoft.g1.psoftg1.authormanagement.api.AuthorCreationFailed;
 import pt.psoft.g1.psoftg1.authormanagement.api.AuthorPendingCreated;
 import pt.psoft.g1.psoftg1.authormanagement.api.AuthorViewAMQP;
 import pt.psoft.g1.psoftg1.authormanagement.model.Author;
@@ -13,4 +14,6 @@ public interface AuthorEventsPublisher {
     AuthorViewAMQP sendAuthorDeleted(Author author, Long currentVersion);
 
     AuthorPendingCreated sendAuthorPendingCreated(Long authorId, String bookId, String authorName, String genreName);
+
+    AuthorCreationFailed sendAuthorCreationFailed(String bookId, String authorName, String genreName, String errorMessage);
 }

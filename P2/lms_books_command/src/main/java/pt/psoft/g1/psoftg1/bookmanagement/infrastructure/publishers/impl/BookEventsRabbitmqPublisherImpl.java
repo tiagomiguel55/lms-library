@@ -92,11 +92,11 @@ public class BookEventsRabbitmqPublisherImpl implements BookEventsPublisher {
     }
 
     @Override
-    public BookFinalizedEvent sendBookFinalizedEvent(Long authorId, String authorName, String bookId) {
-        System.out.println("Send Book Finalized event to AMQP Broker: Author ID " + authorId + " for book: " + bookId);
+    public BookFinalizedEvent sendBookFinalizedEvent(Long authorId, String authorName, String bookId, String genreName) {
+        System.out.println("Send Book Finalized event to AMQP Broker: Author ID " + authorId + " for book: " + bookId + " - Genre: " + genreName);
 
         try {
-            BookFinalizedEvent event = new BookFinalizedEvent(authorId, authorName, bookId);
+            BookFinalizedEvent event = new BookFinalizedEvent(authorId, authorName, bookId, genreName);
 
             ObjectMapper objectMapper = new ObjectMapper();
             String eventInString = objectMapper.writeValueAsString(event);

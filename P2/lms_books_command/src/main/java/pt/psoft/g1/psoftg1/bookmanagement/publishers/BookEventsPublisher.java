@@ -17,5 +17,5 @@ public interface BookEventsPublisher {
 
     BookRequestedEvent sendBookRequestedEvent(String bookId, String authorName, String genreName);
 
-    BookFinalizedEvent sendBookFinalizedEvent(Long authorId, String authorName, String bookId);
+    BookFinalizedEvent sendBookFinalizedEvent(Long authorId, String authorName, String bookId, String genreName);
 }

@@ -6,6 +6,7 @@ import org.springframework.amqp.core.DirectExchange;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import pt.psoft.g1.psoftg1.authormanagement.api.AuthorCreationFailed;
 import pt.psoft.g1.psoftg1.authormanagement.api.AuthorPendingCreated;
 import pt.psoft.g1.psoftg1.authormanagement.api.AuthorViewAMQP;
 import pt.psoft.g1.psoftg1.authormanagement.api.AuthorViewAMQPMapper;
@@ -55,6 +56,26 @@ public class AuthorEventsRabbitmqPublisherImpl implements AuthorEventsPublisher 
         }
         catch( Exception ex ) {
             System.out.println(" [x] Exception sending author pending created event: '" + ex.getMessage() + "'");
+            return null;
+        }
+    }
+
+    @Override
+    public AuthorCreationFailed sendAuthorCreationFailed(String bookId, String authorName, String genreName, String errorMessage) {
+        System.out.println("Send Author Creation Failed event to AMQP Broker: " + authorName + " for book: " + bookId);
+
+        try {
+            AuthorCreationFailed event = new AuthorCreationFailed(bookId, authorName, genreName, errorMessage);
+
+            ObjectMapper objectMapper = new ObjectMapper();
+            String eventInString = objectMapper.writeValueAsString(event);
+
+            this.template.convertAndSend(directAuthors.getName(), AuthorEvents.AUTHOR_CREATION_FAILED, eventInString);
+
+            return event;
+        }
+        catch( Exception ex ) {
+            System.out.println(" [x] Exception sending author creation failed event: '" + ex.getMessage() + "'");
             return null;
         }
     }

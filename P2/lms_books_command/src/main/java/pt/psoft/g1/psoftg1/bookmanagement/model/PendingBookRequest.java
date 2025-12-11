@@ -34,11 +34,22 @@ public class PendingBookRequest {
     @Column(nullable = false)
     private RequestStatus status;
 
+    @Column(length = 1000)
+    private String errorMessage;
+
+    @Version
+    private Long version;
+
     public enum RequestStatus {
-        PENDING_AUTHOR_CREATION,
-        AUTHOR_CREATED,
-        BOOK_CREATED,
-        FAILED
+        PENDING_AUTHOR_CREATION,      // Initial state: waiting for author pending event
+        PENDING_GENRE_CREATION,        // Author pending received, waiting for genre pending
+        AUTHOR_CREATED,                // Only used if author comes before genre (edge case)
+        BOTH_PENDING_CREATED,          // Both temporary entities created (finalized=false) - READY TO TRIGGER FINALIZATION
+        AUTHOR_FINALIZED,              // Author finalized, waiting for genre finalization
+        GENRE_FINALIZED,               // Genre finalized, waiting for author finalization
+        BOTH_FINALIZED,                // Both entities finalized (finalized=true) - READY TO CREATE BOOK
+        BOOK_CREATED,                  // Book successfully created with finalized entities
+        FAILED                         // Saga compensation - book creation aborted
     }
 
     public PendingBookRequest(String bookId, String authorName, String genreName) {
@@ -49,4 +60,3 @@ public class PendingBookRequest {
         this.status = RequestStatus.PENDING_AUTHOR_CREATION;
     }
 }
-

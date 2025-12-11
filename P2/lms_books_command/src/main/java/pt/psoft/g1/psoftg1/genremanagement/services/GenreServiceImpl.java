@@ -50,6 +50,20 @@ public class GenreServiceImpl implements GenreService {
         return savedGenre;
     }
 
+    @Override
+    public void markGenreAsFinalized(String genreName) {
+        Optional<Genre> genreOpt = genreRepository.findByString(genreName);
+        if (genreOpt.isPresent()) {
+            Genre genre = genreOpt.get();
+            genre.setFinalized(true);
+            genreRepository.save(genre);
+            System.out.println(" [x] ✅ Genre marked as finalized: " + genreName);
+        } else {
+            System.out.println(" [x] ⚠️ Genre not found: " + genreName);
+            throw new NotFoundException("Genre not found: " + genreName);
+        }
+    }
+
 //    @Override
 //    public List<GenreLendingsPerMonthDTO> getLendingsPerMonthLastYearByGenre() {
 //        return genreRepository.getLendingsPerMonthLastYearByGenre();
