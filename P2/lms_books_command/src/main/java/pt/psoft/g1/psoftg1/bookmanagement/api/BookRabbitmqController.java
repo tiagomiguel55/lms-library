@@ -109,13 +109,15 @@ public class BookRabbitmqController {
                 if (pendingRequestOpt.isPresent()) {
                     PendingBookRequest pendingRequest = pendingRequestOpt.get();
 
-                    // Check current status to determine next status
-                    if (pendingRequest.getStatus() == PendingBookRequest.RequestStatus.PENDING_AUTHOR_CREATION) {
-                        // Author came first, just mark author as received
-                        pendingRequest.setStatus(PendingBookRequest.RequestStatus.AUTHOR_CREATED);
-                    } else if (pendingRequest.getStatus() == PendingBookRequest.RequestStatus.PENDING_GENRE_CREATION) {
-                        // Genre already came, both temporary entities are now ready!
+                    // Mark author as received (order-independent)
+                    pendingRequest.setAuthorPendingReceived(true);
+
+                    // Check if BOTH are now received
+                    if (pendingRequest.isAuthorPendingReceived() && pendingRequest.isGenrePendingReceived()) {
                         pendingRequest.setStatus(PendingBookRequest.RequestStatus.BOTH_PENDING_CREATED);
+                        System.out.println(" [x] 📝 Both Author and Genre pending received → BOTH_PENDING_CREATED");
+                    } else {
+                        System.out.println(" [x] 📝 Author pending received, waiting for Genre pending...");
                     }
 
                     pendingBookRequestRepository.save(pendingRequest);
@@ -156,18 +158,15 @@ public class BookRabbitmqController {
                 if (pendingRequestOpt.isPresent()) {
                     PendingBookRequest pendingRequest = pendingRequestOpt.get();
 
-                    // DEBUG: Log current status
-                    System.out.println(" [x] 🔍 DEBUG - Current status before update: " + pendingRequest.getStatus());
+                    // Mark genre as received (order-independent)
+                    pendingRequest.setGenrePendingReceived(true);
 
-                    // Check current status to update accordingly
-                    if (pendingRequest.getStatus() == PendingBookRequest.RequestStatus.PENDING_AUTHOR_CREATION) {
-                        pendingRequest.setStatus(PendingBookRequest.RequestStatus.PENDING_GENRE_CREATION);
-                        System.out.println(" [x] 📝 Status transition: PENDING_AUTHOR_CREATION → PENDING_GENRE_CREATION");
-                    } else if (pendingRequest.getStatus() == PendingBookRequest.RequestStatus.AUTHOR_CREATED) {
+                    // Check if BOTH are now received
+                    if (pendingRequest.isAuthorPendingReceived() && pendingRequest.isGenrePendingReceived()) {
                         pendingRequest.setStatus(PendingBookRequest.RequestStatus.BOTH_PENDING_CREATED);
-                        System.out.println(" [x] 📝 Status transition: AUTHOR_CREATED → BOTH_PENDING_CREATED");
+                        System.out.println(" [x] 📝 Both Author and Genre pending received → BOTH_PENDING_CREATED");
                     } else {
-                        System.out.println(" [x] ⚠️ No status transition - current status: " + pendingRequest.getStatus());
+                        System.out.println(" [x] 📝 Genre pending received, waiting for Author pending...");
                     }
 
                     pendingBookRequestRepository.save(pendingRequest);
@@ -445,23 +444,21 @@ public class BookRabbitmqController {
 
                     System.out.println(" [x] 🔍 Current status: " + pendingRequest.getStatus());
 
-                    // Update status based on current state
+                    // Mark author as finalized (order-independent)
+                    pendingRequest.setAuthorFinalizedReceived(true);
+
+                    // Update status based on what we have received
                     boolean statusChanged = false;
-                    if (pendingRequest.getStatus() == PendingBookRequest.RequestStatus.BOTH_PENDING_CREATED) {
-                        pendingRequest.setStatus(PendingBookRequest.RequestStatus.AUTHOR_FINALIZED);
-                        System.out.println(" [x] 📝 Status transition: BOTH_PENDING_CREATED → AUTHOR_FINALIZED");
-                        statusChanged = true;
-                    } else if (pendingRequest.getStatus() == PendingBookRequest.RequestStatus.GENRE_FINALIZED) {
+                    if (pendingRequest.isAuthorFinalizedReceived() && pendingRequest.isGenreFinalizedReceived()) {
                         pendingRequest.setStatus(PendingBookRequest.RequestStatus.BOTH_FINALIZED);
-                        System.out.println(" [x] 📝 Status transition: GENRE_FINALIZED → BOTH_FINALIZED");
-                        statusChanged = true;
-                    } else if (pendingRequest.getStatus() == PendingBookRequest.RequestStatus.AUTHOR_FINALIZED) {
-                        pendingRequest.setStatus(PendingBookRequest.RequestStatus.BOTH_FINALIZED);
-                        System.out.println(" [x] 📝 Status transition: AUTHOR_FINALIZED → BOTH_FINALIZED (race condition handled)");
+                        System.out.println(" [x] 📝 Status transition: Both finalized → BOTH_FINALIZED");
                         statusChanged = true;
                     } else if (pendingRequest.getStatus() == PendingBookRequest.RequestStatus.BOTH_FINALIZED) {
                         System.out.println(" [x] ✅ Already at BOTH_FINALIZED, proceeding to book creation");
                         statusChanged = false; // No need to save
+                    } else {
+                        System.out.println(" [x] 📝 Author finalized, waiting for Genre finalization...");
+                        statusChanged = true; // Save the flag update
                     }
 
                     if (statusChanged) {
@@ -534,23 +531,21 @@ public class BookRabbitmqController {
 
                     System.out.println(" [x] 🔍 Current status: " + pendingRequest.getStatus());
 
-                    // Update status based on current state
+                    // Mark genre as finalized (order-independent)
+                    pendingRequest.setGenreFinalizedReceived(true);
+
+                    // Update status based on what we have received
                     boolean statusChanged = false;
-                    if (pendingRequest.getStatus() == PendingBookRequest.RequestStatus.BOTH_PENDING_CREATED) {
-                        pendingRequest.setStatus(PendingBookRequest.RequestStatus.GENRE_FINALIZED);
-                        System.out.println(" [x] 📝 Status transition: BOTH_PENDING_CREATED → GENRE_FINALIZED");
-                        statusChanged = true;
-                    } else if (pendingRequest.getStatus() == PendingBookRequest.RequestStatus.AUTHOR_FINALIZED) {
+                    if (pendingRequest.isAuthorFinalizedReceived() && pendingRequest.isGenreFinalizedReceived()) {
                         pendingRequest.setStatus(PendingBookRequest.RequestStatus.BOTH_FINALIZED);
-                        System.out.println(" [x] 📝 Status transition: AUTHOR_FINALIZED → BOTH_FINALIZED");
-                        statusChanged = true;
-                    } else if (pendingRequest.getStatus() == PendingBookRequest.RequestStatus.GENRE_FINALIZED) {
-                        pendingRequest.setStatus(PendingBookRequest.RequestStatus.BOTH_FINALIZED);
-                        System.out.println(" [x] 📝 Status transition: GENRE_FINALIZED → BOTH_FINALIZED (race condition handled)");
+                        System.out.println(" [x] 📝 Status transition: Both finalized → BOTH_FINALIZED");
                         statusChanged = true;
                     } else if (pendingRequest.getStatus() == PendingBookRequest.RequestStatus.BOTH_FINALIZED) {
                         System.out.println(" [x] ✅ Already at BOTH_FINALIZED, proceeding to book creation");
                         statusChanged = false; // No need to save
+                    } else {
+                        System.out.println(" [x] 📝 Genre finalized, waiting for Author finalization...");
+                        statusChanged = true; // Save the flag update
                     }
 
                     if (statusChanged) {

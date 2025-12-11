@@ -30,6 +30,19 @@ public class PendingBookRequest {
     @Column(nullable = false)
     private LocalDateTime requestedAt;
 
+    // Flags to track received events (order-independent)
+    @Column(nullable = false)
+    private boolean authorPendingReceived = false;
+
+    @Column(nullable = false)
+    private boolean genrePendingReceived = false;
+
+    @Column(nullable = false)
+    private boolean authorFinalizedReceived = false;
+
+    @Column(nullable = false)
+    private boolean genreFinalizedReceived = false;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private RequestStatus status;
