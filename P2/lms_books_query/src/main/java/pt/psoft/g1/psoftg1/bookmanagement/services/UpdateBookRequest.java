@@ -18,6 +18,7 @@ public class UpdateBookRequest {
     @Setter
     private String description;
 
+    @Getter
     private String title;
 
     @Nullable
@@ -32,8 +33,10 @@ public class UpdateBookRequest {
     @Setter
     private Genre genreObj;
 
+    @Getter
     private String genre;
 
+    @Getter
     private List<Long> authors;
 
     private List<Author> authorObjList;

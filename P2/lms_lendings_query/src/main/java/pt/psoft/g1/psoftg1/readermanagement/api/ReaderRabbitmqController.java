@@ -36,7 +36,7 @@ public class ReaderRabbitmqController {
                              ", correlationId=" + request.getCorrelationId());
 
             // Check if reader exists
-            boolean exists = readerService.findByReaderNumber(request.getReaderId()).isPresent();
+            boolean exists = readerService.findByUsername(request.getReaderId()).isPresent();
 
             // Send response
             ReaderValidatedResponse response = new ReaderValidatedResponse(

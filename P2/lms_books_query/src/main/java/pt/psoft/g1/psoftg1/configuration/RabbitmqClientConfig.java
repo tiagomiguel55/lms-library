@@ -206,19 +206,19 @@ public class RabbitmqClientConfig {
         @Bean
         public BookRabbitmqController bookReceiver(BookService bookService,
                 @Qualifier("autoDeleteQueue_Book_Created") Queue autoDeleteQueue_Book_Created){
-            return new BookRabbitmqController(bookService);
+            return new BookRabbitmqController();
         }
 
         @Bean
         public AuthorRabbitmqController authorReceiver(AuthorService authorService,
                 @Qualifier("autoDeleteQueue_Author_Created") Queue autoDeleteQueue_Author_Created){
-            return new AuthorRabbitmqController(authorService);
+            return new AuthorRabbitmqController();
         }
 
         @Bean
         public GenreRabbitmqController genreReceiver(GenreService genreService,
                 @Qualifier("autoDeleteQueue_Genre_Created") Queue autoDeleteQueue_Genre_Created){
-            return new GenreRabbitmqController(genreService);
+            return new GenreRabbitmqController();
         }
     }
 }

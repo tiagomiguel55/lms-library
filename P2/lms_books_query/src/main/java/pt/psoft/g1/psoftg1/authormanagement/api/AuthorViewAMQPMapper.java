@@ -1,3 +1,13 @@
+package pt.psoft.g1.psoftg1.authormanagement.api;
+
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import jakarta.validation.constraints.NotNull;
+import java.util.HashMap;
+import java.util.Map;
+
+@NoArgsConstructor
 public class AuthorViewAMQP {
     @NotNull
     private Long authorNumber;

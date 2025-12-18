@@ -80,7 +80,7 @@ public class SecurityConfig  {
     @Bean
     public UserDetailsService userDetailsService() {
         return username -> userRepo.findByUsername(username)
-                .orElseThrow(() -> new UsernameNotFoundException(format("User: %s, not found", username)));
+                .orElseThrow(() -> new UsernameNotFoundException(String.format("User: %s, not found", username)));
     }
 
     @Bean

@@ -41,6 +41,10 @@ public class Author extends EntityWithPhoto {
         return authorNumber;
     }
 
+    public long getAuthorNumber() {
+        return authorNumber;
+    }
+
     public Author(String name, String bio, String photoURI) {
         setName(name);
         setBio(bio);
