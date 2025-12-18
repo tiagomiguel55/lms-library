@@ -58,6 +58,12 @@ public class RabbitmqClientConfig {
             return new AnonymousQueue();
         }
 
+        @Bean(name = "autoDeleteQueue_Validate_Book")
+        public Queue autoDeleteQueue_Validate_Book() {
+            System.out.println("autoDeleteQueue_Validate_Book created!");
+            return new AnonymousQueue();
+        }
+
         // Author Queues
         @Bean(name = "autoDeleteQueue_Author_Created")
         public Queue autoDeleteQueue_Author_Created() {
@@ -92,6 +98,11 @@ public class RabbitmqClientConfig {
             return new AnonymousQueue();
         }
 
+        @Bean
+        public Queue autoDeleteQueue_Lending_Returned() {
+            return new AnonymousQueue();
+        }
+
         // Book Bindings
         @Bean
         public Binding binding1(DirectExchange direct,
@@ -123,6 +134,14 @@ public class RabbitmqClientConfig {
             return BindingBuilder.bind(autoDeleteQueue_Book_Requested)
                     .to(direct)
                     .with(BookEvents.BOOK_REQUESTED);
+        }
+
+        @Bean
+        public Binding bindingValidateBook(DirectExchange direct,
+                @Qualifier("autoDeleteQueue_Validate_Book") Queue autoDeleteQueue_Validate_Book){
+            return BindingBuilder.bind(autoDeleteQueue_Validate_Book)
+                    .to(direct)
+                    .with("book.validate");
         }
 
         // Author Bindings
@@ -173,6 +192,14 @@ public class RabbitmqClientConfig {
             return BindingBuilder.bind(autoDeleteQueue_Genre_Deleted)
                     .to(directGenres)
                     .with(GenreEvents.GENRE_DELETED);
+        }
+
+        @Bean
+        public Binding bindingLendingReturned(DirectExchange direct,
+                Queue autoDeleteQueue_Lending_Returned){
+            return BindingBuilder.bind(autoDeleteQueue_Lending_Returned)
+                    .to(direct)
+                    .with("lending.returned");
         }
 
         // Receivers

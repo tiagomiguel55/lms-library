@@ -108,6 +108,11 @@ public class RabbitmqClientConfig {
             return new AnonymousQueue();
         }
 
+        @Bean
+        public Queue autoDeleteQueue_Lending_Returned() {
+            return new AnonymousQueue();
+        }
+
             @Bean
             public Binding binding1 (DirectExchange direct,
                     @Qualifier("autoDeleteQueue_Book_Created") Queue autoDeleteQueue_Book_Created){
@@ -218,6 +223,14 @@ public class RabbitmqClientConfig {
                 return BindingBuilder.bind(autoDeleteQueue_Genre_Created)
                         .to(directGenres)
                         .with(pt.psoft.g1.psoftg1.shared.model.GenreEvents.GENRE_CREATED);
+            }
+
+            @Bean
+            public Binding bindingLendingReturned (DirectExchange direct,
+                    Queue autoDeleteQueue_Lending_Returned){
+                return BindingBuilder.bind(autoDeleteQueue_Lending_Returned)
+                        .to(direct)
+                        .with("lending.returned");
             }
 
             @Bean
