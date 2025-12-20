@@ -77,16 +77,19 @@ public class LendingEventListener {
             String jsonReceived = new String(msg.getBody(), StandardCharsets.UTF_8);
             LendingViewAMQP lendingViewAMQP = objectMapper.readValue(jsonReceived, LendingViewAMQP.class);
 
-            System.out.println(" [x] Received lending Created by AMQP: " + msg + ".");
+            System.out.println(" [x] Received lending Created by AMQP for: " + lendingViewAMQP.getLendingNumber());
             try {
                 lendingService.create(lendingViewAMQP);
-                System.out.println(" [x] New lending inserted from AMQP: " + msg + ".");
+                System.out.println(" [x] New lending inserted from AMQP: " + lendingViewAMQP.getLendingNumber());
             } catch (Exception e) {
-                System.out.println(" [x] lending already exists. No need to store it.");
+                System.out.println(" [x] Exception creating lending: '" + e.getMessage() + "'");
+                System.out.println(" [x] Stack trace: ");
+                e.printStackTrace();
             }
         }
         catch(Exception ex) {
             System.out.println(" [x] Exception receiving lending event from AMQP: '" + ex.getMessage() + "'");
+            ex.printStackTrace();
         }
     }
 

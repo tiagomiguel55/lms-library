@@ -4,6 +4,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Profile;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Component;
 import pt.psoft.g1.psoftg1.bookmanagement.model.mongodb.BookMongoDB;
 import pt.psoft.g1.psoftg1.bookmanagement.repositories.mongodb.BookRepositoryMongoDB;
@@ -26,13 +30,15 @@ public class LendingMongoDBRepositoryImpl implements LendingRepository {
     private final LendingMongoDBRepository lendingMongoDBRepository;
     private final LendingMongoDBMapper lendingMapperMongoDB;
     private final BookRepositoryMongoDB bookRepositoryMongoDB;
+    private final MongoTemplate mongoTemplate;
 
     @Autowired
     @Lazy
-    public LendingMongoDBRepositoryImpl(LendingMongoDBRepository lendingMongoDBRepository, LendingMongoDBMapper lendingMapperMongoDB, BookRepositoryMongoDB bookRepositoryMongoDB) {
+    public LendingMongoDBRepositoryImpl(LendingMongoDBRepository lendingMongoDBRepository, LendingMongoDBMapper lendingMapperMongoDB, BookRepositoryMongoDB bookRepositoryMongoDB, MongoTemplate mongoTemplate) {
         this.lendingMongoDBRepository = lendingMongoDBRepository;
         this.lendingMapperMongoDB = lendingMapperMongoDB;
         this.bookRepositoryMongoDB = bookRepositoryMongoDB;
+        this.mongoTemplate = mongoTemplate;
     }
 
     @Override
@@ -59,15 +65,57 @@ public class LendingMongoDBRepositoryImpl implements LendingRepository {
 
     @Override
     public int getCountFromCurrentYear() {
-        return this.lendingMongoDBRepository.getCountFromCurrentYear();
+        try {
+            int year = java.time.LocalDate.now().getYear();
+            System.out.println("Getting next sequence for year " + year);
+            
+            // Use MongoDB's findAndModify to atomically get and increment the counter
+            Query query = Query.query(Criteria.where("_id").is("lending_seq_" + year));
+            Update update = new Update().inc("seq", 1);
+            
+            LendingSequenceCounter counter = mongoTemplate.findAndModify(
+                query,
+                update,
+                new org.springframework.data.mongodb.core.FindAndModifyOptions().returnNew(true).upsert(true),
+                LendingSequenceCounter.class
+            );
+            
+            if (counter == null) {
+                System.out.println("Counter was null, creating new one");
+                counter = new LendingSequenceCounter("lending_seq_" + year, 1);
+                mongoTemplate.save(counter, "lending_sequence");
+                return 1;
+            }
+            
+            System.out.println("Next sequence number: " + counter.getSeq());
+            return counter.getSeq();
+        } catch (Exception e) {
+            System.err.println("Error getting next sequence: " + e.getMessage());
+            e.printStackTrace();
+            return 0;
+        }
     }
 
     @Override
     public List<Lending> listOutstandingByReaderNumber(String readerNumber) {
         List<Lending> lendings = new ArrayList<>();
 
-        for(LendingMongoDB lendingMongoDB : lendingMongoDBRepository.listOutstandingByReaderNumber(readerNumber)){
-            lendings.add(lendingMapperMongoDB.toDomain(lendingMongoDB));
+        System.out.println("Starting to retrieve outstanding lendings for reader: " + readerNumber);
+        List<LendingMongoDB> mongoDbLendings = lendingMongoDBRepository.listOutstandingByReaderNumber(readerNumber);
+        System.out.println("Found " + mongoDbLendings.size() + " MongoDB lendings");
+        
+        int count = 0;
+        for(LendingMongoDB lendingMongoDB : mongoDbLendings){
+            count++;
+            System.out.println("Converting lending " + count + " to domain object...");
+            try {
+                Lending domainLending = lendingMapperMongoDB.toDomain(lendingMongoDB);
+                System.out.println("Successfully converted lending " + count);
+                lendings.add(domainLending);
+            } catch (Exception e) {
+                System.err.println("Error converting lending " + count + ": " + e.getClass().getName());
+                throw e;
+            }
         }
 
         return lendings;
@@ -121,8 +169,8 @@ public class LendingMongoDBRepositoryImpl implements LendingRepository {
         }
 
         System.out.println("Lending Number: " + lendingMongoDB.getLendingNumber());
-        System.out.println("Book: " + lendingMongoDB.getBook().toString());
-        System.out.println("Reader Details: " + lendingMongoDB.getReaderDetails().toString());
+        System.out.println("Book ISBN: " + (lendingMongoDB.getBook() != null ? lendingMongoDB.getBook().getIsbn() : "null"));
+        System.out.println("Reader Number: " + (lendingMongoDB.getReaderDetails() != null ? lendingMongoDB.getReaderDetails().getReaderNumber() : "null"));
         System.out.println("Start Date: " + lendingMongoDB.getStartDate());
         System.out.println("Limit Date: " + lendingMongoDB.getLimitDate());
         System.out.println("Returned Date: " + lendingMongoDB.getReturnedDate());
@@ -130,16 +178,16 @@ public class LendingMongoDBRepositoryImpl implements LendingRepository {
         System.out.println("Days Until Return: " + lendingMongoDB.getDaysUntilReturn());
         System.out.println("Days Overdue: " + lendingMongoDB.getDaysOverdue());
         LendingMongoDB savedEntity = lendingMongoDBRepository.save(lendingMongoDB);
-        System.out.println("Saved entity: " + savedEntity);
-        System.out.println("Lending Number: " + savedEntity.getLendingNumber());
-        System.out.println("Book: " + savedEntity.getBook().toString());
-        System.out.println("Reader Details: " + savedEntity.getReaderDetails().toString());
-        System.out.println("Start Date: " + savedEntity.getStartDate());
-        System.out.println("Limit Date: " + savedEntity.getLimitDate());
-        System.out.println("Returned Date: " + savedEntity.getReturnedDate());
-        System.out.println("Fine Value Per Day In Cents: " + savedEntity.getFineValuePerDayInCents());
-        System.out.println("Days Until Return: " + savedEntity.getDaysUntilReturn());
-        System.out.println("Days Overdue: " + savedEntity.getDaysOverdue());
+        System.out.println("Lending saved successfully");
+        System.out.println("Saved Lending Number: " + savedEntity.getLendingNumber());
+        System.out.println("Saved Book ISBN: " + (savedEntity.getBook() != null ? savedEntity.getBook().getIsbn() : "null"));
+        System.out.println("Saved Reader Number: " + (savedEntity.getReaderDetails() != null ? savedEntity.getReaderDetails().getReaderNumber() : "null"));
+        System.out.println("Saved Start Date: " + savedEntity.getStartDate());
+        System.out.println("Saved Limit Date: " + savedEntity.getLimitDate());
+        System.out.println("Saved Returned Date: " + savedEntity.getReturnedDate());
+        System.out.println("Saved Fine Value Per Day In Cents: " + savedEntity.getFineValuePerDayInCents());
+        System.out.println("Saved Days Until Return: " + savedEntity.getDaysUntilReturn());
+        System.out.println("Saved Days Overdue: " + savedEntity.getDaysOverdue());
         return lendingMapperMongoDB.toDomain(savedEntity);
     }
 

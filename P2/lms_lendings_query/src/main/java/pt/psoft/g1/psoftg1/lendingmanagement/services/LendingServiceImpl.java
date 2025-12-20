@@ -12,6 +12,7 @@ import pt.psoft.g1.psoftg1.lendingmanagement.api.LendingDetailsView;
 import pt.psoft.g1.psoftg1.lendingmanagement.api.LendingViewAMQP;
 import pt.psoft.g1.psoftg1.lendingmanagement.model.Fine;
 import pt.psoft.g1.psoftg1.lendingmanagement.model.Lending;
+import pt.psoft.g1.psoftg1.lendingmanagement.model.LendingNumber;
 import pt.psoft.g1.psoftg1.lendingmanagement.publishers.LendingEventPublisher;
 import pt.psoft.g1.psoftg1.lendingmanagement.repositories.FineRepository;
 import pt.psoft.g1.psoftg1.lendingmanagement.repositories.LendingRepository;
@@ -229,39 +230,86 @@ public class LendingServiceImpl implements LendingService{
 
     @Override
     public Lending create(LendingViewAMQP resource) {
+        // Idempotency guard so we do not re-create the same lending if the event is re-delivered
+        Optional<Lending> existing = lendingRepository.findByLendingNumber(resource.getLendingNumber());
+        if (existing.isPresent()) {
+            System.out.println(" [DEBUG] Lending already exists: " + resource.getLendingNumber());
+            return existing.get();
+        }
 
-        int count = 0;
-        System.out.println("Creating Lending");
-        Iterable<Lending> lendingList = lendingRepository.listOutstandingByReaderNumber(resource.getReaderNumber());
-        System.out.println("Lending list");
-        for (Lending lending : lendingList) {
+        // Retry logic to wait for book/reader to be synced from other services
+        final var book = findBookWithRetry(resource.getIsbn(), 3);
+        final var readerDetails = findReaderWithRetry(resource.getReaderNumber(), 3);
 
-            //Business rule: cannot create a lending if user has late outstanding books to return.
-            if (lending.getDaysDelayed() > 0) {
-                throw new LendingForbiddenException("Reader has book(s) past their due date");
-            }
-            count++;
-            System.out.println(count);
-            //Business rule: cannot create a lending if user already has 3 outstanding books to return.
-            if (count >= 3) {
-                throw new LendingForbiddenException("Reader has three books outstanding already");
+        LocalDate startDate = LocalDate.parse(resource.getStartDate());
+        LocalDate limitDate = LocalDate.parse(resource.getLimitDate());
+        LocalDate returnedDate = resource.getReturnedDate() != null ? LocalDate.parse(resource.getReturnedDate()) : null;
+
+        long version = 0L;
+        if (resource.getVersion() != null) {
+            try {
+                version = Long.parseLong(resource.getVersion());
+            } catch (NumberFormatException ignored) {
+                // keep default version 0 when the incoming payload has no numeric version
             }
         }
 
-        final var b = bookRepository.findByIsbn(resource.getIsbn())
-                .orElseThrow(() -> new NotFoundException("Book not found"));
-        final var r = readerRepository.findByReaderNumber(resource.getReaderNumber())
-                .orElseThrow(() -> new NotFoundException("Reader not found"));
-        int seq = lendingRepository.getCountFromCurrentYear()+1;
-        final Lending l = new Lending(b,r,seq, lendingDurationInDays, fineValuePerDayInCents );
+        Lending lending = Lending.builder()
+                .book(book)
+                .readerDetails(readerDetails)
+                .lendingNumber(new LendingNumber(resource.getLendingNumber()))
+                .startDate(startDate)
+                .limitDate(limitDate)
+                .returnedDate(returnedDate)
+                .fineValuePerDayInCents(fineValuePerDayInCents)
+                .genId(resource.getGenId())
+                .readerValid(true)
+                .bookValid(true)
+                .lendingStatus("VALIDATED")
+                .version(version)
+                .build();
 
-        l.setReaderValid(true);
-        l.setBookValid(true);
-        l.setLendingStatus("VALIDATED");
+        return lendingRepository.save(lending);
+    }
 
-        Lending saved=lendingRepository.save(l);
+    private Book findBookWithRetry(String isbn, int maxRetries) {
+        for (int i = 0; i < maxRetries; i++) {
+            Optional<Book> bookOpt = bookRepository.findByIsbn(isbn);
+            if (bookOpt.isPresent()) {
+                System.out.println(" [DEBUG] Found book on attempt " + (i + 1) + ": " + isbn);
+                return bookOpt.get();
+            }
+            if (i < maxRetries - 1) {
+                System.out.println(" [DEBUG] Book not found yet (attempt " + (i + 1) + "/" + maxRetries + "), retrying in 500ms: " + isbn);
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        }
+        throw new NotFoundException("Book not found after " + maxRetries + " retries: " + isbn);
+    }
 
-        return saved;
+    private ReaderDetails findReaderWithRetry(String readerNumber, int maxRetries) {
+        for (int i = 0; i < maxRetries; i++) {
+            Optional<ReaderDetails> readerOpt = readerRepository.findByReaderNumber(readerNumber);
+            if (readerOpt.isPresent()) {
+                System.out.println(" [DEBUG] Found reader on attempt " + (i + 1) + ": " + readerNumber);
+                return readerOpt.get();
+            }
+            if (i < maxRetries - 1) {
+                System.out.println(" [DEBUG] Reader not found yet (attempt " + (i + 1) + "/" + maxRetries + "), retrying in 500ms: " + readerNumber);
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        }
+        throw new NotFoundException("Reader not found after " + maxRetries + " retries: " + readerNumber);
     }
 
     @Override

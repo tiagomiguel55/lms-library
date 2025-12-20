@@ -39,7 +39,7 @@ LendingsCmd -> LendingsCmd: Create Lending\n(PENDING)
 LendingsCmd -> MessageBroker: LendingCreated(bookId, readerId, dueDate)
 MessageBroker -> LendingsQuery: LendingCreated
 activate LendingsQuery
-LendingsQuery -> LendingsQuery: Save Lending
+LendingsQuery -> LendingsQuery: Create Lending
 deactivate LendingsQuery
 LendingsCmd --> HttpClient: 201 Created
 

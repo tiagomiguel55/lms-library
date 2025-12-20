@@ -122,7 +122,7 @@ public class LendingEventPublisher {
             LendingReturnedEvent event = new LendingReturnedEvent(lendingId, bookId, readerId, comment, grade);
             String jsonString = objectMapper.writeValueAsString(event);
 
-            this.template.convertAndSend(direct.getName(), "lending.returned", jsonString);
+            this.template.convertAndSend(direct.getName(), LendingEvents.LENDING_RETURNED, jsonString);
             System.out.println(" [x] Sent LendingReturned event: lendingId=" + lendingId + ", bookId=" + bookId);
         } catch (Exception ex) {
             System.out.println(" [x] Exception sending LendingReturned event: '" + ex.getMessage() + "'");

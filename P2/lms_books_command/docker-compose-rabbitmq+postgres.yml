@@ -9,6 +9,7 @@ services:
         environment:
             POSTGRES_USER: postgres
             POSTGRES_PASSWORD: password
+            POSTGRES_DB: lms_books
         volumes:
             - "postgres_volume:/var/lib/postgresql"
         networks:

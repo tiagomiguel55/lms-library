@@ -183,7 +183,7 @@ public class RabbitMQConfig {
                                           @Qualifier("lendingReturnedQueue") Queue queue) {
         return BindingBuilder.bind(queue)
                 .to(direct)
-                .with("lending.returned");
+                .with(LendingEvents.LENDING_RETURNED);
     }
 
     @Bean

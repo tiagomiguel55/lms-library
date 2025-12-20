@@ -108,15 +108,16 @@ public class LendingMongoDBRepositoryImpl implements LendingRepository {
             System.out.println("Get book first: " + lendingMongoDB.getBook());
             System.out.println("Book ISBN: " + lendingMongoDB.getBook().getIsbn());
             Optional<BookMongoDB> existingBookOptional = bookRepositoryMongoDB.findByIsbn(lendingMongoDB.getBook().getIsbn());
-            System.out.println(existingBookOptional.get().getTitle());
-            if(existingBookOptional.isPresent()){
+            existingBookOptional.ifPresent(existing -> System.out.println(existing.getTitle()));
+
+            if (existingBookOptional.isPresent()) {
                 System.out.println("Book already exists so its present");
                 lendingMongoDB.setBook(existingBookOptional.get());
                 System.out.println("Get book second: " + lendingMongoDB.getBook());
             } else {
                 System.out.println("Book does not exist so its not present");
                 BookMongoDB savedBook = bookRepositoryMongoDB.save(lendingMongoDB.getBook());
-                bookRepositoryMongoDB.save(savedBook);
+                lendingMongoDB.setBook(savedBook);
             }
         }
 

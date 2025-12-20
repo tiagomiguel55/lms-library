@@ -1,11 +1,9 @@
 package pt.psoft.g1.psoftg1.shared.services.generator;
 
-import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.security.SecureRandom;
 
-@Profile("hex")
 @Component
 public class HexGenerator implements IdGenerator{
 

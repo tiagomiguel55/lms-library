@@ -200,14 +200,4 @@ public class LendingController {
         final var readerList = lendingService.searchLendings(request.getPage(), request.getQuery());
         return new ListResponse<>(lendingViewMapper.toLendingView(readerList));
     }
-
-    @Operation(summary = "Gets all Lendings")
-    @GetMapping
-    public ListResponse<LendingView> getAllLendings() {
-        final var lendings = lendingService.getAll();
-        return new ListResponse<>(lendingViewMapper.toLendingView(lendings));
-    }
-
-
-
 }

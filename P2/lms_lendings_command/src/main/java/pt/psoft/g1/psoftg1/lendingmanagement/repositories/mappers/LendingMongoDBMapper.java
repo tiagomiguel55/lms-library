@@ -14,6 +14,9 @@ import pt.psoft.g1.psoftg1.shared.model.Name;
 import pt.psoft.g1.psoftg1.shared.model.Photo;
 import pt.psoft.g1.psoftg1.shared.model.mongodb.NameMongoDB;
 import pt.psoft.g1.psoftg1.shared.model.mongodb.PhotoMongoDB;
+import pt.psoft.g1.psoftg1.usermanagement.model.Reader;
+import pt.psoft.g1.psoftg1.readermanagement.model.mongodb.ReaderNumberMongoDB;
+import pt.psoft.g1.psoftg1.readermanagement.model.ReaderNumber;
 
 @Mapper(componentModel = "spring")
 public interface LendingMongoDBMapper {
@@ -33,10 +36,34 @@ public interface LendingMongoDBMapper {
     LendingNumber stringToLn (String value);
 
 
+    @Mapping(target = "reader", source = "reader")
     ReaderDetails toDomain(ReaderDetailsMongoDB readerDetailsMongoDB);
 
 
+    @Mapping(target = "reader", source = "reader")
     ReaderDetailsMongoDB toMongoDB(ReaderDetails readerDetails);
+
+    // Prevent MapStruct from recursively mapping Reader - just pass it through
+    default Reader map(Reader reader) {
+        return reader;
+    }
+
+    // Map ReaderNumber types
+    default ReaderNumber toReaderNumber(ReaderNumberMongoDB readerNumberMongoDB) {
+        if (readerNumberMongoDB == null) {
+            return null;
+        }
+        String[] parts = readerNumberMongoDB.toString().split("/");
+        return new ReaderNumber(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]));
+    }
+
+    default ReaderNumberMongoDB toReaderNumberMongoDB(ReaderNumber readerNumber) {
+        if (readerNumber == null) {
+            return null;
+        }
+        String[] parts = readerNumber.toString().split("/");
+        return new ReaderNumberMongoDB(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]));
+    }
 
     default int map(String value) {
         if (value == null) {

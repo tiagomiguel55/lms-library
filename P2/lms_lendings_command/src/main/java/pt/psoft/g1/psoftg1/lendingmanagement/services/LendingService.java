@@ -41,6 +41,4 @@ public interface LendingService {
     void readerValidated(String lendingNumber);
 
     void bookValidated(String lendingNumber);
-
-    List<Lending> getAll();
 }

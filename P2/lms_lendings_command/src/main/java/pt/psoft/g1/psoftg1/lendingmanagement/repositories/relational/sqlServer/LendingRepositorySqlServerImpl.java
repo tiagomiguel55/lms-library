@@ -237,8 +237,14 @@ public class LendingRepositorySqlServerImpl implements LendingRepository {
 
     @Override
     public List<Lending> findAll() {
-        List<Lending> lendings = new ArrayList<>();
-        for (LendingEntity lendingEntity : lendingRepositorySqlServer.findAll()) {
+        // Fetch directly via EntityManager to avoid the Spring Data proxy looping back into this adapter
+        final List<LendingEntity> lendingEntities = em.createQuery(
+            "SELECT l FROM LendingEntity l",
+            LendingEntity.class
+        ).getResultList();
+
+        List<Lending> lendings = new ArrayList<>(lendingEntities.size());
+        for (LendingEntity lendingEntity : lendingEntities) {
             lendings.add(lendingEntityMapper.sqlServerToModel(lendingEntity));
         }
         return lendings;

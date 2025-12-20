@@ -91,17 +91,27 @@ public class LendingServiceImpl implements LendingService{
             }
         }
 
+        System.out.println("Fetching book with ISBN: " + resource.getIsbn());
         final var b = bookRepository.findByIsbn(resource.getIsbn())
                 .orElseThrow(() -> new NotFoundException("Book not found"));
+        System.out.println("Book found: " + b.getIsbn());
+        
         final var r = readerDetails;
+        System.out.println("Reader details: " + r.getReaderNumber());
+        
         int seq = lendingRepository.getCountFromCurrentYear()+1;
+        System.out.println("Creating Lending object with seq: " + seq);
+        
         final Lending l = new Lending(b,r,seq, lendingDurationInDays, fineValuePerDayInCents );
+        System.out.println("Lending object created successfully");
 
         l.setBookValid(true);
         l.setReaderValid(true);
         l.setLendingStatus("VALIDATED");
+        System.out.println("About to save lending");
 
         Lending saved=lendingRepository.save(l);
+        System.out.println("Lending saved successfully");
 
         if (saved != null) {
             lendingEventPublisher.sendLendingCreated(saved);
@@ -344,11 +354,4 @@ public class LendingServiceImpl implements LendingService{
 
         }
     }
-
-    @Override
-    public List<Lending> getAll() {
-        return lendingRepository.findAll();
-    }
-
-
 }

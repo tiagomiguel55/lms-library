@@ -78,6 +78,12 @@ public class LendingEventListener {
 
             System.out.println(" [x] Received lending Created by AMQP: " + msg + ".");
             try {
+                // Avoid duplicating the lending when the command service consumes its own event
+                if (lendingService.findByLendingNumber(lendingViewAMQP.getLendingNumber()).isPresent()) {
+                    System.out.println(" [x] lending already exists. Skipping store.");
+                    return;
+                }
+
                 lendingService.create(lendingViewAMQP);
                 System.out.println(" [x] New lending inserted from AMQP: " + msg + ".");
             } catch (Exception e) {

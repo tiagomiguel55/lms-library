@@ -281,7 +281,7 @@ public class Bootstrapper implements CommandLineRunner {
         for(i = 0; i < 3; i++){
             ++seq;
             //System.out.println(seq);
-            if(lendingRepository.findByLendingNumber("2025/" + (seq)).isEmpty()){
+            if(lendingRepository.findByLendingNumber("2024/" + (seq)).isEmpty()){
                 //System.out.println("tou aqui");
 
                 startDate = LocalDate.of(2024, 1,31-i);
@@ -300,7 +300,7 @@ public class Bootstrapper implements CommandLineRunner {
         //Lendings 4 through 6 (overdue, not returned)
         for(i = 0; i < 3; i++){
             ++seq;
-            if(lendingRepository.findByLendingNumber("2025/" + (seq)).isEmpty()){
+            if(lendingRepository.findByLendingNumber("2024/" + (seq)).isEmpty()){
                 startDate = LocalDate.of(2024, 3,25+i);
                 lending = Lending.newBootstrappingLending(books.get(1+i), readers.get(1+i*2),2024, seq, startDate, null, lendingDurationInDays, fineValuePerDayInCents);
                 lendingRepository.save(lending);
@@ -309,7 +309,7 @@ public class Bootstrapper implements CommandLineRunner {
         //Lendings 7 through 9 (late, overdue, not returned)
         for(i = 0; i < 3; i++){
             ++seq;
-            if(lendingRepository.findByLendingNumber("2025/" + seq).isEmpty()){
+            if(lendingRepository.findByLendingNumber("2024/" + seq).isEmpty()){
                 startDate = LocalDate.of(2024, 4,(1+2*i));
                 lending = Lending.newBootstrappingLending(books.get(3/(i+1)), readers.get(i*2),2024, seq, startDate, null, lendingDurationInDays, fineValuePerDayInCents);
                 lendingRepository.save(lending);
@@ -319,7 +319,7 @@ public class Bootstrapper implements CommandLineRunner {
         //Lendings 10 through 12 (returned)
         for(i = 0; i < 3; i++){
             ++seq;
-            if(lendingRepository.findByLendingNumber("2025/" + seq).isEmpty()){
+            if(lendingRepository.findByLendingNumber("2024/" + seq).isEmpty()){
                 startDate = LocalDate.of(2024, 5,(i+1));
                 returnedDate = LocalDate.of(2024,5,(i+2));
                 lending = Lending.newBootstrappingLending(books.get(3-i), readers.get(1+i*2),2024, seq, startDate, returnedDate, lendingDurationInDays, fineValuePerDayInCents);
@@ -330,7 +330,7 @@ public class Bootstrapper implements CommandLineRunner {
         //Lendings 13 through 18 (returned)
         for(i = 0; i < 6; i++){
             ++seq;
-            if(lendingRepository.findByLendingNumber("2025/" + seq).isEmpty()){
+            if(lendingRepository.findByLendingNumber("2024/" + seq).isEmpty()){
                 startDate = LocalDate.of(2024, 5,(i+2));
                 returnedDate = LocalDate.of(2024,5,(i+2*2));
                 lending = Lending.newBootstrappingLending(books.get(i), readers.get(i),2024, seq, startDate, returnedDate, lendingDurationInDays, fineValuePerDayInCents);
@@ -341,7 +341,7 @@ public class Bootstrapper implements CommandLineRunner {
         //Lendings 19 through 23 (returned)
         for(i = 0; i < 6; i++){
             ++seq;
-            if(lendingRepository.findByLendingNumber("2025/" + seq).isEmpty()){
+            if(lendingRepository.findByLendingNumber("2024/" + seq).isEmpty()){
                 startDate = LocalDate.of(2024, 5,(i+8));
                 returnedDate = LocalDate.of(2024,5,(2*i+8));
 
@@ -353,7 +353,7 @@ public class Bootstrapper implements CommandLineRunner {
         //Lendings 24 through 29 (returned)
         for(i = 0; i < 6; i++){
             ++seq;
-            if(lendingRepository.findByLendingNumber("2025/" + seq).isEmpty()){
+            if(lendingRepository.findByLendingNumber("2024/" + seq).isEmpty()){
                 startDate = LocalDate.of(2024, 5,(i+18));
                 returnedDate = LocalDate.of(2024,5,(2*i+18));
                 lending = Lending.newBootstrappingLending(books.get(i), readers.get(i%2+2),2024, seq, startDate, returnedDate, lendingDurationInDays, fineValuePerDayInCents);
@@ -364,7 +364,7 @@ public class Bootstrapper implements CommandLineRunner {
         //Lendings 30 through 35 (not returned, not overdue)
         for(i = 0; i < 6; i++){
             ++seq;
-            if(lendingRepository.findByLendingNumber("2025/" + seq).isEmpty()){
+            if(lendingRepository.findByLendingNumber("2024/" + seq).isEmpty()){
                 startDate = LocalDate.of(2024, 6,(i/3+1));
                 lending = Lending.newBootstrappingLending(books.get(i), readers.get(i%2+3),2024, seq, startDate, null, lendingDurationInDays, fineValuePerDayInCents);
                 lendingRepository.save(lending);
@@ -374,7 +374,7 @@ public class Bootstrapper implements CommandLineRunner {
         //Lendings 36 through 45 (not returned, not overdue)
         for(i = 0; i < 10; i++){
             ++seq;
-            if(lendingRepository.findByLendingNumber("2025/" + seq).isEmpty()){
+            if(lendingRepository.findByLendingNumber("2024/" + seq).isEmpty()){
                 startDate = LocalDate.of(2024, 6,(2+i/4));
                 lending = Lending.newBootstrappingLending(books.get(i), readers.get(4-i%4),2024, seq, startDate, null, lendingDurationInDays, fineValuePerDayInCents);
                 lendingRepository.save(lending);

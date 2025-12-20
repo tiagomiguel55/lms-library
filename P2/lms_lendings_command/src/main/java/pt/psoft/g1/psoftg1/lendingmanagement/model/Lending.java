@@ -74,7 +74,7 @@ public class Lending {
     private Integer daysOverdue;
 
 
-    private final IdGeneratorFactory idGeneratorFactory = new IdGeneratorFactory();
+    private IdGeneratorFactory idGeneratorFactory;
 
     /**
      * Constructs a new {@code Lending} object.
@@ -104,10 +104,18 @@ public class Lending {
     }
 
     public void setGenId(String genId) {
-        if (this.genId == null) {
-            this.genId = idGeneratorFactory.getGenerator().generateId();
-        }else {
+        if (genId != null) {
             this.genId = genId;
+        } else if (this.genId == null) {
+            try {
+                if (idGeneratorFactory == null) {
+                    idGeneratorFactory = new IdGeneratorFactory();
+                }
+                this.genId = idGeneratorFactory.getGenerator().generateId();
+            } catch (Exception e) {
+                // Fallback if Spring context is not available
+                this.genId = java.util.UUID.randomUUID().toString().substring(0, 20);
+            }
         }
     }
     @Builder

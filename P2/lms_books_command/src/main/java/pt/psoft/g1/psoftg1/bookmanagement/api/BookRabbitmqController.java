@@ -13,6 +13,7 @@ import pt.psoft.g1.psoftg1.bookmanagement.model.PendingBookRequest;
 import pt.psoft.g1.psoftg1.bookmanagement.repositories.BookRepository;
 import pt.psoft.g1.psoftg1.bookmanagement.repositories.PendingBookRequestRepository;
 import pt.psoft.g1.psoftg1.bookmanagement.services.BookService;
+import pt.psoft.g1.psoftg1.bookmanagement.publishers.BookEventsPublisher;
 import org.springframework.amqp.core.Message;
 import pt.psoft.g1.psoftg1.genremanagement.model.Genre;
 import pt.psoft.g1.psoftg1.genremanagement.repositories.GenreRepository;
@@ -40,6 +41,9 @@ public class BookRabbitmqController {
 
     @Autowired
     private final PendingBookRequestRepository pendingBookRequestRepository;
+
+    @Autowired
+    private final BookEventsPublisher bookEventsPublisher;
 
     @RabbitListener(queues = "#{autoDeleteQueue_Book_Created.name}")
     public void receiveBookCreatedMsg(Message msg) {
@@ -655,7 +659,7 @@ public class BookRabbitmqController {
                 System.out.println("Adding comment: " + event.getComment() + ", grade: " + event.getGrade());
                 
                 // Publish BookUpdated event
-                bookEventsPublisher.sendBookUpdated(book);
+                bookEventsPublisher.sendBookUpdated(book, book.getVersion());
                 System.out.println("Published BookUpdated event for: " + event.getBookId());
             } else {
                 System.out.println("Book not found for ISBN: " + event.getBookId());
