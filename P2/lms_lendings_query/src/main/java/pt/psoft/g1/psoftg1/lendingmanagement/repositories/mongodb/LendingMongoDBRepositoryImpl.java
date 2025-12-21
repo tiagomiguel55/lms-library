@@ -4,7 +4,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Profile;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Component;
+import org.bson.types.ObjectId;
 import pt.psoft.g1.psoftg1.bookmanagement.model.mongodb.BookMongoDB;
 import pt.psoft.g1.psoftg1.bookmanagement.repositories.mongodb.BookRepositoryMongoDB;
 import pt.psoft.g1.psoftg1.lendingmanagement.model.Lending;
@@ -26,13 +30,15 @@ public class LendingMongoDBRepositoryImpl implements LendingRepository {
     private final LendingMongoDBRepository lendingMongoDBRepository;
     private final LendingMongoDBMapper lendingMapperMongoDB;
     private final BookRepositoryMongoDB bookRepositoryMongoDB;
+    private final MongoTemplate mongoTemplate;
 
     @Autowired
     @Lazy
-    public LendingMongoDBRepositoryImpl(LendingMongoDBRepository lendingMongoDBRepository, LendingMongoDBMapper lendingMapperMongoDB, BookRepositoryMongoDB bookRepositoryMongoDB) {
+    public LendingMongoDBRepositoryImpl(LendingMongoDBRepository lendingMongoDBRepository, LendingMongoDBMapper lendingMapperMongoDB, BookRepositoryMongoDB bookRepositoryMongoDB, MongoTemplate mongoTemplate) {
         this.lendingMongoDBRepository = lendingMongoDBRepository;
         this.lendingMapperMongoDB = lendingMapperMongoDB;
         this.bookRepositoryMongoDB = bookRepositoryMongoDB;
+        this.mongoTemplate = mongoTemplate;
     }
 
     @Override
@@ -59,7 +65,18 @@ public class LendingMongoDBRepositoryImpl implements LendingRepository {
 
     @Override
     public int getCountFromCurrentYear() {
-        return this.lendingMongoDBRepository.getCountFromCurrentYear();
+        // Count lendings whose start_date falls within the current year.
+        int year = LocalDate.now().getYear();
+        LocalDate startOfYear = LocalDate.of(year, 1, 1);
+        LocalDate startOfNextYear = startOfYear.plusYears(1);
+
+        Query query = Query.query(
+                Criteria.where("start_date")
+                        .gte(startOfYear)
+                        .lt(startOfNextYear)
+        );
+
+        return (int) mongoTemplate.count(query, LendingMongoDB.class);
     }
 
     @Override
@@ -130,6 +147,22 @@ public class LendingMongoDBRepositoryImpl implements LendingRepository {
         System.out.println("Fine Value Per Day In Cents: " + lendingMongoDB.getFineValuePerDayInCents());
         System.out.println("Days Until Return: " + lendingMongoDB.getDaysUntilReturn());
         System.out.println("Days Overdue: " + lendingMongoDB.getDaysOverdue());
+        // Preserve existing Mongo _id and version so we update instead of inserting
+        Optional<LendingMongoDB> existing = lendingMongoDBRepository.findByLendingNumber(lendingMongoDB.getLendingNumber().toString());
+        if (existing.isPresent()) {
+            lendingMongoDB.setId(existing.get().getId());
+            lendingMongoDB.setVersion(existing.get().getVersion());
+            System.out.println("Updating existing lending with ID: " + existing.get().getId());
+        } else {
+            System.out.println("No existing lending found. Creating new document.");
+        }
+
+        // Ensure a MongoDB identifier and a clean version for new documents.
+        if (lendingMongoDB.getId() == null) {
+            lendingMongoDB.setId(new ObjectId().toHexString());
+            lendingMongoDB.setVersion(0);
+        }
+
         LendingMongoDB savedEntity = lendingMongoDBRepository.save(lendingMongoDB);
         System.out.println("Saved entity: " + savedEntity);
         System.out.println("Lending Number: " + savedEntity.getLendingNumber());

@@ -64,6 +64,7 @@ public class Lending {
     private long version;
 
 
+    @Setter
     private String commentary = null;
 
     private int fineValuePerDayInCents;
@@ -155,6 +156,14 @@ public class Lending {
         }
 
         this.returnedDate = LocalDate.now();
+        this.lendingStatus = "DELIVERED";
+    }
+
+    public void markAsReturned() {
+        if (this.returnedDate == null) {
+            this.returnedDate = LocalDate.now();
+        }
+        this.lendingStatus = "DELIVERED";
     }
 
     public int getDaysDelayed() {

@@ -22,6 +22,8 @@ import java.util.Optional;
 public class LendingMongoDB {
 
     @Id
+    @Getter
+    @Setter
     private String id;
 
     @Field("lending_number")
@@ -55,6 +57,8 @@ public class LendingMongoDB {
 
     @Field("version")
     @Version
+    @Getter
+    @Setter
     private long version;
 
     @Field("commentary")
@@ -95,18 +99,37 @@ public class LendingMongoDB {
      */
 
     @Builder
-    public LendingMongoDB(BookMongoDB book, ReaderDetailsMongoDB readerDetails, LendingNumberMongoDB lendingNumber, LocalDate startDate, LocalDate limitDate, LocalDate returnedDate, int fineValuePerDayInCents, String genId) {
+    public LendingMongoDB(String id,
+                          BookMongoDB book,
+                          ReaderDetailsMongoDB readerDetails,
+                          LendingNumberMongoDB lendingNumber,
+                          LocalDate startDate,
+                          LocalDate limitDate,
+                          LocalDate returnedDate,
+                          int fineValuePerDayInCents,
+                          String genId,
+                          long version,
+                          boolean readerValid,
+                          boolean bookValid,
+                          String lendingStatus,
+                          String commentary) {
         try {
             this.book = Objects.requireNonNull(book);
             this.readerDetails = Objects.requireNonNull(readerDetails);
         } catch (NullPointerException e) {
             throw new IllegalArgumentException("Null objects passed to lending");
         }
+        this.id = id;
         this.lendingNumber = lendingNumber;
         this.startDate = startDate;
         this.limitDate = limitDate;
         this.returnedDate = returnedDate;
         this.fineValuePerDayInCents = fineValuePerDayInCents;
+        this.version = version;
+        this.readerValid = readerValid;
+        this.bookValid = bookValid;
+        this.lendingStatus = lendingStatus;
+        this.commentary = commentary;
         setDaysUntilReturn();
         setDaysOverdue();
         setGenId(genId);
@@ -127,6 +150,14 @@ public class LendingMongoDB {
         }
 
         this.returnedDate = LocalDate.now();
+        this.lendingStatus = "DELIVERED";
+    }
+
+    public void markAsReturned() {
+        if (this.returnedDate == null) {
+            this.returnedDate = LocalDate.now();
+        }
+        this.lendingStatus = "DELIVERED";
     }
 
     public int getDaysDelayed() {

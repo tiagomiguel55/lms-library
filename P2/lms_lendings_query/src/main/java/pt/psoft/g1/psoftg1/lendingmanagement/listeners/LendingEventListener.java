@@ -145,11 +145,12 @@ public class LendingEventListener {
             LendingReturnedEvent event = objectMapper.readValue(jsonReceived, LendingReturnedEvent.class);
 
             System.out.println(" [x] Received LendingReturned by AMQP: lendingId=" + event.getLendingId() + 
-                             ", bookId=" + event.getBookId());
+                             ", bookId=" + event.getBookId() + ", comment=" + event.getComment() + ", grade=" + event.getGrade());
 
-            // Update lending status to DELIVERED
-            lendingService.setLendingStatusDelivered(event.getLendingId());
-            System.out.println(" [x] Lending status updated to DELIVERED for: " + event.getLendingId());
+            // Update lending status to DELIVERED with comment and grade
+            System.out.println(" [DEBUG] About to call markLendingAsReturned with lendingId: " + event.getLendingId());
+            lendingService.markLendingAsReturned(event.getLendingId(), event.getComment(), event.getGrade());
+            System.out.println(" [x] Lending marked as returned (DELIVERED) for: " + event.getLendingId());
         } catch (Exception ex) {
             System.out.println(" [x] Exception receiving LendingReturned event from AMQP: '" + ex.getMessage() + "'");
             ex.printStackTrace();

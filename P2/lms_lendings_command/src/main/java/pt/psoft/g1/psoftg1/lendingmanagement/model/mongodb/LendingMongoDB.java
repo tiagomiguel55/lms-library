@@ -22,6 +22,8 @@ import java.util.Optional;
 public class LendingMongoDB {
 
     @Id
+    @Getter
+    @Setter
     private String id;
 
     @Field("lending_number")
@@ -55,6 +57,8 @@ public class LendingMongoDB {
 
     @Field("version")
     @Version
+    @Getter
+    @Setter
     private long version;
 
     @Field("commentary")
@@ -95,24 +99,30 @@ public class LendingMongoDB {
      */
 
     @Builder
-    public LendingMongoDB(BookMongoDB book, ReaderDetailsMongoDB readerDetails, LendingNumberMongoDB lendingNumber, LocalDate startDate, LocalDate limitDate, LocalDate returnedDate, int fineValuePerDayInCents, String genId) {
+    public LendingMongoDB(String id, BookMongoDB book, ReaderDetailsMongoDB readerDetails, LendingNumberMongoDB lendingNumber, LocalDate startDate, LocalDate limitDate, LocalDate returnedDate, int fineValuePerDayInCents, String genId, boolean readerValid, boolean bookValid, String lendingStatus, long version, String commentary) {
         try {
             this.book = Objects.requireNonNull(book);
             this.readerDetails = Objects.requireNonNull(readerDetails);
         } catch (NullPointerException e) {
             throw new IllegalArgumentException("Null objects passed to lending");
         }
+        this.id = id;
         this.lendingNumber = lendingNumber;
         this.startDate = startDate;
         this.limitDate = limitDate;
         this.returnedDate = returnedDate;
         this.fineValuePerDayInCents = fineValuePerDayInCents;
+        this.readerValid = readerValid;
+        this.bookValid = bookValid;
+        this.lendingStatus = lendingStatus;
+        this.version = version;
+        this.commentary = commentary;
         setDaysUntilReturn();
         setDaysOverdue();
         setGenId(genId);
     }
 
-    public void setReturned(final long desiredVersion, final String commentary) {
+    public void setReturned(final long desiredVersion, final String comment) {
         if (this.returnedDate != null) {
             throw new IllegalArgumentException("Book has already been returned!");
         }
@@ -122,11 +132,12 @@ public class LendingMongoDB {
             throw new StaleObjectStateException("Object was already modified by another user", this.lendingNumber);
         }
 
-        if (commentary != null) {
-            this.commentary = commentary;
+        if (comment != null) {
+            this.commentary = comment;
         }
 
         this.returnedDate = LocalDate.now();
+        this.lendingStatus = "DELIVERED";
     }
 
     public int getDaysDelayed() {

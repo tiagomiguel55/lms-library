@@ -46,7 +46,17 @@ public class LendingMongoDBRepositoryImpl implements LendingRepository {
         if(lendingMongoDBRepository.findByLendingNumber(lendingNumber).isEmpty()){
             return Optional.empty();
         } else {
-            Lending lending = lendingMapperMongoDB.toDomain(lendingMongoDBRepository.findByLendingNumber(lendingNumber).get());
+            LendingMongoDB lendingMongoDB = lendingMongoDBRepository.findByLendingNumber(lendingNumber).get();
+            System.out.println("Loading lending from MongoDB:");
+            System.out.println("  MongoDB ID: " + lendingMongoDB.getId());
+            System.out.println("  MongoDB Version: " + lendingMongoDB.getVersion());
+            System.out.println("  Lending Number: " + lendingMongoDB.getLendingNumber());
+            System.out.println("  Returned Date: " + lendingMongoDB.getReturnedDate());
+            
+            Lending lending = lendingMapperMongoDB.toDomain(lendingMongoDB);
+            System.out.println("After mapping to domain:");
+            System.out.println("  Domain Version: " + lending.getVersion());
+            System.out.println("  Domain Returned Date: " + lending.getReturnedDate());
             System.out.println(lending);
             return Optional.of(lending);
         }
@@ -177,8 +187,21 @@ public class LendingMongoDBRepositoryImpl implements LendingRepository {
         System.out.println("Fine Value Per Day In Cents: " + lendingMongoDB.getFineValuePerDayInCents());
         System.out.println("Days Until Return: " + lendingMongoDB.getDaysUntilReturn());
         System.out.println("Days Overdue: " + lendingMongoDB.getDaysOverdue());
+        
+        // Find existing lending by lending_number to preserve the _id and version
+        Optional<LendingMongoDB> existingLending = lendingMongoDBRepository.findByLendingNumber(lendingMongoDB.getLendingNumber().toString());
+        if (existingLending.isPresent()) {
+            // Preserve the existing _id and version so MongoDB updates instead of inserting
+            lendingMongoDB.setId(existingLending.get().getId());
+            lendingMongoDB.setVersion(existingLending.get().getVersion());
+            System.out.println("Found existing lending with ID: " + existingLending.get().getId() + " and version: " + existingLending.get().getVersion());
+            System.out.println("Updating existing lending with returned date: " + lendingMongoDB.getReturnedDate());
+        } else {
+            System.out.println("Creating new lending document");
+        }
+        
         LendingMongoDB savedEntity = lendingMongoDBRepository.save(lendingMongoDB);
-        System.out.println("Lending saved successfully");
+        System.out.println("Lending saved successfully with ID: " + savedEntity.getId());
         System.out.println("Saved Lending Number: " + savedEntity.getLendingNumber());
         System.out.println("Saved Book ISBN: " + (savedEntity.getBook() != null ? savedEntity.getBook().getIsbn() : "null"));
         System.out.println("Saved Reader Number: " + (savedEntity.getReaderDetails() != null ? savedEntity.getReaderDetails().getReaderNumber() : "null"));

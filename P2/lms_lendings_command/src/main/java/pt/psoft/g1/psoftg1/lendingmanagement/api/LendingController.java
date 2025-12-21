@@ -150,14 +150,19 @@ public class LendingController {
                 @Parameter(description = "The sequential component of the Lending to find")
                 final Integer seq,
             @Valid @RequestBody final SetLendingReturnedRequest resource) {
-        final String ifMatchValue = request.getHeader(ConcurrencyService.IF_MATCH);
-        if (ifMatchValue == null || ifMatchValue.isEmpty() || ifMatchValue.equals("null")) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "You must issue a conditional PATCH using 'if-match'");
-        }
         String ln = year + "/" + seq;
         final var maybeLending = lendingService.findByLendingNumber(ln)
                 .orElseThrow(() -> new NotFoundException(Lending.class, ln));
+        
+        final String ifMatchValue = request.getHeader(ConcurrencyService.IF_MATCH);
+        long desiredVersion;
+        
+        if (ifMatchValue != null && !ifMatchValue.isEmpty() && !ifMatchValue.equals("null")) {
+            desiredVersion = concurrencyService.getVersionFromIfMatchHeader(ifMatchValue);
+        } else {
+            // If If-Match header is not provided (e.g., from Swagger), use current version from database
+            desiredVersion = maybeLending.getVersion();
+        }
 
         // Authorization temporarily disabled while auth microservice is unavailable
         // User loggedUser = userService.getAuthenticatedUser(authentication);
@@ -169,7 +174,7 @@ public class LendingController {
         // }
         System.out.println("Authorization disabled - skipping permission checks (temporary)");
 
-        final var lending = lendingService.setReturned(ln, resource, concurrencyService.getVersionFromIfMatchHeader(ifMatchValue));
+        final var lending = lendingService.setReturned(ln, resource, desiredVersion);
 
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("application/hal+json"))

@@ -271,7 +271,7 @@ class LendingServiceImplTest {
     void testSetReturned_SavesFine_WhenLendingIsDelayed() {
         String lendingNumber = "LN123";
         SetLendingReturnedRequest request = mock(SetLendingReturnedRequest.class);
-        when(request.getCommentary()).thenReturn("Commentary");
+        when(request.getComment()).thenReturn("Commentary");
         Lending lending = mock(Lending.class);
         when(lending.getLendingNumber()).thenReturn(lendingNumber);
         when(lending.getDaysDelayed()).thenReturn(1);  // simulate delay

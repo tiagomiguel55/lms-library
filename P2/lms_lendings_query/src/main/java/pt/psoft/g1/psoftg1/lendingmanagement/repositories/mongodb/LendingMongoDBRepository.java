@@ -17,8 +17,6 @@ public interface LendingMongoDBRepository extends MongoRepository<LendingMongoDB
     @Query("{ 'readerNumber' : ?0, 'isbn' : ?1 }")
     List<LendingMongoDB> listByReaderNumberAndIsbn(String readerNumber, String isbn);
 
-    int getCountFromCurrentYear();
-
     @Query("{ 'readerNumber' : ?0, 'returnedDate' : null }")
     List<LendingMongoDB> listOutstandingByReaderNumber(String readerNumber);
 

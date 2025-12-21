@@ -25,9 +25,11 @@ public interface LendingMongoDBMapper {
     @Mapping(target = "limitDate", source = "limitDate")
     @Mapping(target = "returnedDate", source = "returnedDate")
     @Mapping(target = "startDate", source = "startDate")
+    @Mapping(target = "version", source = "version")
     Lending toDomain(LendingMongoDB lendingMongoDB);
 
     // Mapear de Lending para LendingEntity
+    @Mapping(target = "version", source = "version")
     LendingMongoDB toMongoDB(Lending lending);
 
     @Mapping(target = "lendingNumber", source = "value")

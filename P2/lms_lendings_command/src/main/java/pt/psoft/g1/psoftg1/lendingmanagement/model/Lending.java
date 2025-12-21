@@ -119,7 +119,7 @@ public class Lending {
         }
     }
     @Builder
-    public Lending(long pk,Book book, ReaderDetails readerDetails, LendingNumber lendingNumber, LocalDate startDate, LocalDate limitDate, LocalDate returnedDate, int fineValuePerDayInCents, String genId, boolean readerValid, boolean bookValid, String lendingStatus, long version, String commentary) {
+    public Lending(long pk, Book book, ReaderDetails readerDetails, LendingNumber lendingNumber, LocalDate startDate, LocalDate limitDate, LocalDate returnedDate, int fineValuePerDayInCents, String genId, boolean readerValid, boolean bookValid, String lendingStatus, long version, String commentary) {
         try {
             this.book = Objects.requireNonNull(book);
 
@@ -147,7 +147,7 @@ public class Lending {
         this.pk = pk;
     }
 
-    public void setReturned(final long desiredVersion, final String commentary) {
+    public void setReturned(final long desiredVersion, final String comment) {
         if (this.returnedDate != null) {
             throw new IllegalArgumentException("Book has already been returned!");
         }
@@ -157,11 +157,12 @@ public class Lending {
             throw new StaleObjectStateException("Object was already modified by another user", this.lendingNumber);
         }
 
-        if (commentary != null) {
-            this.commentary = commentary;
+        if (comment != null) {
+            this.commentary = comment;
         }
 
         this.returnedDate = LocalDate.now();
+        this.lendingStatus = "DELIVERED";
     }
 
     public int getDaysDelayed() {

@@ -172,7 +172,7 @@ public class LendingServiceImpl implements LendingService{
         var lending = lendingRepository.findByLendingNumber(lendingNumber)
                 .orElseThrow(() -> new NotFoundException("Cannot update lending with this lending number"));
 
-        lending.setReturned(desiredVersion, resource.getCommentary());
+        lending.setReturned(desiredVersion, resource.getComment());
 
         if(lending.getDaysDelayed() > 0){
             final var fine = new Fine(lending);
@@ -186,7 +186,7 @@ public class LendingServiceImpl implements LendingService{
             savedLending.getLendingNumber(),
             savedLending.getBook().getIsbn(),
             savedLending.getReaderDetails().getReaderNumber(),
-            resource.getCommentary(),
+            resource.getComment(),
             resource.getGrade()
         );
 

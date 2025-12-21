@@ -44,5 +44,7 @@ public interface LendingService {
 
     void bookValidated(String lendingNumber);
 
+    void markLendingAsReturned(String lendingNumber, String comment, Integer grade);
+
     void setLendingStatusDelivered(String lendingNumber);
 }

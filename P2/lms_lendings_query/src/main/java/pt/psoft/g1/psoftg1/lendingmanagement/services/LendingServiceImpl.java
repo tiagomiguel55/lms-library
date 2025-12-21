@@ -314,8 +314,49 @@ public class LendingServiceImpl implements LendingService{
 
     @Override
     public Lending update(LendingViewAMQP lending) {
-        return null;
-        // tentar fazer se possivel
+        Optional<Lending> existing = lendingRepository.findByLendingNumber(lending.getLendingNumber());
+
+        Book book = findBookWithRetry(lending.getIsbn(), 3);
+        ReaderDetails readerDetails = findReaderWithRetry(lending.getReaderNumber(), 3);
+
+        LocalDate startDate = LocalDate.parse(lending.getStartDate());
+        LocalDate limitDate = LocalDate.parse(lending.getLimitDate());
+        LocalDate returnedDate = lending.getReturnedDate() != null
+                ? LocalDate.parse(lending.getReturnedDate())
+                : existing.map(Lending::getReturnedDate).orElse(null);
+
+        long version = existing.map(Lending::getVersion).orElse(0L);
+        if (lending.getVersion() != null) {
+            try {
+                version = Long.parseLong(lending.getVersion());
+            } catch (NumberFormatException ignored) {
+                // keep previously resolved version
+            }
+        }
+
+        String genId = lending.getGenId() != null ? lending.getGenId() : existing.map(Lending::getGenId).orElse(null);
+        String lendingStatus = returnedDate != null
+                ? "DELIVERED"
+                : existing.map(Lending::getLendingStatus).orElse("VALIDATED");
+
+        Lending updated = Lending.builder()
+                .pk(existing.map(Lending::getPk).orElse(0L))
+                .book(book)
+                .readerDetails(readerDetails)
+                .lendingNumber(new LendingNumber(lending.getLendingNumber()))
+                .startDate(startDate)
+                .limitDate(limitDate)
+                .returnedDate(returnedDate)
+                .fineValuePerDayInCents(fineValuePerDayInCents)
+                .genId(genId)
+                .readerValid(true)
+                .bookValid(true)
+                .lendingStatus(lendingStatus)
+                .version(version)
+                .commentary(existing.map(Lending::getCommentary).orElse(null))
+                .build();
+
+        return lendingRepository.save(updated);
     }
 
     @Override
@@ -385,13 +426,37 @@ public class LendingServiceImpl implements LendingService{
     }
 
     @Override
+    public void markLendingAsReturned(String lendingNumber, String comment, Integer grade) {
+        System.out.println(" [DEBUG] markLendingAsReturned called for: " + lendingNumber + ", comment: " + comment + ", grade: " + grade);
+        
+        Lending lending = lendingRepository.findByLendingNumber(lendingNumber)
+                .orElseThrow(() -> {
+                    System.out.println(" [ERROR] Lending not found with number: " + lendingNumber);
+                    return new NotFoundException("Lending not found: " + lendingNumber);
+                });
+        
+        System.out.println(" [DEBUG] Found existing lending: " + lending.getLendingNumber());
+        
+        if (comment != null && !comment.isEmpty()) {
+            lending.setCommentary(comment);
+            System.out.println(" [DEBUG] Set comment: " + comment);
+        }
+        
+        lending.markAsReturned();
+        System.out.println(" [DEBUG] Marked as returned - status: " + lending.getLendingStatus() + ", returnedDate: " + lending.getReturnedDate());
+        
+        Lending saved = lendingRepository.save(lending);
+        System.out.println(" [DEBUG] Lending saved successfully: " + saved.getLendingNumber() + " with returnedDate: " + saved.getReturnedDate());
+    }
+
+    @Override
     public void setLendingStatusDelivered(String lendingNumber) {
         Lending lending = lendingRepository.findByLendingNumber(lendingNumber)
                 .orElseThrow(() -> new NotFoundException("Lending not found: " + lendingNumber));
         
-        lending.setLendingStatus("DELIVERED");
+        lending.markAsReturned();
         lendingRepository.save(lending);
-        System.out.println(" [x] Lending status set to DELIVERED: " + lendingNumber);
+        System.out.println(" [x] Lending status set to DELIVERED and returned_date set for: " + lendingNumber);
     }
 
 

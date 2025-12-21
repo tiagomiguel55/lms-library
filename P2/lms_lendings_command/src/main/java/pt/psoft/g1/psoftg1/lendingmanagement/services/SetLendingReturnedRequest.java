@@ -14,15 +14,15 @@ import lombok.NoArgsConstructor;
 @Schema(description = "A DTO for setting a Lending as returned")
 public class SetLendingReturnedRequest {
     @Size(max = 1024)
-    private String commentary;
+    private String comment;
 
     @Min(0)
     @Max(10)
     @Schema(description = "Grade for the book (0-10)")
     private Integer grade;
 
-    public SetLendingReturnedRequest(String commentary) {
-        this.commentary = commentary;
+    public SetLendingReturnedRequest(String comment) {
+        this.comment = comment;
         this.grade = null;
     }
 
