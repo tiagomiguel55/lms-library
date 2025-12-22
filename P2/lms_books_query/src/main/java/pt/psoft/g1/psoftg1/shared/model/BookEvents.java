@@ -5,4 +5,5 @@ public interface BookEvents {
     static final String BOOK_UPDATED = "BOOK_UPDATED";
     static final String BOOK_DELETED = "BOOK_DELETED";
     static final String BOOK_REQUESTED = "BOOK_REQUESTED";
+    static final String BOOK_FINALIZED = "BOOK_FINALIZED";
 }

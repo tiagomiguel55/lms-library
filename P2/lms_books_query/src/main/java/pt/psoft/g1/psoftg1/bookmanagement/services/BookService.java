@@ -1,6 +1,7 @@
 package pt.psoft.g1.psoftg1.bookmanagement.services;
 
 import pt.psoft.g1.psoftg1.authormanagement.api.AuthorViewAMQP;
+import pt.psoft.g1.psoftg1.bookmanagement.api.BookFinalizedEvent;
 import pt.psoft.g1.psoftg1.bookmanagement.api.BookView;
 import pt.psoft.g1.psoftg1.bookmanagement.api.BookViewAMQP;
 import pt.psoft.g1.psoftg1.bookmanagement.model.Book;
@@ -41,5 +42,10 @@ public interface BookService {
     void handleGenreCreated(GenreViewAMQP genreViewAMQP);
 
     void handleGenreCreated(GenreViewAMQP genreViewAMQP, String bookId);
-}
 
+    void handleBookFinalized(BookFinalizedEvent event);
+
+    void processPendingBooksForGenre(String genreName);
+
+    void processPendingBooksForAuthor(Long authorId);
+}

@@ -3,21 +3,25 @@ package pt.psoft.g1.psoftg1.authormanagement.api;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import pt.psoft.g1.psoftg1.authormanagement.services.AuthorService;
+import org.springframework.transaction.annotation.Transactional;
+import pt.psoft.g1.psoftg1.authormanagement.model.Author;
+import pt.psoft.g1.psoftg1.authormanagement.repositories.AuthorRepository;
+import pt.psoft.g1.psoftg1.bookmanagement.services.BookService;
 import org.springframework.amqp.core.Message;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 public class AuthorRabbitmqController {
 
-    @Autowired
-    private final AuthorService authorService;
+    private final AuthorRepository authorRepository;
+    private final BookService bookService;
 
     @RabbitListener(queues = "#{autoDeleteQueue_Author_Created.name}")
+    @Transactional
     public void receiveAuthorCreatedMsg(Message msg) {
 
         try {
@@ -26,17 +30,37 @@ public class AuthorRabbitmqController {
             ObjectMapper objectMapper = new ObjectMapper();
             AuthorViewAMQP authorViewAMQP = objectMapper.readValue(jsonReceived, AuthorViewAMQP.class);
 
-            System.out.println(" [x] Received Author Created by AMQP: " + msg + ".");
+            System.out.println(" [QUERY] 📥 Received Author Created: " + authorViewAMQP.getName() + " (ID: " + authorViewAMQP.getAuthorNumber() + ")");
+
+            // Check if author already exists
+            Optional<Author> existing = authorRepository.findByAuthorNumber(authorViewAMQP.getAuthorNumber());
+            if (existing.isPresent()) {
+                System.out.println(" [QUERY] ℹ️ Author already exists in query model: " + authorViewAMQP.getName());
+                return;
+            }
+
+            // Create new author in query model
             try {
-                // Query service needs to handle AMQP message and create author
-                // For now, log the event - actual implementation depends on your service layer
-                System.out.println(" [x] New author received from AMQP: " + authorViewAMQP.getName());
+                Author newAuthor = new Author(
+                    authorViewAMQP.getAuthorNumber(),
+                    authorViewAMQP.getName(),
+                    "Author biography",
+                    null
+                );
+                Author savedAuthor = authorRepository.save(newAuthor);
+                System.out.println(" [QUERY] ✅ Author created in query model: " + savedAuthor.getName() + " (ID: " + savedAuthor.getAuthorNumber() + ")");
+
+                // Process any pending books waiting for this author
+                bookService.processPendingBooksForAuthor(authorViewAMQP.getAuthorNumber());
             } catch (Exception e) {
-                System.out.println(" [x] Author already exists. No need to store it.");
+                System.out.println(" [QUERY] ❌ Error creating author: " + e.getMessage());
+                e.printStackTrace();
+                throw e; // Re-throw to trigger rollback if needed
             }
         }
         catch(Exception ex) {
-            System.out.println(" [x] Exception receiving author event from AMQP: '" + ex.getMessage() + "'");
+            System.out.println(" [QUERY] ❌ Exception receiving author event from AMQP: '" + ex.getMessage() + "'");
+            ex.printStackTrace();
         }
     }
 
@@ -48,16 +72,19 @@ public class AuthorRabbitmqController {
             String jsonReceived = new String(msg.getBody(), StandardCharsets.UTF_8);
             AuthorViewAMQP authorViewAMQP = objectMapper.readValue(jsonReceived, AuthorViewAMQP.class);
 
-            System.out.println(" [x] Received Author Updated by AMQP: " + msg + ".");
-            try {
-                // Query service needs to handle AMQP message and update author
-                System.out.println(" [x] Author updated from AMQP: " + authorViewAMQP.getName());
-            } catch (Exception e) {
-                System.out.println(" [x] Author does not exists or wrong version. Nothing stored.");
+            System.out.println(" [QUERY] 📥 Received Author Updated: " + authorViewAMQP.getName());
+
+            // Find and update author
+            Optional<Author> existing = authorRepository.findByAuthorNumber(authorViewAMQP.getAuthorNumber());
+            if (existing.isPresent()) {
+                System.out.println(" [QUERY] ✅ Author found and can be updated: " + authorViewAMQP.getName());
+            } else {
+                System.out.println(" [QUERY] ⚠️ Author does not exist in query model. Nothing to update.");
             }
         }
         catch(Exception ex) {
-            System.out.println(" [x] Exception receiving author event from AMQP: '" + ex.getMessage() + "'");
+            System.out.println(" [QUERY] ❌ Exception receiving author event from AMQP: '" + ex.getMessage() + "'");
+            ex.printStackTrace();
         }
     }
 
@@ -69,16 +96,20 @@ public class AuthorRabbitmqController {
             String jsonReceived = new String(msg.getBody(), StandardCharsets.UTF_8);
             AuthorViewAMQP authorViewAMQP = objectMapper.readValue(jsonReceived, AuthorViewAMQP.class);
 
-            System.out.println(" [x] Received Author Deleted by AMQP: " + msg + ".");
-            try {
-                // Query service needs to handle AMQP message and delete author
-                System.out.println(" [x] Author deleted from AMQP: " + authorViewAMQP.getName());
-            } catch (Exception e) {
-                System.out.println(" [x] Author does not exists. Nothing to delete.");
+            System.out.println(" [QUERY] 📥 Received Author Deleted: " + authorViewAMQP.getName());
+
+            // Find and delete author
+            Optional<Author> existing = authorRepository.findByAuthorNumber(authorViewAMQP.getAuthorNumber());
+            if (existing.isPresent()) {
+                authorRepository.delete(existing.get());
+                System.out.println(" [QUERY] ✅ Author deleted from query model: " + authorViewAMQP.getName());
+            } else {
+                System.out.println(" [QUERY] ⚠️ Author does not exist in query model. Nothing to delete.");
             }
         }
         catch(Exception ex) {
-            System.out.println(" [x] Exception receiving author event from AMQP: '" + ex.getMessage() + "'");
+            System.out.println(" [QUERY] ❌ Exception receiving author event from AMQP: '" + ex.getMessage() + "'");
+            ex.printStackTrace();
         }
     }
 }

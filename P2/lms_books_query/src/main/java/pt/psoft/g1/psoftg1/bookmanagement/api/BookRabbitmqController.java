@@ -5,9 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.core.Message;
 import org.springframework.stereotype.Service;
-import pt.psoft.g1.psoftg1.authormanagement.api.AuthorViewAMQP;
 import pt.psoft.g1.psoftg1.bookmanagement.services.BookService;
-import pt.psoft.g1.psoftg1.genremanagement.api.GenreViewAMQP;
 
 import java.nio.charset.StandardCharsets;
 
@@ -59,56 +57,24 @@ public class BookRabbitmqController {
     }
 
 
-    // ========== AUTHOR EVENTS ==========
+    // ========== BOOK FINALIZED EVENT ==========
 
-    @RabbitListener(queues = "#{autoDeleteQueue_Author_Created.name}")
-    public void receiveAuthorCreated(Message msg) {
+    @RabbitListener(queues = "#{autoDeleteQueue_Book_Finalized.name}")
+    public void receiveBookFinalized(Message msg) {
         try {
             String jsonReceived = new String(msg.getBody(), StandardCharsets.UTF_8);
             ObjectMapper objectMapper = new ObjectMapper();
-            AuthorViewAMQP event = objectMapper.readValue(jsonReceived, AuthorViewAMQP.class);
+            BookFinalizedEvent event = objectMapper.readValue(jsonReceived, BookFinalizedEvent.class);
 
-            System.out.println(" [QUERY] 📥 Received Author Created: " + event.getName());
+            System.out.println(" [QUERY] 📥 Received Book Finalized: " + event.getBookId());
 
-            // Se o evento tem bookId associado, atualiza o book
-            if (event.getBookId() != null && !event.getBookId().isEmpty()) {
-                bookService.handleAuthorCreated(event, event.getBookId());
-                System.out.println(" [QUERY] ✅ Book updated with author: " + event.getName());
-            } else {
-                System.out.println(" [QUERY] ℹ️ Author created without associated book, skipping book update");
-            }
+            bookService.handleBookFinalized(event);
+
+            System.out.println(" [QUERY] ✅ Book finalized and saved: " + event.getBookId());
         } catch (Exception ex) {
-            System.out.println(" [QUERY] ❌ Error receiving author created: " + ex.getMessage());
+            System.out.println(" [QUERY] ❌ Error receiving book finalized: " + ex.getMessage());
             ex.printStackTrace();
         }
     }
-
-
-    // ========== GENRE EVENTS ==========
-
-    @RabbitListener(queues = "#{autoDeleteQueue_Genre_Created.name}")
-    public void receiveGenreCreated(Message msg) {
-        try {
-            String jsonReceived = new String(msg.getBody(), StandardCharsets.UTF_8);
-            ObjectMapper objectMapper = new ObjectMapper();
-            GenreViewAMQP event = objectMapper.readValue(jsonReceived, GenreViewAMQP.class);
-
-            System.out.println(" [QUERY] 📥 Received Genre Created: " + event.getGenre());
-
-            // Se o evento tem bookId associado, atualiza o book
-            if (event.getBookId() != null && !event.getBookId().isEmpty()) {
-                bookService.handleGenreCreated(event, event.getBookId());
-                System.out.println(" [QUERY] ✅ Book updated with genre: " + event.getGenre());
-            } else {
-                System.out.println(" [QUERY] ℹ️ Genre created without associated book, skipping book update");
-            }
-        } catch (Exception ex) {
-            System.out.println(" [QUERY] ❌ Error receiving genre created: " + ex.getMessage());
-            ex.printStackTrace();
-        }
-    }
-
 
 }
-
-

@@ -1,5 +1,5 @@
     package pt.psoft.g1.psoftg1.bookmanagement.api;
-    
+
     import com.fasterxml.jackson.databind.ObjectMapper;
     import lombok.RequiredArgsConstructor;
     import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -237,20 +237,20 @@
                 if (pendingRequest.getStatus() == PendingBookRequest.RequestStatus.BOTH_PENDING_CREATED) {
                     System.out.println(" [x] ✅ Both Author and Genre are CREATED (pending finalization)");
                     System.out.println(" [x] 📤 Sending BOOK_FINALIZED event to trigger author and genre finalization...");
-    
+
                     // Get author info to send in BOOK_FINALIZED event
                     List<Author> authors = authorRepository.searchByNameName(pendingRequest.getAuthorName());
                     if (authors.isEmpty()) {
                         System.out.println(" [x] ⚠️ Author not found: " + pendingRequest.getAuthorName());
                         return;
                     }
-    
+
                     Author author = authors.get(0);
-    
+
                     // Send BOOK_FINALIZED event to trigger finalization in AuthorCmd and GenreCmd
                     bookService.publishBookFinalized(author.getAuthorNumber(), author.getName(), isbn, pendingRequest.getGenreName());
                     System.out.println(" [x] ✅ BOOK_FINALIZED event sent - waiting for author and genre finalization...");
-    
+
                     return; // Don't create book yet, wait for finalization events
                 }
     

@@ -53,15 +53,21 @@ public class GenreServiceImpl implements GenreService {
     @Override
     public void markGenreAsFinalized(String genreName) {
         Optional<Genre> genreOpt = genreRepository.findByString(genreName);
-        if (genreOpt.isPresent()) {
-            Genre genre = genreOpt.get();
-            if (genre.isFinalized()) {
-                System.out.println(" [x] Genre already finalized: " + genreName);
-                return;
-            }
-            System.out.println(" [x] ⚠️ Genre not found: " + genreName);
+        if (genreOpt.isEmpty()) {
+            System.out.println(" [x] ❌ Genre not found: " + genreName);
             throw new NotFoundException("Genre not found: " + genreName);
         }
+
+        Genre genre = genreOpt.get();
+        if (genre.isFinalized()) {
+            System.out.println(" [x] ℹ️ Genre already finalized: " + genreName);
+            return;
+        }
+
+        // Mark as finalized
+        genre.setFinalized(true);
+        genreRepository.save(genre);
+        System.out.println(" [x] ✅ Genre marked as finalized: " + genreName);
     }
 
 //    @Override
