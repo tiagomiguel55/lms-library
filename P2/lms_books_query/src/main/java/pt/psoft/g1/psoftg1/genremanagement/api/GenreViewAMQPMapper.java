@@ -1,19 +1,17 @@
-@Data
-@Schema(description = "A Genre for AMQP communication")
-@NoArgsConstructor
-public class GenreViewAMQP {
-    @NotNull
-    private String genre;
+package pt.psoft.g1.psoftg1.genremanagement.api;
 
-    @NotNull
-    private Long version;
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
+import pt.psoft.g1.psoftg1.genremanagement.model.Genre;
+import pt.psoft.g1.psoftg1.shared.api.MapperInterface;
 
-    @Setter
-    @Getter
-    private Map<String, Object> _links = new HashMap<>();
+import java.util.List;
 
-    public GenreViewAMQP(String genre) {
-        this.genre = genre;
-    }
+@Mapper(componentModel = "spring")
+public abstract class GenreViewAMQPMapper extends MapperInterface {
+
+    @Mapping(target = "genre", source = "genre")
+    public abstract GenreViewAMQP toGenreViewAMQP(Genre genre);
+
+    public abstract List<GenreViewAMQP> toGenreViewAMQP(List<Genre> genreList);
 }
-

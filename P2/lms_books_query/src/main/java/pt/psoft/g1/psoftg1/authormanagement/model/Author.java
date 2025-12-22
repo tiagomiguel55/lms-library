@@ -7,6 +7,7 @@ import pt.psoft.g1.psoftg1.authormanagement.services.UpdateAuthorRequest;
 import pt.psoft.g1.psoftg1.exceptions.ConflictException;
 import pt.psoft.g1.psoftg1.shared.model.EntityWithPhoto;
 import pt.psoft.g1.psoftg1.shared.model.Name;
+import pt.psoft.g1.psoftg1.shared.model.Photo;
 
 @Entity
 public class Author extends EntityWithPhoto {
@@ -47,7 +48,14 @@ public class Author extends EntityWithPhoto {
         setPhotoInternal(photoURI);
     }
 
-    protected Author() {
+    public Author(long authorNumber, String name, String bio, String photoURI) {
+        this.authorNumber = authorNumber;
+        setName(name);
+        setBio(bio);
+        setPhotoInternal(photoURI);
+    }
+
+    public Author() {
         // got ORM only
     }
 
@@ -76,5 +84,17 @@ public class Author extends EntityWithPhoto {
 
     public String getBio() {
         return this.bio.toString();
+    }
+
+    public void setPhotoURI(String photoURI) {
+        setPhotoInternal(photoURI);
+    }
+
+    public Photo getPhoto() {
+        return super.photo;
+    }
+
+    public long getAuthorNumber() {
+        return authorNumber;
     }
 }

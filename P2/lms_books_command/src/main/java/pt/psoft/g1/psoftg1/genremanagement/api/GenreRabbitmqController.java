@@ -22,7 +22,7 @@ public class GenreRabbitmqController {
     private final GenreEventsPublisher genreEventsPublisher;
     private final GenreService genreService;
 
-    @RabbitListener(queues = "#{autoDeleteQueue_Book_Requested.name}")
+    @RabbitListener(queues = "#{autoDeleteQueue_Book_Requested_Genre.name}")
     public void receiveBookRequested(Message msg) {
         String bookId = null;
         String authorName = null;
@@ -58,15 +58,6 @@ public class GenreRabbitmqController {
                 // finalized defaults to false in the Genre entity
                 newGenre = genreRepository.save(newGenre);
 
-                System.out.println(" [x] Temporary genre created: " + genreName);
-                System.out.println(" [x] ⏸️ WAITING 10 SECONDS - Check database now to see finalized=false!");
-
-                try {
-                    Thread.sleep(10000); // Wait 10 seconds to allow checking DB
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    System.out.println(" [x] Sleep interrupted: " + e.getMessage());
-                }
 
                 System.out.println(" [x] ▶️ Continuing with book creation...");
 
@@ -96,7 +87,7 @@ public class GenreRabbitmqController {
         }
     }
 
-    @RabbitListener(queues = "#{autoDeleteQueue_Book_Finalized.name}")
+    @RabbitListener(queues = "#{autoDeleteQueue_Book_Finalized_Genre.name}")
     public void receiveBookFinalized(Message msg) {
         try {
             ObjectMapper objectMapper = new ObjectMapper();

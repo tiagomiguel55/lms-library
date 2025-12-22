@@ -27,4 +27,8 @@ public class Photo {
     public Photo(Path photoPath) {
         setPhotoFile(photoPath.toString());
     }
+
+    public void setPhotoFile(String photoFile) {
+        this.photoFile = photoFile;
+    }
 }

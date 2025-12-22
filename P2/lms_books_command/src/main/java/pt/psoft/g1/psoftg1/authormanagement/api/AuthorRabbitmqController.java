@@ -60,15 +60,6 @@ public class AuthorRabbitmqController {
                 // finalized defaults to false in the Author entity, no need to set it explicitly
                 newAuthor = authorRepository.save(newAuthor);
 
-                System.out.println(" [x] Temporary author created with ID: " + newAuthor.getAuthorNumber());
-                System.out.println(" [x] ⏸️ WAITING 10 SECONDS - Check database now to see finalized=false!");
-
-                try {
-                    Thread.sleep(10000); // Wait 10 seconds to allow checking DB
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    System.out.println(" [x] Sleep interrupted: " + e.getMessage());
-                }
 
                 System.out.println(" [x] ▶️ Continuing with book creation...");
 

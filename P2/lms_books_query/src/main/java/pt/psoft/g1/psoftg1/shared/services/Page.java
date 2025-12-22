@@ -4,6 +4,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.Getter;
 
 /**
  * Based on <a href=
@@ -14,10 +15,12 @@ import lombok.Data;
 @Data
 public class Page {
     @Min(value = 1, message = "Paging must start with page 1")
+    @Getter
     int number;
 
     @Min(value = 1, message = "You can request minimum 1 records")
     @Max(value = 100, message = "You can request maximum 100 records")
+    @Getter
     int limit;
 
     public Page() {

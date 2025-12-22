@@ -12,17 +12,25 @@ import java.util.Map;
 @NoArgsConstructor
 public class AuthorViewAMQP {
     @NotNull
+    @Getter
     private Long authorNumber;
 
     @NotNull
+    @Getter
     private String name;
 
+    @Getter
     private String bio;
 
+    @Getter
     private String photoURI;
 
     @NotNull
+    @Getter
     private Long version;
+
+    @Getter
+    private String bookId; // Associated book ISBN when author is finalized
 
     @Setter
     @Getter
@@ -34,5 +42,22 @@ public class AuthorViewAMQP {
         this.bio = bio;
         this.photoURI = photoURI;
     }
-}
 
+    public Long getAuthorNumber() {
+        return authorNumber;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public String getBio() {
+        return bio;
+    }
+
+    public String getPhotoURI() {
+        return photoURI;
+    }
+
+
+}

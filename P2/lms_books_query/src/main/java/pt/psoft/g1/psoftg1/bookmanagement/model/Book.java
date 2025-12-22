@@ -132,4 +132,16 @@ public class Book extends EntityWithPhoto {
     public String getIsbn() {
         return this.isbn.toString();
     }
+
+    public Title getTitle() {
+        return title;
+    }
+
+    public Long getVersion() {
+        return version;
+    }
+
+    public List<Author> getAuthors() {
+        return authors;
+    }
 }

@@ -1,8 +1,10 @@
 package pt.psoft.g1.psoftg1.bookmanagement.services;
 
+import pt.psoft.g1.psoftg1.authormanagement.api.AuthorViewAMQP;
 import pt.psoft.g1.psoftg1.bookmanagement.api.BookView;
 import pt.psoft.g1.psoftg1.bookmanagement.api.BookViewAMQP;
 import pt.psoft.g1.psoftg1.bookmanagement.model.Book;
+import pt.psoft.g1.psoftg1.genremanagement.api.GenreViewAMQP;
 import pt.psoft.g1.psoftg1.shared.services.Page;
 
 import java.util.List;
@@ -31,4 +33,13 @@ public interface BookService {
     Book removeBookPhoto(String isbn, long desiredVersion);
 
     List<Book> searchBooks(Page page, SearchBooksQuery query);
+
+    void handleAuthorCreated(AuthorViewAMQP authorViewAMQP);
+
+    void handleAuthorCreated(AuthorViewAMQP authorViewAMQP, String bookId);
+
+    void handleGenreCreated(GenreViewAMQP genreViewAMQP);
+
+    void handleGenreCreated(GenreViewAMQP genreViewAMQP, String bookId);
 }
+
