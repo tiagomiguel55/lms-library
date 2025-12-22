@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Data
@@ -13,12 +14,14 @@ import lombok.NoArgsConstructor;
 public class BookRequestedEvent {
 
     @NotNull
+    @Getter
     private String bookId;
 
     @NotNull
+    @Getter
     private String authorName;
 
     @NotNull
+    @Getter
     private String genreName;
 }
-

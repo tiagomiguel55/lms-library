@@ -1,30 +1,17 @@
 package pt.psoft.g1.psoftg1.genremanagement.api;
 
-import lombok.Data;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
-import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.NotNull;
-import java.util.HashMap;
-import java.util.Map;
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
+import pt.psoft.g1.psoftg1.genremanagement.model.Genre;
+import pt.psoft.g1.psoftg1.shared.api.MapperInterface;
 
-@Data
-@Schema(description = "A Genre for AMQP communication")
-@NoArgsConstructor
-public class GenreViewAMQP {
-    @NotNull
-    private String genre;
+import java.util.List;
 
-    @NotNull
-    private Long version;
+@Mapper(componentModel = "spring")
+public abstract class GenreViewAMQPMapper extends MapperInterface {
 
-    @Setter
-    @Getter
-    private Map<String, Object> _links = new HashMap<>();
+    @Mapping(target = "genre", source = "genre")
+    public abstract GenreViewAMQP toGenreViewAMQP(Genre genre);
 
-    public GenreViewAMQP(String genre) {
-        this.genre = genre;
-    }
+    public abstract List<GenreViewAMQP> toGenreViewAMQP(List<Genre> genreList);
 }
-

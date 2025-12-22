@@ -1,4 +1,3 @@
-
 services:
     postgres_in_lms_network:
         container_name: postgres_in_lms_network
@@ -11,8 +10,8 @@ services:
             POSTGRES_PASSWORD: password
         volumes:
             - "postgres_volume:/var/lib/postgresql"
-        networks:
-            - lms_network
+        # networks:
+        #     - lms_network
         healthcheck:
             test: [ "CMD", "pg_isready", "-U", "postgres" ]
             interval: 10s
@@ -29,8 +28,8 @@ services:
         environment:
             RABBITMQ_DEFAULT_USER: guest
             RABBITMQ_DEFAULT_PASS: guest
-        networks:
-            - lms_network
+        # networks:
+        #     - lms_network
         healthcheck:
             test: [ "CMD", "rabbitmqctl", "status" ]
             interval: 10s
@@ -40,6 +39,7 @@ services:
 networks:
     lms_network:
         name: lms_network
+        external: true
 
 volumes:
     postgres_volume:

@@ -1,5 +1,5 @@
-# Use the official OpenJDK 21 slim image (Debian-based, Ubuntu-compatible)
-FROM openjdk:21-jdk-slim
+# Use the official Eclipse Temurin OpenJDK 17 image
+FROM eclipse-temurin:17-jdk
 
 # Set a working directory inside the container
 WORKDIR /app

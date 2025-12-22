@@ -55,10 +55,10 @@ public class GenreServiceImpl implements GenreService {
         Optional<Genre> genreOpt = genreRepository.findByString(genreName);
         if (genreOpt.isPresent()) {
             Genre genre = genreOpt.get();
-            genre.setFinalized(true);
-            genreRepository.save(genre);
-            System.out.println(" [x] ✅ Genre marked as finalized: " + genreName);
-        } else {
+            if (genre.isFinalized()) {
+                System.out.println(" [x] Genre already finalized: " + genreName);
+                return;
+            }
             System.out.println(" [x] ⚠️ Genre not found: " + genreName);
             throw new NotFoundException("Genre not found: " + genreName);
         }

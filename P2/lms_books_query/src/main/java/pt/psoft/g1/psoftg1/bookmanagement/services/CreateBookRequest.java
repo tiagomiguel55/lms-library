@@ -19,9 +19,11 @@ public class CreateBookRequest {
     private String description;
 
     @NotBlank
+    @Getter
     private String title;
 
     @NotBlank
+    @Getter
     private String genre;
 
     @Nullable
@@ -35,5 +37,26 @@ public class CreateBookRequest {
     private String photoURI;
 
     @NotNull
+    @Getter
     private List<Long> authors;
+
+    public String getTitle() {
+        return title;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public String getPhotoURI() {
+        return photoURI;
+    }
+
+    public String getGenre() {
+        return genre;
+    }
+
+    public List<Long> getAuthors() {
+        return authors;
+    }
 }

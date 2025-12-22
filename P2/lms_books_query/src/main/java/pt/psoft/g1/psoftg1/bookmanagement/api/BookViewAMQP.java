@@ -13,21 +13,28 @@ import java.util.Map;
 @NoArgsConstructor
 public class BookViewAMQP {
     @NotNull
+    @Getter
     private String isbn;
 
     @NotNull
+    @Getter
     private String title;
 
     @NotNull
+    @Getter
     private String description;
 
     @NotNull
+    @Getter
     private List<Long> authorIds;
 
     @NotNull
+    @Getter
     private String genre;
 
     @NotNull
+    @Getter
+    @Setter
     private Long version;
 
     @Setter
@@ -40,5 +47,29 @@ public class BookViewAMQP {
         this.description = description;
         this.authorIds = authorIds;
         this.genre = genre;
+    }
+
+    public String getIsbn() {
+        return isbn;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public List<Long> getAuthorIds() {
+        return authorIds;
+    }
+
+    public String getGenre() {
+        return genre;
+    }
+
+    public Long getVersion() {
+        return version;
     }
 }

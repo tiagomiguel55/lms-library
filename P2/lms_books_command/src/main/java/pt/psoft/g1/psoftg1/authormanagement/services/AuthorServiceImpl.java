@@ -115,10 +115,10 @@ public class AuthorServiceImpl implements AuthorService {
         Author author = authorRepository.findByAuthorNumber(authorNumber)
                 .orElseThrow(() -> new NotFoundException("Author not found with ID: " + authorNumber));
 
-        author.setFinalized(true);
-        authorRepository.save(author);
+        if (author.isFinalized()) {
+            System.out.println(" [x] Author already finalized: " + author.getName() + " (ID: " + authorNumber + ")");
+            return;
+        }
 
-        System.out.println(" [x] Author marked as finalized in database: " + author.getName() + " (ID: " + authorNumber + ")");
-    }
 
 }

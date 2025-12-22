@@ -12,9 +12,11 @@ import org.springframework.web.multipart.MultipartFile;
 @Schema(description = "A DTO for creating a Author")
 public class CreateAuthorRequest {
     @Size(min = 1, max = 150)
+    @Getter
     private String name;
 
     @Size(min = 1, max = 4096)
+    @Getter
     private String bio;
 
     @Nullable
@@ -26,4 +28,20 @@ public class CreateAuthorRequest {
     @Getter
     @Setter
     private String photoURI;
+
+    public void setPhotoURI(String photoURI) {
+        this.photoURI = photoURI;
+    }
+
+    public void setPhoto(MultipartFile photo) {
+        this.photo = photo;
+    }
+
+    public MultipartFile getPhoto() {
+        return photo;
+    }
+
+    public String getPhotoURI() {
+        return photoURI;
+    }
 }

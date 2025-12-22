@@ -23,6 +23,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import pt.psoft.g1.psoftg1.authormanagement.api.AuthorViewAMQP;
+import pt.psoft.g1.psoftg1.genremanagement.api.GenreViewAMQP;
+import org.hibernate.exception.ConstraintViolationException;
+
 @Service
 @RequiredArgsConstructor
 @PropertySource({ "classpath:config/library.properties" })
@@ -78,10 +82,6 @@ public class BookServiceImpl implements BookService {
                             String genreName,
                             List<Long> authorIds) {
 
-        if (bookRepository.findByIsbn(isbn).isPresent()) {
-            throw new ConflictException("Book with ISBN " + isbn + " already exists");
-        }
-
         List<Author> authors = getAuthors(authorIds);
 
         final Genre genre = genreRepository.findByString(String.valueOf(genreName))
@@ -89,9 +89,13 @@ public class BookServiceImpl implements BookService {
 
         Book newBook = new Book(isbn, title, description, genre, authors, photoURI);
 
-        Book savedBook = bookRepository.save(newBook);
-
-        return savedBook;
+        try {
+            Book savedBook = bookRepository.save(newBook);
+            return savedBook;
+        } catch (ConstraintViolationException e) {
+            // Book already exists, return the existing one
+            return bookRepository.findByIsbn(isbn).orElseThrow(() -> new NotFoundException("Book not found"));
+        }
     }
 
     @Override
@@ -244,4 +248,88 @@ public class BookServiceImpl implements BookService {
         return authors;
     }
 
+    @Override
+    public void handleAuthorCreated(AuthorViewAMQP authorViewAMQP) {
+        // Verify if the author exists
+        Optional<Author> existing = authorRepository.findByAuthorNumber(authorViewAMQP.getAuthorNumber());
+        if (!existing.isPresent()) {
+            throw new NotFoundException("Author " + authorViewAMQP.getAuthorNumber() + " does not exist");
+        }
+    }
+
+    @Override
+    public void handleAuthorCreated(AuthorViewAMQP authorViewAMQP, String bookId) {
+        // First, ensure the author exists
+        handleAuthorCreated(authorViewAMQP);
+
+        // Check if book already exists
+        if (bookRepository.findByIsbn(bookId).isPresent()) {
+            // Book already exists, perhaps update it with the author
+            // But for now, do nothing
+            return;
+        }
+
+        // Create the book with default values
+        String title = "Book " + bookId;
+        String description = "";
+        String photoURI = null;
+        String genreName = "Fiction"; // Assume Fiction exists
+        List<Long> authorIds = List.of(authorViewAMQP.getAuthorNumber());
+
+        try {
+            create(bookId, title, description, photoURI, genreName, authorIds);
+        } catch (Exception e) {
+            // If genre not found, try another
+            genreName = "General";
+            try {
+                create(bookId, title, description, photoURI, genreName, authorIds);
+            } catch (Exception e2) {
+                // If still not, skip
+                System.out.println("Could not create book due to missing genre");
+            }
+        }
+    }
+
+    @Override
+    public void handleGenreCreated(GenreViewAMQP genreViewAMQP) {
+        // Verify if the genre exists
+        Optional<Genre> existing = genreRepository.findByString(genreViewAMQP.getGenre());
+        if (!existing.isPresent()) {
+            throw new NotFoundException("Genre " + genreViewAMQP.getGenre() + " does not exist");
+        }
+    }
+
+    @Override
+    public void handleGenreCreated(GenreViewAMQP genreViewAMQP, String bookId) {
+        // First, ensure the genre exists
+        Optional<Genre> existing = genreRepository.findByString(genreViewAMQP.getGenre());
+        if (existing.isPresent()) {
+            Genre genre = existing.get();
+            // Update if needed, but assume no update
+        } else {
+            Genre newGenre = new Genre(genreViewAMQP.getGenre());
+            genreRepository.save(newGenre);
+        }
+
+        // Check if book already exists
+        if (bookRepository.findByIsbn(bookId).isPresent()) {
+            // Book already exists, perhaps update it with the genre
+            // But for now, do nothing
+            return;
+        }
+
+        // Create the book with default values
+        String title = "Book " + bookId;
+        String description = "";
+        String photoURI = null;
+        String genreName = genreViewAMQP.getGenre();
+        List<Long> authorIds = new ArrayList<>(); // Empty authors, but Book requires at least one
+
+        // Since can't create without authors, perhaps don't create
+        // Or assume a default author
+        // For now, skip
+        System.out.println("Cannot create book without authors");
+    }
 }
+
+

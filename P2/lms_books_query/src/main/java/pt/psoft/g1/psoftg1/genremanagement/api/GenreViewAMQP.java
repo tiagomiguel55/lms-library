@@ -12,17 +12,25 @@ import java.util.Map;
 @NoArgsConstructor
 public class GenreViewAMQP {
     @NotNull
+    @Getter
     private String genre;
 
     @NotNull
+    @Getter
     private Long version;
 
     @Setter
     @Getter
     private Map<String, Object> _links = new HashMap<>();
 
+    @Getter
+    private String bookId; // Associated book ISBN when genre is finalized
+
     public GenreViewAMQP(String genre) {
         this.genre = genre;
     }
-}
 
+    public String getGenre() {
+        return genre;
+    }
+}

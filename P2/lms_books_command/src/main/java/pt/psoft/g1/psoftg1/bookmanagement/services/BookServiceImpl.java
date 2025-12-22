@@ -1,5 +1,6 @@
 package pt.psoft.g1.psoftg1.bookmanagement.services;
 
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.stereotype.Service;
@@ -131,10 +132,6 @@ public class BookServiceImpl implements BookService {
                             String genreName,
                             List<Long> authorIds) {
 
-        if (bookRepository.findByIsbn(isbn).isPresent()) {
-            throw new ConflictException("Book with ISBN " + isbn + " already exists");
-        }
-
         List<Author> authors = getAuthors(authorIds);
 
         final Genre genre = genreRepository.findByString(String.valueOf(genreName))
@@ -142,9 +139,13 @@ public class BookServiceImpl implements BookService {
 
         Book newBook = new Book(isbn, title, description, genre, authors, photoURI);
 
-        Book savedBook = bookRepository.save(newBook);
-
-        return savedBook;
+        try {
+            Book savedBook = bookRepository.save(newBook);
+            return savedBook;
+        } catch (ConstraintViolationException e) {
+            // Book already exists, return the existing one
+            return bookRepository.findByIsbn(isbn).orElseThrow(() -> new NotFoundException("Book not found"));
+        }
     }
 
     @Override

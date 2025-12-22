@@ -5,4 +5,3 @@ public interface AuthorEvents {
     String AUTHOR_UPDATED = "AUTHOR_UPDATED";
     String AUTHOR_DELETED = "AUTHOR_DELETED";
 }
-
