@@ -1,26 +1,26 @@
-public class AuthorViewAMQP {
-    @NotNull
-    private Long authorNumber;
+package pt.psoft.g1.psoftg1.authormanagement.api;
 
-    @NotNull
-    private String name;
+import pt.psoft.g1.psoftg1.authormanagement.model.Author;
+import org.springframework.stereotype.Component;
 
-    private String bio;
+@Component
+public class AuthorViewAMQPMapper {
 
-    private String photoURI;
+    public AuthorViewAMQP authorToAuthorViewAMQP(Author author) {
+        return new AuthorViewAMQP(
+            author.getAuthorNumber(),
+            author.getName(),
+            author.getBio(),
+            author.getPhoto() != null ? author.getPhoto().getPhotoFile() : null
+        );
+    }
 
-    @NotNull
-    private Long version;
-
-    @Setter
-    @Getter
-    private Map<String, Object> _links = new HashMap<>();
-
-    public AuthorViewAMQP(Long authorNumber, String name, String bio, String photoURI) {
-        this.authorNumber = authorNumber;
-        this.name = name;
-        this.bio = bio;
-        this.photoURI = photoURI;
+    public Author authorViewAMQPtoAuthor(AuthorViewAMQP authorViewAMQP) {
+        return new Author(
+            authorViewAMQP.getAuthorNumber(),
+            authorViewAMQP.getName(),
+            authorViewAMQP.getBio(),
+            null
+        );
     }
 }
-
