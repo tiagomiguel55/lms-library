@@ -7,9 +7,7 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.DirectExchange;
 import org.springframework.stereotype.Service;
-import pt.psoft.g1.psoftg1.authormanagement.api.AuthorViewAMQP;
 import pt.psoft.g1.psoftg1.bookmanagement.services.BookService;
-import pt.psoft.g1.psoftg1.genremanagement.api.GenreViewAMQP;
 
 import java.nio.charset.StandardCharsets;
 
@@ -65,14 +63,14 @@ public class BookRabbitmqController {
     }
 
 
-    // ========== AUTHOR EVENTS ==========
+    // ========== BOOK FINALIZED EVENT ==========
 
-    @RabbitListener(queues = "#{autoDeleteQueue_Author_Created.name}")
-    public void receiveAuthorCreated(Message msg) {
+    @RabbitListener(queues = "#{autoDeleteQueue_Book_Finalized.name}")
+    public void receiveBookFinalized(Message msg) {
         try {
             String jsonReceived = new String(msg.getBody(), StandardCharsets.UTF_8);
             ObjectMapper objectMapper = new ObjectMapper();
-            AuthorViewAMQP event = objectMapper.readValue(jsonReceived, AuthorViewAMQP.class);
+            BookFinalizedEvent event = objectMapper.readValue(jsonReceived, BookFinalizedEvent.class);
 
             System.out.println(" [QUERY] 📥 Received Author Created: " + event.getName());
 
@@ -109,10 +107,9 @@ AuthorViewAMQP event = objectMapper.readValue(jsonReceived, AuthorViewAMQP.class
                 System.out.println(" [QUERY] ℹ️ Genre created without associated book, skipping book update");
             }
         } catch (Exception ex) {
-            System.out.println(" [QUERY] ❌ Error receiving genre created: " + ex.getMessage());
+            System.out.println(" [QUERY] ❌ Error receiving book finalized: " + ex.getMessage());
             ex.printStackTrace();
         }
     }
+
 }
-
-

@@ -6,11 +6,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import pt.psoft.g1.psoftg1.authormanagement.api.AuthorRabbitmqController;
-import pt.psoft.g1.psoftg1.authormanagement.services.AuthorService;
+import pt.psoft.g1.psoftg1.authormanagement.repositories.AuthorRepository;
 import pt.psoft.g1.psoftg1.bookmanagement.api.BookRabbitmqController;
 import pt.psoft.g1.psoftg1.bookmanagement.services.BookService;
 import pt.psoft.g1.psoftg1.genremanagement.api.GenreRabbitmqController;
-import pt.psoft.g1.psoftg1.genremanagement.services.GenreService;
+import pt.psoft.g1.psoftg1.genremanagement.repositories.GenreRepository;
 import pt.psoft.g1.psoftg1.shared.model.AuthorEvents;
 import pt.psoft.g1.psoftg1.shared.model.BookEvents;
 import pt.psoft.g1.psoftg1.shared.model.GenreEvents;
@@ -22,22 +22,17 @@ public class RabbitmqClientConfig {
     // ========== EXCHANGES ==========
     @Bean
     public DirectExchange direct() {
-        return new DirectExchange("LMS.direct");
-    }
-
-    @Bean
-    public DirectExchange directBooks() {
-        return new DirectExchange("LMS.books");
+        return new DirectExchange("books.exchange");
     }
 
     @Bean
     public DirectExchange directAuthors() {
-        return new DirectExchange("LMS.authors");
+        return new DirectExchange("authors.exchange");
     }
 
     @Bean
     public DirectExchange directGenres() {
-        return new DirectExchange("LMS.genres");
+        return new DirectExchange("genres.exchange");
     }
 
     // ========== BOOK QUEUES (DURABLE) ==========
@@ -56,11 +51,10 @@ public class RabbitmqClientConfig {
         return new Queue("query.book.deleted", true);
     }
 
-        @Bean(name = "autoDeleteQueue_Validate_Book")
-        public Queue autoDeleteQueue_Validate_Book() {
-            System.out.println("autoDeleteQueue_Validate_Book created!");
-            return new AnonymousQueue();
-        }
+    @Bean
+    public Queue autoDeleteQueue_Book_Finalized() {
+        return new Queue("query.book.finalized", true);
+    }
 
     // ========== AUTHOR QUEUES (DURABLE) ==========
     @Bean(name = "autoDeleteQueue_Author_Created")
@@ -122,6 +116,14 @@ public class RabbitmqClientConfig {
         return BindingBuilder.bind(autoDeleteQueue_Book_Deleted)
                 .to(directBooks)
                 .with(BookEvents.BOOK_DELETED);
+    }
+
+    @Bean
+    public Binding binding4(DirectExchange direct,
+                            Queue autoDeleteQueue_Book_Finalized) {
+        return BindingBuilder.bind(autoDeleteQueue_Book_Finalized)
+                .to(direct)
+                .with(BookEvents.BOOK_FINALIZED);
     }
 
     // ========== AUTHOR BINDINGS ==========
@@ -192,15 +194,17 @@ public class RabbitmqClientConfig {
 
     @Bean
     public AuthorRabbitmqController authorReceiver(
-            AuthorService authorService,
+            AuthorRepository authorRepository,
+            BookService bookService,
             @Qualifier("autoDeleteQueue_Author_Created") Queue autoDeleteQueue_Author_Created) {
-        return new AuthorRabbitmqController();
+        return new AuthorRabbitmqController(authorRepository, bookService);
     }
 
     @Bean
     public GenreRabbitmqController genreReceiver(
-            GenreService genreService,
+            GenreRepository genreRepository,
+            BookService bookService,
             @Qualifier("autoDeleteQueue_Genre_Created") Queue autoDeleteQueue_Genre_Created) {
-        return new GenreRabbitmqController();
+        return new GenreRabbitmqController(genreRepository, bookService);
     }
 }
