@@ -8,6 +8,7 @@ import pt.psoft.g1.psoftg1.bookmanagement.model.Book;
 import pt.psoft.g1.psoftg1.bookmanagement.repositories.BookRepository;
 import pt.psoft.g1.psoftg1.exceptions.LendingForbiddenException;
 import pt.psoft.g1.psoftg1.exceptions.NotFoundException;
+import pt.psoft.g1.psoftg1.external.service.BooksServiceClient;
 import pt.psoft.g1.psoftg1.lendingmanagement.api.LendingDetailsView;
 import pt.psoft.g1.psoftg1.lendingmanagement.api.LendingViewAMQP;
 import pt.psoft.g1.psoftg1.lendingmanagement.model.Fine;
@@ -36,6 +37,7 @@ public class LendingServiceImpl implements LendingService{
     private final BookRepository bookRepository;
     private final ReaderRepository readerRepository;
     private final LendingEventPublisher lendingEventPublisher;
+    private final BooksServiceClient booksServiceClient;
 
     @Value("${lendingDurationInDays}")
     private int lendingDurationInDays;
@@ -90,6 +92,14 @@ public class LendingServiceImpl implements LendingService{
                 throw new LendingForbiddenException("Reader has three books outstanding already");
             }
         }
+
+        // Check if book exists in the Books service
+        System.out.println("Checking if book exists in Books service with ISBN: " + resource.getIsbn());
+        boolean bookExists = booksServiceClient.checkBookExists(resource.getIsbn());
+        if (!bookExists) {
+            throw new NotFoundException("Book with ISBN " + resource.getIsbn() + " does not exist in Books service");
+        }
+        System.out.println("Book exists in Books service");
 
         System.out.println("Fetching book with ISBN: " + resource.getIsbn());
         final var b = bookRepository.findByIsbn(resource.getIsbn())

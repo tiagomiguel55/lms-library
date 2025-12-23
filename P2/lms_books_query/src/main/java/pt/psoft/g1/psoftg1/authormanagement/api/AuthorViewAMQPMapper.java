@@ -1,36 +1,26 @@
 package pt.psoft.g1.psoftg1.authormanagement.api;
 
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
-import jakarta.validation.constraints.NotNull;
-import java.util.HashMap;
-import java.util.Map;
+import pt.psoft.g1.psoftg1.authormanagement.model.Author;
+import org.springframework.stereotype.Component;
 
-@NoArgsConstructor
-public class AuthorViewAMQP {
-    @NotNull
-    private Long authorNumber;
+@Component
+public class AuthorViewAMQPMapper {
 
-    @NotNull
-    private String name;
+    public AuthorViewAMQP authorToAuthorViewAMQP(Author author) {
+        return new AuthorViewAMQP(
+            author.getAuthorNumber(),
+            author.getName(),
+            author.getBio(),
+            author.getPhoto() != null ? author.getPhoto().getPhotoFile() : null
+        );
+    }
 
-    private String bio;
-
-    private String photoURI;
-
-    @NotNull
-    private Long version;
-
-    @Setter
-    @Getter
-    private Map<String, Object> _links = new HashMap<>();
-
-    public AuthorViewAMQP(Long authorNumber, String name, String bio, String photoURI) {
-        this.authorNumber = authorNumber;
-        this.name = name;
-        this.bio = bio;
-        this.photoURI = photoURI;
+    public Author authorViewAMQPtoAuthor(AuthorViewAMQP authorViewAMQP) {
+        return new Author(
+            authorViewAMQP.getAuthorNumber(),
+            authorViewAMQP.getName(),
+            authorViewAMQP.getBio(),
+            null
+        );
     }
 }
-

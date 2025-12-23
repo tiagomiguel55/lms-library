@@ -1,65 +1,62 @@
+version: '3.8'
+
 services:
-  lmslendings:
-    image: lmslendingscommand:latest
+  lmslendings_command:
+    image: lmslendings:command
     environment:
-      - SPRING_PROFILES_ACTIVE=mongodb,bootstrap,recomendationAlgorithm2,hash
-      - spring.datasource.url=jdbc:postgresql://lmslendingscommand_postgres${TASK_SLOT}:${POSTGRES_PORT:-5432}/postgres
+      - SPRING_PROFILES_ACTIVE=mongodb,bootstrap
+      - spring.data.mongodb.uri=mongodb://mongodb_lms:27017/LMS_Lending_Command
+      - spring.datasource.url=jdbc:postgresql://postgres_command:5432/command_lendings
       - spring.datasource.username=postgres
       - spring.datasource.password=password
       - spring.datasource.driver-class-name=org.postgresql.Driver
       - spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
-      - file.upload-dir=/tmp/uploads-psoft-g1-instance1
+      - spring.jpa.hibernate.ddl-auto=update
       - spring.rabbitmq.host=rabbitmq
-      - bootstrap.mode=static
-    volumes:
-      - "uploaded_files_volume_1:/tmp"
     deploy:
       replicas: 2
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+        window: 1m
     ports:
-      - "8090:8081"  # Expose the lmsbooks service on port 8087
+      - "8090:8080"
     networks:
       - lms_network
-    depends_on:
-      - postgres
 
-  postgres:
+  postgres_command:
     image: postgres:latest
     environment:
-      - POSTGRES_DB=postgres
+      - POSTGRES_DB=command_lendings
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=password
+    volumes:
+      - postgres_command_data:/var/lib/postgresql
     deploy:
-      replicas: 2
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+        window: 1m
     ports:
-#      - "5432:5432"  # Default Postgres port for the first replica
-#      - "5433:5432"  # Postgres port for the second replica
-#      - "5434:5432"  # Postgres port for the third replica
-      - "5435-5437:5432"
+      - "5436:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - lms_network
-
-  #rabbitmq:
-  #  image:	rabbitmq:3-management
-  #  container_name: rabbitmq
-  #  restart: unless-stopped
-  #  deploy:
-  #    replicas: 1
-  #  ports:
-  #    - "5672:5672"		#	RabbitMQ	main	port
-  #    - "15672:15672"		#	RabbitMQ	management	UI
-  #  environment:
-  #    RABBITMQ_DEFAULT_USER:	guest
-  #    RABBITMQ_DEFAULT_PASS:	guest
-  #  networks:
-  #    - lms_network
 
 networks:
   lms_network:
-    name: lms_network
-    driver: overlay
     external: true
-    
 
 volumes:
-  uploaded_files_volume_1:
-  uploaded_files_volume_2:
+  postgres_command_data:
+    driver: local

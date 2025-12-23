@@ -6,6 +6,8 @@ import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.DirectExchange;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import pt.psoft.g1.psoftg1.bookmanagement.services.BookService;
 
@@ -22,6 +24,11 @@ public class BookRabbitmqController {
 
     @Autowired
     private DirectExchange directExchange;
+
+    // Exchange dedicated to cross-service validations (shared with LendingsCmd)
+    @Autowired
+    @Qualifier("lmsDirectExchange")
+    private DirectExchange lmsDirectExchange;
 
     @RabbitListener(queues = "#{autoDeleteQueue_Book_Created.name}")
     public void receiveBookCreatedMsg(Message msg) {
@@ -108,6 +115,41 @@ AuthorViewAMQP event = objectMapper.readValue(jsonReceived, AuthorViewAMQP.class
             }
         } catch (Exception ex) {
             System.out.println(" [QUERY] ❌ Error receiving book finalized: " + ex.getMessage());
+            ex.printStackTrace();
+        }
+    }
+
+    // ========== VALIDATION FLOW (ValidateBook -> BookValidated) ==========
+    @RabbitListener(queues = "#{validateBookQueue.name}")
+    public void receiveValidateBook(Message msg) {
+        try {
+            String jsonReceived = new String(msg.getBody(), StandardCharsets.UTF_8);
+            ObjectMapper objectMapper = new ObjectMapper();
+            ValidateBookRequest request = objectMapper.readValue(jsonReceived, ValidateBookRequest.class);
+
+            boolean exists = false;
+            try {
+                // If the book exists, service returns it; otherwise it throws
+                bookService.findByIsbn(request.getBookId());
+                exists = true;
+            } catch (Exception e) {
+                exists = false;
+            }
+
+            BookValidatedResponse response = new BookValidatedResponse(
+                request.getBookId(),
+                exists,
+                request.getCorrelationId()
+            );
+
+            String responseJson = new ObjectMapper().writeValueAsString(response);
+            template.convertAndSend(lmsDirectExchange.getName(), "book.validated", responseJson);
+
+            System.out.println(" [QUERY] 📤 Sent Book Validated: bookId=" + request.getBookId() +
+                               ", exists=" + exists +
+                               ", correlationId=" + request.getCorrelationId());
+        } catch (Exception ex) {
+            System.out.println(" [QUERY] ❌ Error processing ValidateBook: " + ex.getMessage());
             ex.printStackTrace();
         }
     }

@@ -25,6 +25,12 @@ public class RabbitmqClientConfig {
         return new DirectExchange("books.exchange");
     }
 
+    // Shared exchange across services for validation flows
+    @Bean(name = "lmsDirectExchange")
+    public DirectExchange lmsDirectExchange() {
+        return new DirectExchange("LMS.direct");
+    }
+
     @Bean
     public DirectExchange directAuthors() {
         return new DirectExchange("authors.exchange");
@@ -183,6 +189,21 @@ public class RabbitmqClientConfig {
                     .to(direct)
                     .with("LENDING_RETURNED");
         }
+
+    // ========== VALIDATION QUEUES/BINDINGS (book.validate) ==========
+    @Bean(name = "validateBookQueue")
+    public Queue validateBookQueue() {
+        // Anonymous queue bound to LMS.direct with routing key book.validate
+        return new AnonymousQueue();
+    }
+
+    @Bean
+    public Binding bindingValidateBook(@Qualifier("lmsDirectExchange") DirectExchange lmsDirectExchange,
+                                       @Qualifier("validateBookQueue") Queue validateBookQueue) {
+        return BindingBuilder.bind(validateBookQueue)
+                .to(lmsDirectExchange)
+                .with("book.validate");
+    }
 
     // ========== RECEIVERS ==========
     @Bean

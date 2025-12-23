@@ -19,6 +19,12 @@ public class GenreRabbitmqController {
     private final GenreRepository genreRepository;
     private final BookService bookService;
 
+    // Explicit constructor to satisfy wiring even if Lombok processing is unavailable
+    public GenreRabbitmqController(GenreRepository genreRepository, BookService bookService) {
+        this.genreRepository = genreRepository;
+        this.bookService = bookService;
+    }
+
     @RabbitListener(queues = "#{autoDeleteQueue_Genre_Created.name}")
     public void receiveGenreCreatedMsg(Message msg) {
 
