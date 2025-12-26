@@ -132,8 +132,62 @@ pipeline {
                 }
             }
             steps {
-                timeout(time: 30, unit: 'MINUTES') {
-                    input message: 'Approve Production Deployment?', ok: 'Deploy'
+                script {
+                    echo "=========================================="
+                    echo "PRODUCTION DEPLOYMENT APPROVAL REQUIRED"
+                    echo "=========================================="
+                    echo "Project: LMS Books Command Service"
+                    echo "Build Number: ${BUILD_NUMBER}"
+                    echo "Image Tag: ${IMAGE_TAG}"
+                    echo "Environment: PRODUCTION"
+                    echo "Deployment Mode: Docker Swarm - Rolling Update (3 replicas)"
+                    echo ""
+                    echo "Rolling Update Strategy:"
+                    echo "  - Update 1 container at a time"
+                    echo "  - 10-second delay between updates"
+                    echo "  - Health checks before proceeding"
+                    echo "  - Automatic rollback on failure"
+                    echo "=========================================="
+
+                    // Try to send email notification
+                    try {
+                        mail(
+                            to: "${EMAIL_RECIPIENT}",
+                            subject: "Jenkins: Production Deployment Approval Required - Build #${BUILD_NUMBER}",
+                            body: """
+                                Production Deployment Approval Required
+                                =======================================
+
+                                Project: LMS Books Command Service
+                                Build Number: ${BUILD_NUMBER}
+                                Image Tag: ${IMAGE_TAG}
+                                Environment: PRODUCTION
+                                Deployment Mode: Docker Swarm - Rolling Update (3 replicas)
+
+                                Rolling Update Strategy:
+                                - Update 1 container at a time
+                                - 10-second delay between updates
+                                - Health checks before proceeding
+                                - Automatic rollback on failure
+
+                                Please review and approve/reject the deployment to production.
+
+                                Approve or reject at: ${BUILD_URL}input/
+
+                                View full build details: ${BUILD_URL}
+                            """,
+                            mimeType: 'text/plain'
+                        )
+                        echo "✅ Email notification sent successfully to ${EMAIL_RECIPIENT}"
+                    } catch (Exception e) {
+                        echo "⚠️ WARNING: Could not send email notification"
+                        echo "Email error: ${e.message}"
+                        echo "Continuing with manual approval process..."
+                    }
+
+                    timeout(time: 30, unit: 'MINUTES') {
+                        input message: 'Approve Production Deployment?', ok: 'Deploy'
+                    }
                 }
             }
         }
