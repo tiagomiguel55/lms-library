@@ -10,7 +10,7 @@ services:
       - spring.datasource.password=lmspass
       - spring.datasource.driver-class-name=org.postgresql.Driver
       - spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
-      - spring.jpa.hibernate.ddl-auto=validate
+      - spring.jpa.hibernate.ddl-auto=update
       - spring.rabbitmq.host=rabbitmq_prod
     deploy:
       replicas: 3
@@ -76,4 +76,3 @@ networks:
 
 volumes:
   postgres_command_data_prod:
-
