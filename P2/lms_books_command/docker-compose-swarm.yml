@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   lmsbooks_command:
-    image: lmsbooks:dev
+    image: lmsbooks:${IMAGE_TAG:-dev}
     environment:
       - SPRING_PROFILES_ACTIVE=dev
       - spring.datasource.url=jdbc:postgresql://postgres_command_dev:5432/lmsbooks_dev

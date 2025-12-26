@@ -99,7 +99,10 @@ pipeline {
             }
             steps {
                 dir("${WORK_DIR}") {
-                    sh "docker stack deploy -c docker-compose-swarm.yml ${STACK_NAME_DEV}"
+                    sh """
+                        export IMAGE_TAG=${IMAGE_TAG}
+                        docker stack deploy -c docker-compose-swarm.yml ${STACK_NAME_DEV}
+                    """
                 }
             }
         }
@@ -113,7 +116,10 @@ pipeline {
             }
             steps {
                 dir("${WORK_DIR}") {
-                    sh "docker stack deploy -c docker-compose-swarm-staging.yml ${STACK_NAME_STAGING}"
+                    sh """
+                        export IMAGE_TAG=${IMAGE_TAG}
+                        docker stack deploy -c docker-compose-swarm-staging.yml ${STACK_NAME_STAGING}
+                    """
                 }
             }
         }
