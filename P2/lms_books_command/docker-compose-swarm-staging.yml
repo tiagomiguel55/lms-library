@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  lmsbooks_command:
+    image: lmsbooks:staging
+    environment:
+      - SPRING_PROFILES_ACTIVE=staging
+      - spring.datasource.url=jdbc:postgresql://postgres_command_staging:5432/lmsbooks_staging
+      - spring.datasource.username=lmsuser
+      - spring.datasource.password=lmspass
+      - spring.datasource.driver-class-name=org.postgresql.Driver
+      - spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
+      - spring.jpa.hibernate.ddl-auto=validate
+      - spring.rabbitmq.host=rabbitmq_staging
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+        monitor: 30s
+    ports:
+      - "8081:8080"
+    networks:
+      - lms_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+  postgres_command_staging:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=lmsbooks_staging
+      - POSTGRES_USER=lmsuser
+      - POSTGRES_PASSWORD=lmspass
+    volumes:
+      - postgres_command_data_staging:/var/lib/postgresql
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lmsuser"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lms_network
+
+  rabbitmq_staging:
+    image: rabbitmq:3-management
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+    ports:
+      - "5673:5672"
+      - "15673:15672"
+    networks:
+      - lms_network
+
+networks:
+  lms_network:
+    external: true
+
+volumes:
+  postgres_command_data_staging:
+    driver: local
+

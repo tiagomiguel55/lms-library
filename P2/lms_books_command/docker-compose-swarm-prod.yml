@@ -1,0 +1,116 @@
+version: '3.8'
+
+services:
+  lmsbooks_command:
+    image: lmsbooks:${IMAGE_TAG:-latest}
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - spring.datasource.url=jdbc:postgresql://postgres_command_prod:5432/lmsbooks_prod
+      - spring.datasource.username=lmsuser
+      - spring.datasource.password=lmspass
+      - spring.datasource.driver-class-name=org.postgresql.Driver
+      - spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
+      - spring.jpa.hibernate.ddl-auto=validate
+      - spring.rabbitmq.host=rabbitmq_prod
+      - spring.datasource.hikari.maximum-pool-size=10
+      - spring.datasource.hikari.minimum-idle=5
+    deploy:
+      replicas: 3
+      restart_policy:
+        condition: on-failure
+      # Rolling update configuration
+      update_config:
+        parallelism: 1          # Update 1 container at a time
+        delay: 10s              # Wait 10s between updates
+        failure_action: rollback # Rollback if update fails
+        monitor: 60s            # Monitor for 60s after update
+        max_failure_ratio: 0.3  # Allow 30% failure rate
+        order: start-first      # Start new container before stopping old one
+      # Rollback configuration
+      rollback_config:
+        parallelism: 1
+        delay: 5s
+        failure_action: pause
+        monitor: 30s
+      # Resource limits
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    ports:
+      - "8082:8080"
+    networks:
+      - lms_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+  postgres_command_prod:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=lmsbooks_prod
+      - POSTGRES_USER=lmsuser
+      - POSTGRES_PASSWORD=lmspass
+      - POSTGRES_MAX_CONNECTIONS=100
+    volumes:
+      - postgres_command_data_prod:/var/lib/postgresql
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+    ports:
+      - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lmsuser"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lms_network
+
+  rabbitmq_prod:
+    image: rabbitmq:3-management
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    ports:
+      - "5674:5672"
+      - "15674:15672"
+    networks:
+      - lms_network
+
+networks:
+  lms_network:
+    external: true
+
+volumes:
+  postgres_command_data_prod:
+    driver: local
+

@@ -1,0 +1,506 @@
+pipeline {
+    agent any
+
+    environment {
+        // Maven and Java configuration
+        MAVEN_HOME = '/usr/share/maven'
+        JAVA_HOME = '/usr/lib/jvm/java-17-openjdk-amd64'
+
+        // Git configuration
+        GIT_REPO_URL = 'https://github.com/tiagomiguel55/lms-library.git'
+        GIT_BRANCH = 'main'
+        CREDENTIALS_ID = 'password_for_github_tiago'
+
+        // Docker configuration
+        IMAGE_NAME = 'lmsbooks'
+        IMAGE_TAG = "${BUILD_NUMBER}"
+
+        // Docker Swarm stack names
+        STACK_NAME_DEV = 'lmsbooks-dev'
+        STACK_NAME_STAGING = 'lmsbooks-staging'
+        STACK_NAME_PROD = 'lmsbooks-prod'
+
+        // Email notification
+        EMAIL_RECIPIENT = 'migueltiago255@gmail.com'
+
+        // Working directory
+        WORK_DIR = 'P2/lms_books_command'
+    }
+
+    parameters {
+        choice(
+            name: 'ENVIRONMENT',
+            choices: ['dev', 'staging', 'prod'],
+            description: 'Select deployment environment'
+        )
+        booleanParam(
+            name: 'RUN_MUTATION_TESTS',
+            defaultValue: true,
+            description: 'Run mutation tests (only for dev environment)'
+        )
+        booleanParam(
+            name: 'SKIP_DEPLOY',
+            defaultValue: false,
+            description: 'Skip deployment phase'
+        )
+    }
+
+    stages {
+        stage('Initialization') {
+            steps {
+                script {
+                    echo "=========================================="
+                    echo "Starting Pipeline for LMS Books Command"
+                    echo "Environment: ${params.ENVIRONMENT}"
+                    echo "Build Number: ${BUILD_NUMBER}"
+                    echo "Deployment Mode: Docker Swarm"
+                    echo "=========================================="
+                }
+            }
+        }
+
+        stage('Environment Check') {
+            steps {
+                sh 'echo "Java Version:"'
+                sh '$JAVA_HOME/bin/java -version'
+                sh 'echo "Maven Version:"'
+                sh '$MAVEN_HOME/bin/mvn -v'
+                sh 'echo "Docker Version:"'
+                sh 'docker --version'
+                sh 'echo "Docker Swarm Status:"'
+                sh 'docker node ls || echo "Swarm not initialized or not a manager node"'
+            }
+        }
+
+        stage('Checkout') {
+            steps {
+                git branch: "${GIT_BRANCH}",
+                    url: "${GIT_REPO_URL}",
+                    credentialsId: "${CREDENTIALS_ID}"
+            }
+        }
+
+        stage('Build & Compile') {
+            steps {
+                dir("${WORK_DIR}") {
+                    script {
+                        echo "Compiling project..."
+                        sh """
+                            export JAVA_HOME=${JAVA_HOME}
+                            export PATH=\$JAVA_HOME/bin:\$PATH
+                            ${MAVEN_HOME}/bin/mvn clean compile -DskipTests=true
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Unit Tests') {
+            when {
+                expression { params.ENVIRONMENT == 'dev' }
+            }
+            steps {
+                dir("${WORK_DIR}") {
+                    script {
+                        echo "Running Unit Tests..."
+                        sh """
+                            export JAVA_HOME=${JAVA_HOME}
+                            export PATH=\$JAVA_HOME/bin:\$PATH
+                            ${MAVEN_HOME}/bin/mvn test -DskipTests=false
+                        """
+                    }
+                }
+            }
+            post {
+                always {
+                    dir("${WORK_DIR}") {
+                        junit '**/target/surefire-reports/*.xml'
+                    }
+                }
+            }
+        }
+
+        stage('Mutation Tests') {
+            when {
+                allOf {
+                    expression { params.ENVIRONMENT == 'dev' }
+                    expression { params.RUN_MUTATION_TESTS == true }
+                }
+            }
+            steps {
+                dir("${WORK_DIR}") {
+                    script {
+                        echo "Running Mutation Tests with PITest..."
+                        sh """
+                            export JAVA_HOME=${JAVA_HOME}
+                            export PATH=\$JAVA_HOME/bin:\$PATH
+                            ${MAVEN_HOME}/bin/mvn org.pitest:pitest-maven:mutationCoverage
+                        """
+                    }
+                }
+            }
+            post {
+                always {
+                    dir("${WORK_DIR}") {
+                        publishHTML(target: [
+                            allowMissing: false,
+                            alwaysLinkToLastBuild: true,
+                            keepAll: true,
+                            reportDir: 'target/pit-reports',
+                            reportFiles: 'index.html',
+                            reportName: 'PITest Mutation Report'
+                        ])
+                    }
+                }
+            }
+        }
+
+        stage('Package') {
+            steps {
+                dir("${WORK_DIR}") {
+                    script {
+                        echo "Packaging application..."
+                        sh """
+                            export JAVA_HOME=${JAVA_HOME}
+                            export PATH=\$JAVA_HOME/bin:\$PATH
+                            ${MAVEN_HOME}/bin/mvn package -DskipTests=true
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                dir("${WORK_DIR}") {
+                    script {
+                        echo "Building Docker image: ${IMAGE_NAME}:${IMAGE_TAG}"
+                        sh """
+                            docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
+                            docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:${params.ENVIRONMENT}
+                            docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Initialize Docker Swarm') {
+            when {
+                expression { params.SKIP_DEPLOY == false }
+            }
+            steps {
+                script {
+                    echo "Checking Docker Swarm status..."
+                    sh """
+                        # Check if swarm is initialized, if not initialize it
+                        docker info | grep -q 'Swarm: active' || docker swarm init || true
+
+                        # Create overlay network if it doesn't exist
+                        docker network ls | grep -q lms_network || docker network create --driver overlay --attachable lms_network || true
+                    """
+                }
+            }
+        }
+
+        stage('Deploy to Dev - Swarm') {
+            when {
+                allOf {
+                    expression { params.ENVIRONMENT == 'dev' }
+                    expression { params.SKIP_DEPLOY == false }
+                }
+            }
+            steps {
+                dir("${WORK_DIR}") {
+                    script {
+                        echo "Deploying to DEV environment using Docker Swarm (automatic deployment)..."
+                        sh """
+                            # Deploy or update the stack
+                            docker stack deploy -c docker-compose-swarm.yml ${STACK_NAME_DEV}
+
+                            # Wait for services to be ready
+                            echo "Waiting for services to start..."
+                            sleep 15
+
+                            # Check service status
+                            docker stack services ${STACK_NAME_DEV}
+
+                            # Check if services are running
+                            docker service ls --filter "label=com.docker.stack.namespace=${STACK_NAME_DEV}"
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Deploy to Staging - Swarm') {
+            when {
+                allOf {
+                    expression { params.ENVIRONMENT == 'staging' }
+                    expression { params.SKIP_DEPLOY == false }
+                }
+            }
+            steps {
+                dir("${WORK_DIR}") {
+                    script {
+                        echo "Deploying to STAGING environment using Docker Swarm (automatic deployment)..."
+                        sh """
+                            # Deploy or update the stack
+                            docker stack deploy -c docker-compose-swarm-staging.yml ${STACK_NAME_STAGING}
+
+                            # Wait for services to be ready
+                            echo "Waiting for services to start..."
+                            sleep 15
+
+                            # Check service status
+                            docker stack services ${STACK_NAME_STAGING}
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Manual Approval for Production') {
+            when {
+                allOf {
+                    expression { params.ENVIRONMENT == 'prod' }
+                    expression { params.SKIP_DEPLOY == false }
+                }
+            }
+            steps {
+                script {
+                    echo "Sending approval notification..."
+
+                    emailext(
+                        subject: "Jenkins: Production Deployment Approval Required - Build #${BUILD_NUMBER}",
+                        body: """
+                            <h2>Production Deployment Approval Required</h2>
+                            <p><strong>Project:</strong> LMS Books Command Service</p>
+                            <p><strong>Build Number:</strong> ${BUILD_NUMBER}</p>
+                            <p><strong>Image Tag:</strong> ${IMAGE_TAG}</p>
+                            <p><strong>Environment:</strong> PRODUCTION</p>
+                            <p><strong>Deployment Mode:</strong> Docker Swarm - Rolling Update (3 replicas)</p>
+                            <br>
+                            <p>Docker Swarm will perform a rolling update:</p>
+                            <ul>
+                                <li>Update 1 container at a time</li>
+                                <li>10-second delay between updates</li>
+                                <li>Health checks before proceeding</li>
+                                <li>Automatic rollback on failure</li>
+                            </ul>
+                            <br>
+                            <p>Please review and approve/reject the deployment to production.</p>
+                            <p><a href="${BUILD_URL}input/">Click here to approve or reject</a></p>
+                        """,
+                        to: "${EMAIL_RECIPIENT}",
+                        mimeType: 'text/html'
+                    )
+
+                    timeout(time: 30, unit: 'MINUTES') {
+                        input message: 'Deploy to Production?',
+                              ok: 'Deploy',
+                              submitter: 'admin',
+                              submitterParameter: 'APPROVER'
+                    }
+                }
+            }
+        }
+
+        stage('Deploy to Production - Swarm Rolling Update') {
+            when {
+                allOf {
+                    expression { params.ENVIRONMENT == 'prod' }
+                    expression { params.SKIP_DEPLOY == false }
+                }
+            }
+            steps {
+                dir("${WORK_DIR}") {
+                    script {
+                        echo "=========================================="
+                        echo "Starting ROLLING UPDATE deployment to PRODUCTION"
+                        echo "Strategy: Docker Swarm automatic rolling update"
+                        echo "Replicas: 3 (updated 1 at a time)"
+                        echo "=========================================="
+
+                        sh """
+                            # Set the image tag for production
+                            export IMAGE_TAG=${IMAGE_TAG}
+
+                            # Deploy or update the stack with rolling update
+                            docker stack deploy -c docker-compose-swarm-prod.yml ${STACK_NAME_PROD}
+
+                            echo "Docker Swarm is performing rolling update..."
+                            echo "Monitoring service update progress..."
+
+                            # Wait for initial deployment
+                            sleep 20
+
+                            # Monitor the service update
+                            SERVICE_NAME=\$(docker service ls --filter "label=com.docker.stack.namespace=${STACK_NAME_PROD}" --filter "name=${STACK_NAME_PROD}_lmsbooks_command" --format "{{.Name}}")
+
+                            if [ -z "\$SERVICE_NAME" ]; then
+                                echo "ERROR: Service not found!"
+                                exit 1
+                            fi
+
+                            echo "Monitoring service: \$SERVICE_NAME"
+
+                            # Monitor update progress (max 5 minutes)
+                            MAX_WAIT=300
+                            ELAPSED=0
+                            UPDATE_COMPLETE=false
+
+                            while [ \$ELAPSED -lt \$MAX_WAIT ]; do
+                                # Get service update status
+                                UPDATE_STATUS=\$(docker service inspect \$SERVICE_NAME --format '{{.UpdateStatus.State}}' 2>/dev/null || echo "unknown")
+
+                                echo "Update status: \$UPDATE_STATUS (elapsed: \${ELAPSED}s)"
+
+                                if [ "\$UPDATE_STATUS" = "completed" ]; then
+                                    echo "✅ Rolling update completed successfully!"
+                                    UPDATE_COMPLETE=true
+                                    break
+                                elif [ "\$UPDATE_STATUS" = "rollback_completed" ]; then
+                                    echo "❌ Update failed and rollback completed!"
+                                    exit 1
+                                elif [ "\$UPDATE_STATUS" = "paused" ]; then
+                                    echo "⚠️ Update paused - may require manual intervention"
+                                    exit 1
+                                fi
+
+                                # Show current replicas
+                                docker service ps \$SERVICE_NAME --filter "desired-state=running" --no-trunc
+
+                                sleep 10
+                                ELAPSED=\$((ELAPSED + 10))
+                            done
+
+                            if [ "\$UPDATE_COMPLETE" = false ]; then
+                                echo "⚠️ Update monitoring timed out. Check service status manually."
+                                docker service ps \$SERVICE_NAME
+                                exit 1
+                            fi
+
+                            echo "=========================================="
+                            echo "Rolling update completed successfully!"
+                            echo "All production replicas are now running version ${IMAGE_TAG}"
+                            echo "=========================================="
+
+                            # Final status check
+                            docker stack services ${STACK_NAME_PROD}
+                            docker service ps \$SERVICE_NAME --filter "desired-state=running"
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Post-Deployment Verification') {
+            when {
+                expression { params.SKIP_DEPLOY == false }
+            }
+            steps {
+                dir("${WORK_DIR}") {
+                    script {
+                        echo "Verifying deployment..."
+                        def stackName = params.ENVIRONMENT == 'dev' ? STACK_NAME_DEV : (params.ENVIRONMENT == 'staging' ? STACK_NAME_STAGING : STACK_NAME_PROD)
+
+                        sh """
+                            echo "Stack services status:"
+                            docker stack services ${stackName}
+
+                            echo ""
+                            echo "Service tasks:"
+                            docker stack ps ${stackName} --no-trunc
+
+                            echo ""
+                            echo "Checking service health..."
+                            sleep 10
+
+                            # Get service logs (last 30 lines)
+                            SERVICE_ID=\$(docker service ls --filter "label=com.docker.stack.namespace=${stackName}" --format "{{.ID}}" | head -1)
+                            if [ -n "\$SERVICE_ID" ]; then
+                                echo "Service logs:"
+                                docker service logs --tail 30 \$SERVICE_ID
+                            fi
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Cleanup Old Images') {
+            steps {
+                script {
+                    echo "Cleaning up old Docker images..."
+                    sh """
+                        # Keep only the last 5 builds
+                        docker images ${IMAGE_NAME} --format "{{.Tag}}" | grep -E '^[0-9]+\$' | sort -rn | tail -n +6 | xargs -r -I {} docker rmi ${IMAGE_NAME}:{} || true
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            script {
+                echo "=========================================="
+                echo "Pipeline completed successfully!"
+                echo "Environment: ${params.ENVIRONMENT}"
+                echo "Image: ${IMAGE_NAME}:${IMAGE_TAG}"
+                echo "Deployment: Docker Swarm"
+                echo "=========================================="
+
+                emailext(
+                    subject: "Jenkins SUCCESS: LMS Books Command - ${params.ENVIRONMENT} - Build #${BUILD_NUMBER}",
+                    body: """
+                        <h2>Build Successful</h2>
+                        <p><strong>Environment:</strong> ${params.ENVIRONMENT}</p>
+                        <p><strong>Build Number:</strong> ${BUILD_NUMBER}</p>
+                        <p><strong>Image Tag:</strong> ${IMAGE_TAG}</p>
+                        <p><strong>Deployment Mode:</strong> Docker Swarm</p>
+                        <p><strong>Status:</strong> ✅ SUCCESS</p>
+                        <br>
+                        <p><a href="${BUILD_URL}">View Build Details</a></p>
+                    """,
+                    to: "${EMAIL_RECIPIENT}",
+                    mimeType: 'text/html'
+                )
+            }
+        }
+
+        failure {
+            script {
+                echo "=========================================="
+                echo "Pipeline failed!"
+                echo "Environment: ${params.ENVIRONMENT}"
+                echo "=========================================="
+
+                emailext(
+                    subject: "Jenkins FAILURE: LMS Books Command - ${params.ENVIRONMENT} - Build #${BUILD_NUMBER}",
+                    body: """
+                        <h2>Build Failed</h2>
+                        <p><strong>Environment:</strong> ${params.ENVIRONMENT}</p>
+                        <p><strong>Build Number:</strong> ${BUILD_NUMBER}</p>
+                        <p><strong>Status:</strong> ❌ FAILURE</p>
+                        <br>
+                        <p><a href="${BUILD_URL}console">View Console Output</a></p>
+                    """,
+                    to: "${EMAIL_RECIPIENT}",
+                    mimeType: 'text/html'
+                )
+            }
+        }
+
+        always {
+            script {
+                echo "Cleaning up workspace..."
+                cleanWs(
+                    deleteDirs: true,
+                    patterns: [[pattern: 'target/**', type: 'INCLUDE']]
+                )
+            }
+        }
+    }
+}
