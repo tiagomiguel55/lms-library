@@ -2,16 +2,16 @@ version: '3.8'
 
 services:
   lmsbooks_command:
-    image: lmsbooks:command
+    image: lmsbooks:dev
     environment:
-      - SPRING_PROFILES_ACTIVE=
-      - spring.datasource.url=jdbc:postgresql://postgres_command:5432/command_books
-      - spring.datasource.username=postgres
-      - spring.datasource.password=password
+      - SPRING_PROFILES_ACTIVE=dev
+      - spring.datasource.url=jdbc:postgresql://postgres_command_dev:5432/lmsbooks_dev
+      - spring.datasource.username=lmsuser
+      - spring.datasource.password=lmspass
       - spring.datasource.driver-class-name=org.postgresql.Driver
       - spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
-      - spring.jpa.hibernate.ddl-auto=create-drop
-      - spring.rabbitmq.host=rabbitmq
+      - spring.jpa.hibernate.ddl-auto=update
+      - spring.rabbitmq.host=rabbitmq_dev
     deploy:
       replicas: 2
       restart_policy:
@@ -21,14 +21,14 @@ services:
     networks:
       - lms_network
 
-  postgres_command:
-    image: postgres:latest
+  postgres_command_dev:
+    image: postgres:15
     environment:
-      - POSTGRES_DB=command_books
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=lmsbooks_dev
+      - POSTGRES_USER=lmsuser
+      - POSTGRES_PASSWORD=lmspass
     volumes:
-      - postgres_command_data:/var/lib/postgresql  # ← Mudou aqui (sem /data)
+      - postgres_command_data_dev:/var/lib/postgresql
     deploy:
       replicas: 1
       placement:
@@ -39,10 +39,25 @@ services:
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U lmsuser"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - lms_network
+
+  rabbitmq_dev:
+    image: rabbitmq:3-management
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+    ports:
+      - "5672:5672"
+      - "15672:15672"
     networks:
       - lms_network
 
@@ -51,5 +66,5 @@ networks:
     external: true
 
 volumes:
-  postgres_command_data:
+  postgres_command_data_dev:
     driver: local

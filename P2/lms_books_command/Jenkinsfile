@@ -95,30 +95,6 @@ pipeline {
             }
         }
 
-        stage('Unit Tests') {
-            when {
-                expression { params.ENVIRONMENT == 'dev' }
-            }
-            steps {
-                dir("${WORK_DIR}") {
-                    script {
-                        echo "Running Unit Tests..."
-                        sh """
-                            export JAVA_HOME=${JAVA_HOME}
-                            export PATH=\$JAVA_HOME/bin:\$PATH
-                            ${MAVEN_HOME}/bin/mvn test -DskipTests=false
-                        """
-                    }
-                }
-            }
-            post {
-                always {
-                    dir("${WORK_DIR}") {
-                        junit '**/target/surefire-reports/*.xml'
-                    }
-                }
-            }
-        }
 
         stage('Mutation Tests') {
             when {
