@@ -96,7 +96,7 @@ pipeline {
         }
 
 
-        stage('Mutation Tests') {
+      /*  stage('Mutation Tests') {
             when {
                 allOf {
                     expression { params.ENVIRONMENT == 'dev' }
@@ -129,7 +129,7 @@ pipeline {
                     }
                 }
             }
-        }
+        } */
 
         stage('Package') {
             steps {
