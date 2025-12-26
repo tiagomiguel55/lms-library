@@ -125,7 +125,7 @@ public class RabbitmqClientConfig {
 
     // Bindings permanecem iguais
     @Bean
-    public Binding binding1(DirectExchange direct,
+    public Binding binding1(@Qualifier("direct") DirectExchange direct,
                             @Qualifier("autoDeleteQueue_Book_Created") Queue autoDeleteQueue_Book_Created){
         return BindingBuilder.bind(autoDeleteQueue_Book_Created)
                 .to(direct)
@@ -133,7 +133,7 @@ public class RabbitmqClientConfig {
     }
 
     @Bean
-    public Binding binding2(DirectExchange direct,
+    public Binding binding2(@Qualifier("direct") DirectExchange direct,
                             Queue autoDeleteQueue_Book_Updated){
         return BindingBuilder.bind(autoDeleteQueue_Book_Updated)
                 .to(direct)
@@ -157,7 +157,7 @@ public class RabbitmqClientConfig {
     }
 
     @Bean
-    public Binding binding4b(DirectExchange direct,
+    public Binding binding4b(@Qualifier("direct") DirectExchange direct,
                              Queue autoDeleteQueue_Book_Requested_Author){
         return BindingBuilder.bind(autoDeleteQueue_Book_Requested_Author)
                 .to(direct)
@@ -173,7 +173,7 @@ public class RabbitmqClientConfig {
     }
 
     @Bean
-    public Binding binding6(DirectExchange direct,
+    public Binding binding6(@Qualifier("direct") DirectExchange direct,
                             Queue autoDeleteQueue_Book_Finalized){
         return BindingBuilder.bind(autoDeleteQueue_Book_Finalized)
                 .to(direct)
@@ -181,7 +181,7 @@ public class RabbitmqClientConfig {
     }
 
     @Bean
-    public Binding binding6b(DirectExchange direct,
+    public Binding binding6b(@Qualifier("direct") DirectExchange direct,
                              Queue autoDeleteQueue_Book_Finalized_Author){
         return BindingBuilder.bind(autoDeleteQueue_Book_Finalized_Author)
                 .to(direct)
@@ -237,7 +237,7 @@ public class RabbitmqClientConfig {
     }
 
             @Bean
-            public Binding bindingLendingReturned (DirectExchange direct,
+            public Binding bindingLendingReturned (@Qualifier("direct") DirectExchange direct,
                     Queue autoDeleteQueue_Lending_Returned){
                 return BindingBuilder.bind(autoDeleteQueue_Lending_Returned)
                         .to(direct)
@@ -245,7 +245,7 @@ public class RabbitmqClientConfig {
             }
 
     @Bean
-    public Binding binding13(DirectExchange direct,
+    public Binding binding13(@Qualifier("direct") DirectExchange direct,
                              Queue autoDeleteQueue_Book_Requested_Genre){
         return BindingBuilder.bind(autoDeleteQueue_Book_Requested_Genre)
                 .to(direct)
@@ -253,7 +253,7 @@ public class RabbitmqClientConfig {
     }
 
     @Bean
-    public Binding binding14(DirectExchange direct,
+    public Binding binding14(@Qualifier("direct") DirectExchange direct,
                              Queue autoDeleteQueue_Book_Finalized_Genre){
         return BindingBuilder.bind(autoDeleteQueue_Book_Finalized_Genre)
                 .to(direct)

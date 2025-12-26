@@ -4,31 +4,44 @@ services:
   lmsbooks_command:
     image: lmsbooks:command
     environment:
-      - SPRING_PROFILES_ACTIVE=
-      - spring.datasource.url=jdbc:postgresql://postgres_command:5432/command_books
+      - SPRING_PROFILES_ACTIVE=sqlServer
+      - spring.datasource.url=jdbc:postgresql://postgres_books_command:5432/command_books
       - spring.datasource.username=postgres
       - spring.datasource.password=password
       - spring.datasource.driver-class-name=org.postgresql.Driver
       - spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
-      - spring.jpa.hibernate.ddl-auto=create-drop
-      - spring.rabbitmq.host=rabbitmq
+      - spring.jpa.hibernate.ddl-auto=update
+      - spring.rabbitmq.host=shared_stack_rabbitmq
+      - spring.rabbitmq.port=5672
+      - spring.rabbitmq.username=guest
+      - spring.rabbitmq.password=guest
+      - WAIT_FOR_HOSTS=postgres_books_command:5432,shared_stack_rabbitmq:5672
     deploy:
       replicas: 2
       restart_policy:
         condition: on-failure
+        delay: 15s
+        max_attempts: 5
+        window: 2m
     ports:
       - "8080:8080"
     networks:
       - lms_network
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '>/dev/tcp/127.0.0.1/8080' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
 
-  postgres_command:
+  postgres_books_command:
     image: postgres:latest
     environment:
       - POSTGRES_DB=command_books
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=password
     volumes:
-      - postgres_command_data:/var/lib/postgresql  # ← Mudou aqui (sem /data)
+      - postgres_books_command_data:/var/lib/postgresql
     deploy:
       replicas: 1
       placement:
@@ -36,6 +49,9 @@ services:
           - node.role == manager
       restart_policy:
         condition: on-failure
+        delay: 10s
+        max_attempts: 3
+        window: 1m
     ports:
       - "5432:5432"
     healthcheck:
@@ -43,6 +59,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
     networks:
       - lms_network
 
@@ -51,5 +68,5 @@ networks:
     external: true
 
 volumes:
-  postgres_command_data:
+  postgres_books_command_data:
     driver: local

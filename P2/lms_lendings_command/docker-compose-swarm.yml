@@ -1,38 +1,47 @@
-version: '3.8'
+﻿version: '3.8'
 
 services:
   lmslendings_command:
     image: lmslendings:command
     environment:
-      - SPRING_PROFILES_ACTIVE=mongodb,bootstrap
-      - spring.data.mongodb.uri=mongodb://mongodb_lms:27017/LMS_Lending_Command
-      - spring.datasource.url=jdbc:postgresql://postgres_command:5432/command_lendings
+      - SPRING_PROFILES_ACTIVE=sqlServer,hash
+      - spring.datasource.url=jdbc:postgresql://postgres_lendings_command:5432/command_lendings
       - spring.datasource.username=postgres
       - spring.datasource.password=password
       - spring.datasource.driver-class-name=org.postgresql.Driver
       - spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
       - spring.jpa.hibernate.ddl-auto=update
-      - spring.rabbitmq.host=rabbitmq
+      - spring.rabbitmq.host=shared_stack_rabbitmq
+      - spring.rabbitmq.port=5672
+      - spring.rabbitmq.username=guest
+      - spring.rabbitmq.password=guest
+      - WAIT_FOR_HOSTS=postgres_lendings_command:5432,shared_stack_rabbitmq:5672
     deploy:
       replicas: 2
       restart_policy:
         condition: on-failure
-        delay: 10s
-        max_attempts: 3
-        window: 1m
+        delay: 15s
+        max_attempts: 5
+        window: 2m
     ports:
       - "8090:8080"
     networks:
       - lms_network
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '>/dev/tcp/127.0.0.1/8080' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
 
-  postgres_command:
+  postgres_lendings_command:
     image: postgres:latest
     environment:
       - POSTGRES_DB=command_lendings
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=password
     volumes:
-      - postgres_command_data:/var/lib/postgresql
+      - postgres_lendings_command_data:/var/lib/postgresql
     deploy:
       replicas: 1
       placement:
@@ -50,6 +59,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
     networks:
       - lms_network
 
@@ -58,5 +68,5 @@ networks:
     external: true
 
 volumes:
-  postgres_command_data:
+  postgres_lendings_command_data:
     driver: local

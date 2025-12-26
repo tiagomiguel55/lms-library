@@ -1,0 +1,248 @@
+version: '3.8'
+
+services:
+  # =============================================
+  # SHARED SERVICES
+  # =============================================
+  
+  rabbitmq:
+    image: rabbitmq:3-management
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - lms_network
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 10s
+      retries: 5
+      timeout: 5s
+
+  # =============================================
+  # COMMAND MICROSERVICES (PostgreSQL)
+  # =============================================
+  
+  # Books Command Service
+  lmsbooks_command:
+    image: lmsbooks:command
+    environment:
+      - SPRING_PROFILES_ACTIVE=
+      - spring.datasource.url=jdbc:postgresql://postgres_books_command:5432/command_books
+      - spring.datasource.username=postgres
+      - spring.datasource.password=password
+      - spring.datasource.driver-class-name=org.postgresql.Driver
+      - spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
+      - spring.jpa.hibernate.ddl-auto=update
+      - spring.rabbitmq.host=rabbitmq
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+    ports:
+      - "8080:8080"
+    networks:
+      - lms_network
+    depends_on:
+      - postgres_books_command
+      - rabbitmq
+
+  postgres_books_command:
+    image: postgres:latest
+    environment:
+      - POSTGRES_DB=command_books
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - postgres_books_command_data:/var/lib/postgresql
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+    ports:
+      - "5432:5432"
+    networks:
+      - lms_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Lendings Command Service
+  lmslendings_command:
+    image: lmslendings:command
+    environment:
+      - SPRING_PROFILES_ACTIVE=bootstrap
+      - spring.datasource.url=jdbc:postgresql://postgres_lendings_command:5432/command_lendings
+      - spring.datasource.username=postgres
+      - spring.datasource.password=password
+      - spring.datasource.driver-class-name=org.postgresql.Driver
+      - spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
+      - spring.jpa.hibernate.ddl-auto=update
+      - spring.rabbitmq.host=rabbitmq
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+    ports:
+      - "8090:8080"
+    networks:
+      - lms_network
+    depends_on:
+      - postgres_lendings_command
+      - rabbitmq
+
+  postgres_lendings_command:
+    image: postgres:latest
+    environment:
+      - POSTGRES_DB=command_lendings
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - postgres_lendings_command_data:/var/lib/postgresql
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+    ports:
+      - "5436:5432"
+    networks:
+      - lms_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # =============================================
+  # QUERY MICROSERVICES (MongoDB)
+  # =============================================
+  
+  # Books Query Service
+  lmsbooks_query:
+    image: lmsbooks:query
+    environment:
+      - SPRING_PROFILES_ACTIVE=
+      - spring.data.mongodb.uri=mongodb://mongodb_books_query:27017/lms_books_query
+      - spring.data.mongodb.database=lms_books_query
+      - file.upload-dir=/tmp/uploads-psoft-g1
+      - spring.rabbitmq.host=rabbitmq
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+    ports:
+      - "8085:8080"
+    networks:
+      - lms_network
+    depends_on:
+      - mongodb_books_query
+      - rabbitmq
+
+  mongodb_books_query:
+    image: mongo:latest
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=password
+      - MONGO_INITDB_DATABASE=lms_books_query
+    volumes:
+      - mongodb_books_query_data:/data/db
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+    ports:
+      - "27017:27017"
+    networks:
+      - lms_network
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --eval 'db.runCommand(\"ping\").ok' --quiet"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Lendings Query Service
+  lmslendings_query:
+    image: lmslendings:query
+    environment:
+      - SPRING_PROFILES_ACTIVE=mongodb,bootstrap
+      - spring.data.mongodb.uri=mongodb://mongodb_lendings_query:27017/LMS_Lending_Query
+      - spring.data.mongodb.database=LMS_Lending_Query
+      - spring.rabbitmq.host=rabbitmq
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+    ports:
+      - "8091:8080"
+    networks:
+      - lms_network
+    depends_on:
+      - mongodb_lendings_query
+      - rabbitmq
+
+  mongodb_lendings_query:
+    image: mongo:latest
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=password
+      - MONGO_INITDB_DATABASE=LMS_Lending_Query
+    volumes:
+      - mongodb_lendings_query_data:/data/db
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+    ports:
+      - "27018:27017"
+    networks:
+      - lms_network
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --eval 'db.runCommand(\"ping\").ok' --quiet"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+networks:
+  lms_network:
+    external: true
+
+volumes:
+  rabbitmq_data:
+    driver: local
+  postgres_books_command_data:
+    driver: local
+  postgres_lendings_command_data:
+    driver: local
+  mongodb_books_query_data:
+    driver: local
+  mongodb_lendings_query_data:
+    driver: local

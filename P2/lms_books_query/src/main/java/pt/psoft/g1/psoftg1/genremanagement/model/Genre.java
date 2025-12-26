@@ -1,22 +1,23 @@
 package pt.psoft.g1.psoftg1.genremanagement.model;
 
-import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
+import org.springframework.data.mongodb.core.mapping.Document;
 
-@Entity
-@Table
+@Document(collection = "genres")
 public class Genre {
-    @Transient
-    private final int GENRE_MAX_LENGTH = 100;
+    private static final int GENRE_MAX_LENGTH = 100;
+    
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
-    long pk;
+    @Getter
+    private String id;
 
     @Size(min = 1, max = GENRE_MAX_LENGTH, message = "Genre name must be between 1 and 100 characters")
-    @Column(unique = true, nullable = false, length = GENRE_MAX_LENGTH)
+    @Indexed(unique = true)
     @Getter
-    String genre;
+    private String genre;
 
     protected Genre() {
     }

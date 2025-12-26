@@ -9,6 +9,8 @@ import org.springframework.amqp.core.DirectExchange;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
+import pt.psoft.g1.psoftg1.authormanagement.api.AuthorViewAMQP;
+import pt.psoft.g1.psoftg1.genremanagement.api.GenreViewAMQP;
 import pt.psoft.g1.psoftg1.bookmanagement.services.BookService;
 
 import java.nio.charset.StandardCharsets;
@@ -23,6 +25,7 @@ public class BookRabbitmqController {
     private RabbitTemplate template;
 
     @Autowired
+    @Qualifier("direct")
     private DirectExchange directExchange;
 
     // Exchange dedicated to cross-service validations (shared with LendingsCmd)
@@ -79,17 +82,13 @@ public class BookRabbitmqController {
             ObjectMapper objectMapper = new ObjectMapper();
             BookFinalizedEvent event = objectMapper.readValue(jsonReceived, BookFinalizedEvent.class);
 
-            System.out.println(" [QUERY] 📥 Received Author Created: " + event.getName());
+            System.out.println(" [QUERY] 📥 Received Book Finalized: " + event.getAuthorName());
 
-            // Se o evento tem bookId associado, atualiza o book
-            if (event.getBookId() != null && !event.getBookId().isEmpty()) {
-                bookService.handleAuthorCreated(event, event.getBookId());
-                System.out.println(" [QUERY] ✅ Book updated with author: " + event.getName());
-            } else {
-                System.out.println(" [QUERY] ℹ️ Author created without associated book, skipping book update");
-            }
+            // Handle book finalized event
+            bookService.handleBookFinalized(event);
+            System.out.println(" [QUERY] ✅ Book finalized processed");
         } catch (Exception ex) {
-            System.out.println(" [QUERY] ❌ Error receiving author created: " + ex.getMessage());
+            System.out.println(" [QUERY] ❌ Error receiving book finalized: " + ex.getMessage());
             ex.printStackTrace();
         }
     }
@@ -97,12 +96,12 @@ public class BookRabbitmqController {
 
     // ========== GENRE EVENTS ==========
 
-    @RabbitListener(queues = "#{autoDeleteQueue_Author_Created.name}")
+    @RabbitListener(queues = "#{autoDeleteQueue_Genre_Created.name}")
     public void receiveGenreCreated(Message msg) {
         try {
             String jsonReceived = new String(msg.getBody(), StandardCharsets.UTF_8);
             ObjectMapper objectMapper = new ObjectMapper();
-AuthorViewAMQP event = objectMapper.readValue(jsonReceived, AuthorViewAMQP.class);
+            GenreViewAMQP event = objectMapper.readValue(jsonReceived, GenreViewAMQP.class);
 
            System.out.println(" [QUERY] 📥 Received Genre Created: " + event.getGenre());
 

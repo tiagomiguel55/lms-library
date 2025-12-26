@@ -1,37 +1,52 @@
 package pt.psoft.g1.psoftg1.authormanagement.model;
 
-import jakarta.persistence.*;
 import lombok.Getter;
-import org.hibernate.StaleObjectStateException;
-import pt.psoft.g1.psoftg1.authormanagement.services.UpdateAuthorRequest;
+import lombok.Setter;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Version;
+import org.springframework.data.mongodb.core.index.Indexed;
+import org.springframework.data.mongodb.core.mapping.Document;
 import pt.psoft.g1.psoftg1.exceptions.ConflictException;
-import pt.psoft.g1.psoftg1.shared.model.EntityWithPhoto;
-import pt.psoft.g1.psoftg1.shared.model.Name;
 import pt.psoft.g1.psoftg1.shared.model.Photo;
 
-@Entity
-public class Author extends EntityWithPhoto {
+@Document(collection = "authors")
+public class Author {
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
-    @Column(name = "AUTHOR_NUMBER")
+    private String id;
+
+    @Indexed(unique = true)
     @Getter
     private long authorNumber;
 
     @Version
-    private long version;
+    private Long version;
 
-    @Embedded
-    private Name name;
+    @Getter
+    private String name;
 
-    @Embedded
-    private Bio bio;
+    @Getter
+    private String bio;
+
+    @Getter
+    @Setter
+    private Photo photo;
 
     public void setName(String name) {
-        this.name = new Name(name);
+        if (name == null)
+            throw new IllegalArgumentException("Name cannot be null");
+        if (name.isBlank())
+            throw new IllegalArgumentException("Name cannot be blank, nor only white spaces");
+        this.name = name;
     }
 
     public void setBio(String bio) {
-        this.bio = new Bio(bio);
+        if (bio == null)
+            throw new IllegalArgumentException("Bio cannot be null");
+        if (bio.isBlank())
+            throw new IllegalArgumentException("Bio cannot be blank");
+        if (bio.length() > 4096)
+            throw new IllegalArgumentException("Bio has a maximum of 4096 characters");
+        this.bio = bio;
     }
 
     public Long getVersion() {
@@ -39,10 +54,6 @@ public class Author extends EntityWithPhoto {
     }
 
     public Long getId() {
-        return authorNumber;
-    }
-
-    public long getAuthorNumber() {
         return authorNumber;
     }
 
@@ -60,18 +71,18 @@ public class Author extends EntityWithPhoto {
     }
 
     public Author() {
-        // got ORM only
+        // for ORM only
     }
 
-    public void applyPatch(final long desiredVersion, final UpdateAuthorRequest request) {
+    public void applyPatch(final long desiredVersion, final String name, final String bio, final String photoURI) {
         if (this.version != desiredVersion)
-            throw new StaleObjectStateException("Object was already modified by another user", this.authorNumber);
-        if (request.getName() != null)
-            setName(request.getName());
-        if (request.getBio() != null)
-            setBio(request.getBio());
-        if (request.getPhotoURI() != null)
-            setPhotoInternal(request.getPhotoURI());
+            throw new ConflictException("Object was already modified by another user");
+        if (name != null)
+            setName(name);
+        if (bio != null)
+            setBio(bio);
+        if (photoURI != null)
+            setPhotoInternal(photoURI);
     }
 
     public void removePhoto(long desiredVersion) {
@@ -82,23 +93,15 @@ public class Author extends EntityWithPhoto {
         setPhotoInternal(null);
     }
 
-    public String getName() {
-        return this.name.toString();
-    }
-
-    public String getBio() {
-        return this.bio.toString();
+    protected void setPhotoInternal(String photoURI) {
+        if (photoURI == null) {
+            this.photo = null;
+        } else {
+            this.photo = new Photo(photoURI);
+        }
     }
 
     public void setPhotoURI(String photoURI) {
         setPhotoInternal(photoURI);
-    }
-
-    public Photo getPhoto() {
-        return super.photo;
-    }
-
-    public long getAuthorNumber() {
-        return authorNumber;
     }
 }

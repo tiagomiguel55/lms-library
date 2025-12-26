@@ -1,20 +1,21 @@
 package pt.psoft.g1.psoftg1.shared.model;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Embeddable;
+import org.springframework.context.annotation.PropertySource;
+
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
-import org.springframework.context.annotation.PropertySource;
 
+/**
+ * Value object for Name.
+ * Used as an embedded field in MongoDB documents.
+ */
 @Getter
-@Embeddable
 @PropertySource({ "classpath:config/library.properties" })
 public class Name {
     @NotNull
     @NotBlank
-    @Column(name = "NAME", length = 150)
-    String name;
+    private String name;
 
     public Name(String name) {
         setName(name);

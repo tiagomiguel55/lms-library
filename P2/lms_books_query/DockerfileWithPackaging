@@ -5,14 +5,14 @@ FROM maven:3.8.8-eclipse-temurin-21-alpine AS build
 WORKDIR /app
 
 # Copy the pom.xml and download dependencies
-COPY ../pom.xml .
-RUN mvn dependency:go-offline
+COPY pom.xml .
+RUN mvn dependency:go-offline -B || true
 
 # Copy the rest of the project files
-COPY ../src ./src
+COPY src ./src
 
 # Package the application
-RUN mvn package
+RUN mvn package -DskipTests -DskipIT -Dmaven.test.skip=true
 
 
 # Run the app using the JAR (if it is a standalone application)

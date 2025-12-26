@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import pt.psoft.g1.psoftg1.lendingmanagement.services.LendingService;
 import org.springframework.amqp.core.Message;
@@ -25,6 +26,7 @@ public class LendingRabbitmqController {
     private RabbitTemplate template;
 
     @Autowired
+    @Qualifier("directExchange")
     private DirectExchange directExchange;
 
     // Store pending validations by correlation ID

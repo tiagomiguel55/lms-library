@@ -1,7 +1,6 @@
 package pt.psoft.g1.psoftg1.authormanagement.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,11 +13,15 @@ import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 
 @Service
-@RequiredArgsConstructor
 public class AuthorRabbitmqController {
 
     private final AuthorRepository authorRepository;
     private final BookService bookService;
+
+    public AuthorRabbitmqController(AuthorRepository authorRepository, BookService bookService) {
+        this.authorRepository = authorRepository;
+        this.bookService = bookService;
+    }
 
     @RabbitListener(queues = "#{autoDeleteQueue_Author_Created.name}")
     @Transactional

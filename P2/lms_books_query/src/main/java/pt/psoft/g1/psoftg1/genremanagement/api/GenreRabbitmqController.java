@@ -13,7 +13,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 
 @Service
-@RequiredArgsConstructor
 public class GenreRabbitmqController {
 
     private final GenreRepository genreRepository;

@@ -4,32 +4,48 @@ services:
   lmsbooks_query:
     image: lmsbooks:query
     environment:
-      - SPRING_PROFILES_ACTIVE=
-      - spring.datasource.url=jdbc:postgresql://postgres_query:5432/query_books
-      - spring.datasource.username=postgres
-      - spring.datasource.password=password
-      - spring.datasource.driver-class-name=org.postgresql.Driver
-      - spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
-      - spring.jpa.hibernate.ddl-auto=create-drop
+      - SPRING_PROFILES_ACTIVE=mongodb
+      - spring.data.mongodb.uri=mongodb://mongodb_books_query:27017/lms_books_query
+      - spring.data.mongodb.database=lms_books_query
       - file.upload-dir=/tmp/uploads-psoft-g1
-      - spring.rabbitmq.host=rabbitmq
+      - spring.rabbitmq.host=shared_stack_rabbitmq
+      - spring.rabbitmq.port=5672
+      - spring.rabbitmq.username=guest
+      - spring.rabbitmq.password=guest
+      - WAIT_FOR_HOSTS=mongodb_books_query:27017,shared_stack_rabbitmq:5672
     deploy:
       replicas: 2
       restart_policy:
         condition: on-failure
+        delay: 15s
+        max_attempts: 5
+        window: 2m
     ports:
       - "8085:8080"
     networks:
       - lms_network
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '>/dev/tcp/127.0.0.1/8080' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
 
-  postgres_query:
-    image: postgres:latest
+  mongodb_books_query:
+    image: mongo:6.0
+    entrypoint:
+      - sh
+      - -c
+      - |
+        (
+          sleep 5
+          mongosh localhost:27017 --eval "rs.initiate({_id: 'rs0', members: [{_id: 0, host: 'localhost:27017'}]})" 2>/dev/null || true
+        ) &
+        exec mongod --replSet rs0 --bind_ip_all
     environment:
-      - POSTGRES_DB=query_books
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=password
+      - MONGO_INITDB_DATABASE=lms_books_query
     volumes:
-      - postgres_query_volume:/var/lib/postgresql
+      - mongodb_books_query_data:/data/db
     deploy:
       replicas: 1
       placement:
@@ -37,22 +53,24 @@ services:
           - node.role == manager
       restart_policy:
         condition: on-failure
+        delay: 10s
+        max_attempts: 3
+        window: 1m
     ports:
-      - "5433:5432"
+      - "27017:27017"
     networks:
       - lms_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "mongosh --eval 'db.runCommand(\"ping\").ok' --quiet"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
-
 
 networks:
   lms_network:
     external: true
 
 volumes:
-  postgres_query_volume:
+  mongodb_books_query_data:
     driver: local

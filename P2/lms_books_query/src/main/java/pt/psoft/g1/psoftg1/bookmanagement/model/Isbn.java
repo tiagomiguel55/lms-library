@@ -1,19 +1,18 @@
 package pt.psoft.g1.psoftg1.bookmanagement.model;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Embeddable;
+import java.io.Serializable;
+
 import jakarta.validation.constraints.Size;
 import lombok.EqualsAndHashCode;
 
-import java.io.Serializable;
-
-@Embeddable
+/**
+ * Value object for ISBN.
+ * Used as an embedded field in MongoDB documents.
+ */
 @EqualsAndHashCode
 public class Isbn implements Serializable {
     @Size(min = 10, max = 13)
-    @Column(name = "ISBN", length = 16)
-
-    String isbn;
+    private String isbn;
 
     public Isbn(String isbn) {
         if (isValidIsbn(isbn)) {
@@ -24,7 +23,7 @@ public class Isbn implements Serializable {
     }
 
     protected Isbn() {
-    };
+    }
 
     private static boolean isValidIsbn(String isbn) {
         if (isbn == null)

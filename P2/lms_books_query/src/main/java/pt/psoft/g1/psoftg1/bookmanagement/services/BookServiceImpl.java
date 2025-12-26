@@ -27,7 +27,7 @@ import java.util.Optional;
 
 import pt.psoft.g1.psoftg1.authormanagement.api.AuthorViewAMQP;
 import pt.psoft.g1.psoftg1.genremanagement.api.GenreViewAMQP;
-import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DuplicateKeyException;
 
 @Service
 @RequiredArgsConstructor
@@ -96,7 +96,7 @@ public class BookServiceImpl implements BookService {
         try {
             Book savedBook = bookRepository.save(newBook);
             return savedBook;
-        } catch (ConstraintViolationException e) {
+        } catch (DuplicateKeyException e) {
             // Book already exists, return the existing one
             return bookRepository.findByIsbn(isbn).orElseThrow(() -> new NotFoundException("Book not found"));
         }

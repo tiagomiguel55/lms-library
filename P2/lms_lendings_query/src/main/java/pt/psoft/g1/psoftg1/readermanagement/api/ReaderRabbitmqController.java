@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.amqp.core.DirectExchange;
 import org.springframework.amqp.core.Message;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,7 @@ public class ReaderRabbitmqController {
     private RabbitTemplate template;
 
     @Autowired
+    @Qualifier("directExchange")
     private DirectExchange directExchange;
 
     @RabbitListener(queues = "#{validateReaderQueue.name}")
