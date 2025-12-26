@@ -10,27 +10,16 @@ services:
       - spring.datasource.password=lmspass
       - spring.datasource.driver-class-name=org.postgresql.Driver
       - spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
-      - spring.jpa.hibernate.ddl-auto=validate
+      - spring.jpa.hibernate.ddl-auto=update
       - spring.rabbitmq.host=rabbitmq_staging
     deploy:
       replicas: 2
       restart_policy:
         condition: on-failure
-      update_config:
-        parallelism: 1
-        delay: 10s
-        failure_action: rollback
-        monitor: 30s
     ports:
-      - "8081:8080"
+      - "8082:8080"
     networks:
-      - lms_network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 40s
+      - lms_network_staging
 
   postgres_command_staging:
     image: postgres:15
@@ -39,7 +28,7 @@ services:
       - POSTGRES_USER=lmsuser
       - POSTGRES_PASSWORD=lmspass
     volumes:
-      - postgres_command_data_staging:/var/lib/postgresql
+      - postgres_command_data_staging:/var/lib/postgresql/data
     deploy:
       replicas: 1
       placement:
@@ -55,7 +44,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - lms_network
+      - lms_network_staging
 
   rabbitmq_staging:
     image: rabbitmq:3-management
@@ -70,13 +59,13 @@ services:
       - "5673:5672"
       - "15673:15672"
     networks:
-      - lms_network
+      - lms_network_staging
 
 networks:
-  lms_network:
-    external: true
+  lms_network_staging:
+    driver: overlay
+    attachable: true
 
 volumes:
   postgres_command_data_staging:
-    driver: local
 

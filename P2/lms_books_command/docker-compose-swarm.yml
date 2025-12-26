@@ -17,7 +17,7 @@ services:
       restart_policy:
         condition: on-failure
     ports:
-      - "8080:8080"
+      - "8081:8080"
     networks:
       - lms_network
 
@@ -28,7 +28,7 @@ services:
       - POSTGRES_USER=lmsuser
       - POSTGRES_PASSWORD=lmspass
     volumes:
-      - postgres_command_data_dev:/var/lib/postgresql
+      - postgres_command_data_dev:/var/lib/postgresql/data
     deploy:
       replicas: 1
       placement:
@@ -63,8 +63,8 @@ services:
 
 networks:
   lms_network:
-    external: true
+    driver: overlay
+    attachable: true
 
 volumes:
   postgres_command_data_dev:
-    driver: local
