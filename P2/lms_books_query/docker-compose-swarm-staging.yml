@@ -2,17 +2,17 @@ version: '3.8'
 
 services:
   lmsbooks_query:
-    image: lmsbooks-query:${IMAGE_TAG:-dev}
+    image: lmsbooks-query:${IMAGE_TAG:-staging}
     environment:
       - SPRING_PROFILES_ACTIVE=bootstrap
-      - spring.datasource.url=jdbc:postgresql://postgres_query_dev:5432/query_books_dev
+      - spring.datasource.url=jdbc:postgresql://postgres_query_staging:5432/query_books_staging
       - spring.datasource.username=lmsuser
       - spring.datasource.password=lmspass
       - spring.datasource.driver-class-name=org.postgresql.Driver
       - spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
       - spring.jpa.hibernate.ddl-auto=update
       - file.upload-dir=/tmp/uploads-psoft-g1
-      - spring.rabbitmq.host=rabbitmq_dev
+      - spring.rabbitmq.host=rabbitmq_staging
       - spring.rabbitmq.port=5672
       - spring.rabbitmq.username=guest
       - spring.rabbitmq.password=guest
@@ -21,18 +21,18 @@ services:
       restart_policy:
         condition: on-failure
     ports:
-      - "8085:8080"
+      - "8086:8080"
     networks:
-      - lms_network
+      - lms_network_staging
 
-  postgres_query_dev:
+  postgres_query_staging:
     image: postgres:15
     environment:
-      - POSTGRES_DB=query_books_dev
+      - POSTGRES_DB=query_books_staging
       - POSTGRES_USER=lmsuser
       - POSTGRES_PASSWORD=lmspass
     volumes:
-      - postgres_query_data_dev:/var/lib/postgresql/data
+      - postgres_query_data_staging:/var/lib/postgresql/data
     deploy:
       replicas: 1
       placement:
@@ -41,19 +41,19 @@ services:
       restart_policy:
         condition: on-failure
     ports:
-      - "5435:5432"
+      - "5436:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U lmsuser"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
-      - lms_network
+      - lms_network_staging
 
 networks:
-  lms_network:
+  lms_network_staging:
     driver: overlay
     attachable: true
 
 volumes:
-  postgres_query_data_dev:
+  postgres_query_data_staging:
