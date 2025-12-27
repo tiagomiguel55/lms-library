@@ -4,7 +4,7 @@ services:
   lmsbooks_command:
     image: lmsbooks:${IMAGE_TAG:-staging}
     environment:
-      - SPRING_PROFILES_ACTIVE=staging
+      - SPRING_PROFILES_ACTIVE=bootstrap
       - spring.datasource.url=jdbc:postgresql://postgres_command_staging:5432/lmsbooks_staging
       - spring.datasource.username=lmsuser
       - spring.datasource.password=lmspass
