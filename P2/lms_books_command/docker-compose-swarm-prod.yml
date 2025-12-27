@@ -12,6 +12,12 @@ services:
       - spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
       - spring.jpa.hibernate.ddl-auto=update
       - spring.rabbitmq.host=rabbitmq_prod
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     deploy:
       replicas: 3
       update_config:
@@ -37,6 +43,12 @@ services:
       - POSTGRES_PASSWORD=lmspass
     volumes:
       - postgres_command_data_prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lmsuser -d lmsbooks_prod"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     deploy:
       replicas: 1
       placement:
@@ -46,16 +58,17 @@ services:
         condition: on-failure
     ports:
       - "5434:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U lmsuser"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
     networks:
       - lms_network_prod
 
   rabbitmq_prod:
     image: rabbitmq:3-management
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     deploy:
       replicas: 1
       placement:

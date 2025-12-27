@@ -11,9 +11,15 @@ pipeline {
         GIT_BRANCH    = 'main'
         CREDENTIALS_ID = 'password_for_github_tiago'
 
+        // Docker Registry (configure according to your registry)
+        DOCKER_REGISTRY = 'docker.io'  // Use 'docker.io' for Docker Hub, or your private registry URL
+        DOCKER_REGISTRY_CREDENTIALS = 'dockerhub-credentials'  // Jenkins credential ID for Docker registry
+        DOCKER_REGISTRY_NAMESPACE = 'tiagomiguel55'  // Your Docker Hub username or registry namespace
+
         // Docker
         IMAGE_NAME = 'lmsbooks'
         IMAGE_TAG  = "${GIT_COMMIT}" // imagem imutável por commit SHA
+        FULL_IMAGE_NAME = "${DOCKER_REGISTRY}/${DOCKER_REGISTRY_NAMESPACE}/${IMAGE_NAME}"
 
         // Swarm stacks
         STACK_NAME_DEV     = 'lmsbooks-dev'
@@ -73,6 +79,44 @@ pipeline {
                         docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
                         docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:${params.ENVIRONMENT}
                     """
+                }
+            }
+        }
+
+        stage('Push Docker Image to Registry') {
+            when {
+                expression { params.ENVIRONMENT == 'prod' } // Only in production
+            }
+            steps {
+                script {
+                    // Login to Docker Registry
+                    withCredentials([usernamePassword(credentialsId: "${DOCKER_REGISTRY_CREDENTIALS}", usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                        sh """
+                            echo "=========================================="
+                            echo "Logging in to Docker Registry..."
+                            echo "Registry: ${DOCKER_REGISTRY}"
+                            echo "Namespace: ${DOCKER_REGISTRY_NAMESPACE}"
+                            echo "=========================================="
+                            echo "\$DOCKER_PASSWORD" | docker login ${DOCKER_REGISTRY} -u "\$DOCKER_USERNAME" --password-stdin
+
+                            echo ""
+                            echo "Tagging image ${IMAGE_NAME}:${IMAGE_TAG} as ${FULL_IMAGE_NAME}:${IMAGE_TAG}..."
+                            docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${FULL_IMAGE_NAME}:${IMAGE_TAG}
+
+                            echo ""
+                            echo "Pushing image to registry..."
+                            echo "Target: ${FULL_IMAGE_NAME}:${IMAGE_TAG}"
+                            echo "=========================================="
+                            docker push ${FULL_IMAGE_NAME}:${IMAGE_TAG}
+
+                            echo ""
+                            echo "=========================================="
+                            echo "✅ Image successfully pushed to registry!"
+                            echo "Full image name: ${FULL_IMAGE_NAME}:${IMAGE_TAG}"
+                            echo "Registry URL: ${DOCKER_REGISTRY}/${DOCKER_REGISTRY_NAMESPACE}/${IMAGE_NAME}"
+                            echo "=========================================="
+                        """
+                    }
                 }
             }
         }
@@ -349,6 +393,72 @@ pipeline {
                             # Final status
                             docker stack services ${STACK_NAME_PROD}
                             docker stack ps ${STACK_NAME_PROD}
+
+                            # Health Check Status
+                            echo ""
+                            echo "=========================================="
+                            echo "HEALTH CHECK STATUS - PRODUCTION"
+                            echo "=========================================="
+
+                            # Get service name
+                            SERVICE_NAME=\$(docker service ls --filter "label=com.docker.stack.namespace=${STACK_NAME_PROD}" --filter "name=${STACK_NAME_PROD}_lmsbooks_command" --format "{{.Name}}")
+
+                            if [ -n "\$SERVICE_NAME" ]; then
+                                echo ""
+                                echo "Service: \$SERVICE_NAME"
+                                echo "----------------------------------------"
+
+                                # Get all task IDs for the service
+                                TASK_IDS=\$(docker service ps \$SERVICE_NAME --filter "desired-state=running" --format "{{.ID}}" 2>/dev/null)
+
+                                for TASK_ID in \$TASK_IDS; do
+                                    # Get container ID from task
+                                    CONTAINER_ID=\$(docker inspect \$TASK_ID --format "{{.Status.ContainerStatus.ContainerID}}" 2>/dev/null || echo "")
+
+                                    if [ -n "\$CONTAINER_ID" ]; then
+                                        echo ""
+                                        echo "Task: \$TASK_ID"
+                                        HEALTH_STATUS=\$(docker inspect \$CONTAINER_ID --format "{{.State.Health.Status}}" 2>/dev/null || echo "no healthcheck")
+
+                                        if [ "\$HEALTH_STATUS" != "no healthcheck" ]; then
+                                            echo "  Health Status: \$HEALTH_STATUS"
+
+                                            # Get last health check log
+                                            LAST_CHECK=\$(docker inspect \$CONTAINER_ID --format "{{range .State.Health.Log}}{{.End}} - {{.ExitCode}} - {{.Output}}{{end}}" 2>/dev/null | tail -1 || echo "N/A")
+                                            echo "  Last Check: \$LAST_CHECK"
+                                        else
+                                            echo "  Health Status: Not configured or starting"
+                                        fi
+
+                                        # Show replica state
+                                        REPLICA_STATE=\$(docker service ps \$SERVICE_NAME --filter "id=\$TASK_ID" --format "{{.CurrentState}}" 2>/dev/null)
+                                        echo "  Replica State: \$REPLICA_STATE"
+                                    fi
+                                done
+
+                                echo ""
+                                echo "----------------------------------------"
+                                echo "Health Check Configuration:"
+                                docker service inspect \$SERVICE_NAME --format "{{json .Spec.TaskTemplate.ContainerSpec.Healthcheck}}" 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "  Configured in docker-compose file"
+                            fi
+
+                            # Check health of all services in the stack
+                            echo ""
+                            echo "=========================================="
+                            echo "ALL SERVICES HEALTH STATUS"
+                            echo "=========================================="
+                            docker service ls --filter "label=com.docker.stack.namespace=${STACK_NAME_PROD}" --format "table {{.Name}}\t{{.Replicas}}\t{{.Image}}"
+
+                            echo ""
+                            echo "Detailed service inspection:"
+                            for SERVICE in \$(docker service ls --filter "label=com.docker.stack.namespace=${STACK_NAME_PROD}" --format "{{.Name}}"); do
+                                echo ""
+                                echo "Service: \$SERVICE"
+                                docker service ps \$SERVICE --format "  {{.Name}}: {{.CurrentState}}" | head -5
+                            done
+
+                            echo ""
+                            echo "=========================================="
                         """
                     }
                 }
@@ -371,6 +481,54 @@ pipeline {
                         echo "Service tasks:"
                         docker stack ps ${stackName} --no-trunc
                     """
+
+                    // Show health checks for production only
+                    if (params.ENVIRONMENT == 'prod') {
+                        sh """
+                            echo ""
+                            echo "=========================================="
+                            echo "POST-DEPLOYMENT HEALTH CHECK VERIFICATION"
+                            echo "=========================================="
+
+                            # Wait a bit for health checks to stabilize
+                            echo "Waiting 30 seconds for health checks to stabilize..."
+                            sleep 30
+
+                            # Check each service
+                            for SERVICE in \$(docker service ls --filter "label=com.docker.stack.namespace=${stackName}" --format "{{.Name}}"); do
+                                echo ""
+                                echo "Checking health of: \$SERVICE"
+                                echo "----------------------------------------"
+
+                                # Get task IDs
+                                TASKS=\$(docker service ps \$SERVICE --filter "desired-state=running" --format "{{.ID}}" 2>/dev/null)
+
+                                for TASK in \$TASKS; do
+                                    CONTAINER_ID=\$(docker inspect \$TASK --format "{{.Status.ContainerStatus.ContainerID}}" 2>/dev/null || echo "")
+
+                                    if [ -n "\$CONTAINER_ID" ]; then
+                                        HEALTH=\$(docker inspect \$CONTAINER_ID --format "{{.State.Health.Status}}" 2>/dev/null || echo "none")
+                                        TASK_NAME=\$(docker inspect \$TASK --format "{{.Name}}" 2>/dev/null)
+
+                                        if [ "\$HEALTH" = "healthy" ]; then
+                                            echo "  ✅ \$TASK_NAME: HEALTHY"
+                                        elif [ "\$HEALTH" = "unhealthy" ]; then
+                                            echo "  ❌ \$TASK_NAME: UNHEALTHY"
+                                        elif [ "\$HEALTH" = "starting" ]; then
+                                            echo "  🔄 \$TASK_NAME: STARTING (health checks in progress)"
+                                        else
+                                            echo "  ℹ️  \$TASK_NAME: No health check configured"
+                                        fi
+                                    fi
+                                done
+                            done
+
+                            echo ""
+                            echo "=========================================="
+                            echo "✅ Post-deployment verification completed"
+                            echo "=========================================="
+                        """
+                    }
                 }
             }
         }
