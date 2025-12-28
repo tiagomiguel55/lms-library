@@ -12,7 +12,7 @@ services:
       - spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
       - spring.jpa.hibernate.ddl-auto=update
       - file.upload-dir=/tmp/uploads-psoft-g1
-      - spring.rabbitmq.host=rabbitmq_staging
+      - spring.rabbitmq.host=lmsbooks-staging_rabbitmq_staging
       - spring.rabbitmq.port=5672
       - spring.rabbitmq.username=guest
       - spring.rabbitmq.password=guest
@@ -52,8 +52,7 @@ services:
 
 networks:
   lms_network_staging:
-    driver: overlay
-    attachable: true
+    external: true
 
 volumes:
   postgres_query_data_staging:
