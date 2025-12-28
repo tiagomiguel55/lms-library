@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  lms_shared_rabbitmq_dev:
+  lms_shared_rabbitmq:
     image: rabbitmq:3-management
     restart: unless-stopped
     ports:

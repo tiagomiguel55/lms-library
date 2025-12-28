@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  lms_shared_rabbitmq_prod:
+  lms_shared_rabbitmq:
     image: rabbitmq:3-management
     restart: unless-stopped
     ports:
@@ -13,7 +13,7 @@ services:
     volumes:
       - rabbitmq_data_prod:/var/lib/rabbitmq
     networks:
-      - lms_network_prod
+      - lms_network
     deploy:
       replicas: 1
       placement:
@@ -28,10 +28,8 @@ services:
       timeout: 5s
 
 networks:
-  lms_network_prod:
+  lms_network:
     external: true
 
 volumes:
   rabbitmq_data_prod:
-
-
