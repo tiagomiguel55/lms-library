@@ -149,7 +149,7 @@ pipeline {
                         echo "✅ lms_shared stack already deployed"
                     else
                         echo "Deploying lms_shared stack..."
-                        cd /var/jenkins_home/workspace/lms-library
+                        # Use the workspace root which is already the current directory
                         docker stack deploy -c docker-compose-swarm-shared.yml lms_shared
 
                         echo "Waiting 30 seconds for RabbitMQ to start..."

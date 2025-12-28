@@ -202,9 +202,10 @@ pipeline {
                         echo "✅ lms_shared stack already deployed"
                         echo ""
                         echo "Current RabbitMQ service status:"
-                        docker service ls --filter "label=com.docker.stack.namespace=lms_shared" || echo "RabbitMQ service found"
+                        docker service ls --filter "name=rabbitmq" || echo "RabbitMQ service found"
                     else
                         echo "Deploying lms_shared stack with RabbitMQ..."
+                        # Use current working directory (workspace root)
                         docker stack deploy -c docker-compose-swarm-shared.yml lms_shared
 
                         echo "Waiting 30 seconds for RabbitMQ to start..."
@@ -212,13 +213,13 @@ pipeline {
 
                         echo ""
                         echo "Verifying RabbitMQ deployment:"
-                        docker service ls --filter "label=com.docker.stack.namespace=lms_shared"
+                        docker service ls --filter "name=rabbitmq"
                     fi
 
                     # Verify RabbitMQ is on the correct network
                     echo ""
                     echo "Verifying RabbitMQ is on lms_network:"
-                    docker service inspect $(docker service ls --filter "name=rabbitmq" --format "{{.ID}}" | head -1) --format "{{.Spec.TaskTemplate.Networks}}" 2>/dev/null || echo "RabbitMQ service verification completed"
+                    docker network inspect lms_network --format '{{range .Services}}{{.Name}} {{end}}' 2>/dev/null || echo "RabbitMQ service verification completed"
 
                     echo ""
                     echo "=========================================="
