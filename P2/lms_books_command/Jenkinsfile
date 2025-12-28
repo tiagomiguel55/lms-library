@@ -147,20 +147,36 @@ pipeline {
 
                     ENVIRONMENT="${params.ENVIRONMENT}"
                     STACK_NAME="lms_shared_\${ENVIRONMENT}"
-                    COMPOSE_FILE="${WORKSPACE}/docker-compose-swarm-shared-\${ENVIRONMENT}.yml"
+
+                    echo "Current working directory: \$(pwd)"
+                    echo "Workspace: ${WORKSPACE}"
+                    echo ""
+
+                    # Find the repo root (it should be at workspace root since git checks it out there)
+                    REPO_ROOT="${WORKSPACE}"
+
+                    # Look for docker-compose files
+                    if [ -f "\${REPO_ROOT}/docker-compose-swarm-shared-\${ENVIRONMENT}.yml" ]; then
+                        COMPOSE_FILE="\${REPO_ROOT}/docker-compose-swarm-shared-\${ENVIRONMENT}.yml"
+                    elif [ -f "docker-compose-swarm-shared-\${ENVIRONMENT}.yml" ]; then
+                        COMPOSE_FILE="docker-compose-swarm-shared-\${ENVIRONMENT}.yml"
+                    else
+                        echo "❌ ERROR: Compose file not found!"
+                        echo "Searched in:"
+                        echo "  1. \${REPO_ROOT}/docker-compose-swarm-shared-\${ENVIRONMENT}.yml"
+                        echo "  2. \$(pwd)/docker-compose-swarm-shared-\${ENVIRONMENT}.yml"
+                        echo ""
+                        echo "Contents of \${REPO_ROOT}:"
+                        ls -la "\${REPO_ROOT}" | head -20
+                        echo ""
+                        echo "Looking for any docker-compose files:"
+                        find "\${REPO_ROOT}" -maxdepth 2 -name "docker-compose-swarm-shared-*" 2>/dev/null || echo "None found"
+                        exit 1
+                    fi
 
                     echo "Stack Name: \$STACK_NAME"
                     echo "Compose File: \$COMPOSE_FILE"
-                    echo "Current working directory: \$(pwd)"
                     echo ""
-
-                    # Verify the compose file exists
-                    if [ ! -f "\$COMPOSE_FILE" ]; then
-                        echo "❌ ERROR: Compose file not found at \$COMPOSE_FILE"
-                        echo "Available files in \${WORKSPACE}:"
-                        ls -la "\${WORKSPACE}"/docker-compose-swarm-shared-* 2>/dev/null || echo "No matching files found"
-                        exit 1
-                    fi
 
                     # Check if lms_shared stack already exists
                     if docker stack ls | grep -q "\${STACK_NAME}"; then
