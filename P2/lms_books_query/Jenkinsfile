@@ -126,9 +126,25 @@ pipeline {
             }
             steps {
                 sh '''
+                    # Initialize Docker Swarm if not already initialized
                     docker info | grep -q "Swarm: active" || docker swarm init || true
+
+                    # Remove existing local network if it exists and create overlay network
+                    if docker network ls | grep -q lms_network; then
+                        NETWORK_SCOPE=$(docker network inspect lms_network --format '{{.Scope}}' 2>/dev/null || echo "")
+                        if [ "$NETWORK_SCOPE" = "local" ]; then
+                            echo "Removing existing local network 'lms_network'..."
+                            docker network rm lms_network || true
+                            sleep 2
+                        fi
+                    fi
+
+                    # Create overlay network if it doesn't exist (should already exist from command service)
                     docker network ls | grep -q lms_network || \
                     docker network create --driver overlay --attachable lms_network || true
+
+                    # Verify network is overlay
+                    docker network inspect lms_network --format '{{.Driver}}' || echo "Network check failed"
                 '''
             }
         }
