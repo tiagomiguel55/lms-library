@@ -11,7 +11,7 @@ services:
       - spring.datasource.driver-class-name=org.postgresql.Driver
       - spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
       - spring.jpa.hibernate.ddl-auto=update
-      - spring.rabbitmq.host=rabbitmq_staging
+      - spring.rabbitmq.host=lms_shared_rabbitmq
       - spring.rabbitmq.port=5672
       - spring.rabbitmq.username=guest
       - spring.rabbitmq.password=guest
@@ -23,6 +23,7 @@ services:
       - "8082:8080"
     networks:
       - lms_network_staging
+      - lms_network
 
   postgres_command_staging:
     image: postgres:15
@@ -49,25 +50,12 @@ services:
     networks:
       - lms_network_staging
 
-  rabbitmq_staging:
-    image: rabbitmq:3-management
-    deploy:
-      replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
-      restart_policy:
-        condition: on-failure
-    ports:
-      - "5673:5672"
-      - "15673:15672"
-    networks:
-      - lms_network_staging
-
 networks:
   lms_network_staging:
     driver: overlay
     attachable: true
+  lms_network:
+    external: true
 
 volumes:
   postgres_command_data_staging:
