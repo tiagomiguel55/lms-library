@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  rabbitmq:
+  lms_shared_rabbitmq:
     image: rabbitmq:3-management
     restart: unless-stopped
     ports:
@@ -16,6 +16,9 @@ services:
       - lms_network
     deploy:
       replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
       restart_policy:
         condition: on-failure
     healthcheck:

@@ -134,6 +134,42 @@ pipeline {
             }
         }
 
+        stage('Deploy Shared RabbitMQ Infrastructure') {
+            when {
+                expression { params.SKIP_DEPLOY == false }
+            }
+            steps {
+                sh '''
+                    echo "=========================================="
+                    echo "Deploying Shared RabbitMQ Infrastructure"
+                    echo "=========================================="
+
+                    # Check if lms_shared stack already exists
+                    if docker stack ls | grep -q "lms_shared"; then
+                        echo "✅ lms_shared stack already deployed"
+                    else
+                        echo "Deploying lms_shared stack..."
+                        cd /var/jenkins_home/workspace/lms-library
+                        docker stack deploy -c docker-compose-swarm-shared.yml lms_shared
+
+                        echo "Waiting 30 seconds for RabbitMQ to start..."
+                        sleep 30
+                    fi
+
+                    # Verify RabbitMQ is running
+                    echo ""
+                    echo "Verifying RabbitMQ Service:"
+                    docker service ls | grep rabbitmq || echo "⚠️ Warning: RabbitMQ service not found"
+
+                    echo ""
+                    echo "RabbitMQ Status:"
+                    docker stack ps lms_shared 2>/dev/null || echo "Could not get stack status"
+
+                    echo "=========================================="
+                '''
+            }
+        }
+
         stage('Deploy to Dev') {
             when {
                 allOf {

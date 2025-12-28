@@ -187,6 +187,45 @@ pipeline {
             }
         }
 
+        stage('Deploy Shared RabbitMQ Infrastructure') {
+            when {
+                expression { params.SKIP_DEPLOY == false }
+            }
+            steps {
+                sh '''
+                    echo "=========================================="
+                    echo "Deploying Shared RabbitMQ Infrastructure"
+                    echo "=========================================="
+
+                    # Check if lms_shared stack already exists
+                    if docker stack ls | grep -q "lms_shared"; then
+                        echo "✅ lms_shared stack already deployed"
+                        echo ""
+                        echo "Current RabbitMQ service status:"
+                        docker service ls --filter "label=com.docker.stack.namespace=lms_shared" || echo "RabbitMQ service found"
+                    else
+                        echo "Deploying lms_shared stack with RabbitMQ..."
+                        docker stack deploy -c docker-compose-swarm-shared.yml lms_shared
+
+                        echo "Waiting 30 seconds for RabbitMQ to start..."
+                        sleep 30
+
+                        echo ""
+                        echo "Verifying RabbitMQ deployment:"
+                        docker service ls --filter "label=com.docker.stack.namespace=lms_shared"
+                    fi
+
+                    # Verify RabbitMQ is on the correct network
+                    echo ""
+                    echo "Verifying RabbitMQ is on lms_network:"
+                    docker service inspect $(docker service ls --filter "name=rabbitmq" --format "{{.ID}}" | head -1) --format "{{.Spec.TaskTemplate.Networks}}" 2>/dev/null || echo "RabbitMQ service verification completed"
+
+                    echo ""
+                    echo "=========================================="
+                '''
+            }
+        }
+
         stage('Deploy to Dev') {
             when {
                 allOf {
