@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   lmsbooks_command:
-    image: lmsbooks:${IMAGE_TAG:-staging}
+    image: lmsbooks-command:${IMAGE_TAG:-staging}
     environment:
       - SPRING_PROFILES_ACTIVE=bootstrap
       - spring.datasource.url=jdbc:postgresql://postgres_command_staging:5432/lmsbooks_staging

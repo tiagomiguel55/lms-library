@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   lmsbooks_command:
-    image: lmsbooks:${IMAGE_TAG:-prod}
+    image: lmsbooks-command:${IMAGE_TAG:-prod}
     environment:
       - SPRING_PROFILES_ACTIVE=bootstrap
       - spring.datasource.url=jdbc:postgresql://postgres_command_prod:5432/lmsbooks_prod
@@ -22,7 +22,7 @@ services:
       retries: 3
       start_period: 60s
     deploy:
-      replicas: 3
+      replicas: 2
       update_config:
         parallelism: 1
         delay: 10s
