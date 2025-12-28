@@ -131,7 +131,7 @@ pipeline {
 
                     # Check if lms_network exists
                     if docker network ls | grep -q lms_network; then
-                        NETWORK_SCOPE=$(docker network inspect lms_network --format '{{.Scope}}' 2>/dev/null | tr -d '\\n' | tr -d '\\r')
+                        NETWORK_SCOPE=$(docker network inspect lms_network --format '{{.Scope}}' 2>/dev/null | xargs)
                         if [ -z "$NETWORK_SCOPE" ]; then
                             NETWORK_SCOPE="unknown"
                         fi
@@ -151,7 +151,7 @@ pipeline {
                     fi
 
                     # Verify network is overlay
-                    FINAL_DRIVER=$(docker network inspect lms_network --format '{{.Driver}}' 2>/dev/null | tr -d '\\n' | tr -d '\\r')
+                    FINAL_DRIVER=$(docker network inspect lms_network --format '{{.Driver}}' 2>/dev/null | xargs)
                     if [ -z "$FINAL_DRIVER" ]; then
                         FINAL_DRIVER="failed"
                     fi
