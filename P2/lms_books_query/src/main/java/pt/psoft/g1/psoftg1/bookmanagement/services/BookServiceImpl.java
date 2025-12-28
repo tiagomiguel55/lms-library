@@ -373,50 +373,51 @@ public class BookServiceImpl implements BookService {
             Optional<Book> existingBook = bookRepository.findByIsbn(event.getBookId());
 
             if (existingBook.isPresent()) {
-                Book book = existingBook.get();
-                System.out.println(" [QUERY] 📚 Book already finalized in read model: " + book.getIsbn() +
+                System.out.println(" [QUERY] 📚 Book already finalized in read model: " + existingBook.get().getIsbn() +
                                  " with author: " + event.getAuthorName() +
                                  " and genre: " + event.getGenreName());
-            } else {
-                // Book doesn't exist yet - create it with finalized info
-                try {
-                    Author author = authorRepository.findByAuthorNumber(event.getAuthorId())
-                            .orElse(null);
-                    Optional<Genre> genreOpt = genreRepository.findByString(event.getGenreName());
-
-                    if (genreOpt.isEmpty()) {
-                        System.out.println(" [QUERY] ⚠️ Genre not found for finalized book: " + event.getGenreName());
-                        // Check if already pending before trying to save
-                        if (pendingBookEventRepository.findByBookId(event.getBookId()).isEmpty()) {
-                            // Store the pending event to process later when genre becomes available
-                            savePendingBookEvent(event);
-                            System.out.println(" [QUERY] 📝 Stored pending book event, waiting for genre: " + event.getGenreName());
-                        } else {
-                            System.out.println(" [QUERY] ℹ️ Pending book event already exists, skipping duplicate: " + event.getBookId());
-                        }
-                        return;
-                    }
-
-                    if (author == null) {
-                        System.out.println(" [QUERY] ⚠️ Author not found for finalized book (ID: " + event.getAuthorId() + ")");
-                        return;
-                    }
-
-                    Genre genre = genreOpt.get();
-                    String title = "Book by " + event.getAuthorName();
-                    String description = "Finalized book from event";
-
-                    Book newBook = new Book(event.getBookId(), title, description, genre, List.of(author), null);
-                    bookRepository.save(newBook);
-                    System.out.println(" [QUERY] 📚 Book created from finalized event: " + event.getBookId() +
-                                     " with author: " + event.getAuthorName() +
-                                     " and genre: " + event.getGenreName());
-                } catch (Exception e) {
-                    System.out.println(" [QUERY] ⚠️ Could not create book from finalized event: " + e.getMessage());
-                }
+                return; // Already processed
             }
+
+            // Check if already pending to avoid duplicate processing
+            if (pendingBookEventRepository.findByBookId(event.getBookId()).isPresent()) {
+                System.out.println(" [QUERY] ℹ️ Book event already pending: " + event.getBookId());
+                return;
+            }
+
+            // Book doesn't exist yet - try to create it with finalized info
+            Author author = authorRepository.findByAuthorNumber(event.getAuthorId())
+                    .orElse(null);
+            Optional<Genre> genreOpt = genreRepository.findByString(event.getGenreName());
+
+            if (genreOpt.isEmpty()) {
+                System.out.println(" [QUERY] ⚠️ Genre not found for finalized book: " + event.getGenreName());
+                // Store the pending event to process later when genre becomes available
+                savePendingBookEvent(event);
+                System.out.println(" [QUERY] 📝 Stored pending book event, waiting for genre: " + event.getGenreName());
+                return;
+            }
+
+            if (author == null) {
+                System.out.println(" [QUERY] ⚠️ Author not found for finalized book (ID: " + event.getAuthorId() + ")");
+                // Store pending event and wait for author
+                savePendingBookEvent(event);
+                System.out.println(" [QUERY] 📝 Stored pending book event, waiting for author ID: " + event.getAuthorId());
+                return;
+            }
+
+            Genre genre = genreOpt.get();
+            String title = "Book by " + event.getAuthorName();
+            String description = "Finalized book from event";
+
+            Book newBook = new Book(event.getBookId(), title, description, genre, List.of(author), null);
+            bookRepository.save(newBook);
+            System.out.println(" [QUERY] 📚 Book created from finalized event: " + event.getBookId() +
+                             " with author: " + event.getAuthorName() +
+                             " and genre: " + event.getGenreName());
         } catch (Exception e) {
             System.out.println(" [QUERY] ❌ Error handling book finalized: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
