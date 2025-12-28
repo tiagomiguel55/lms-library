@@ -69,7 +69,6 @@ networks:
   lms_network_prod:
     driver: overlay
     attachable: true
-    external: true
 
 volumes:
   postgres_query_data_prod:

@@ -54,7 +54,6 @@ networks:
   lms_network_staging:
     driver: overlay
     attachable: true
-    external: true
 
 volumes:
   postgres_query_data_staging:

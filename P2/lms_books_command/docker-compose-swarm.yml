@@ -22,7 +22,7 @@ services:
     ports:
       - "8081:8080"
     networks:
-      - lms_network
+      - lms_network_dev
 
   postgres_command_dev:
     image: postgres:15
@@ -47,7 +47,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - lms_network
+      - lms_network_dev
 
   rabbitmq_dev:
     image: rabbitmq:3-management
@@ -62,10 +62,10 @@ services:
       - "5672:5672"
       - "15672:15672"
     networks:
-      - lms_network
+      - lms_network_dev
 
 networks:
-  lms_network:
+  lms_network_dev:
     driver: overlay
     attachable: true
 

@@ -23,7 +23,7 @@ services:
     ports:
       - "8085:8080"
     networks:
-      - lms_network
+      - lms_network_dev
 
   postgres_query_dev:
     image: postgres:15
@@ -48,13 +48,12 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - lms_network
+      - lms_network_dev
 
 networks:
-  lms_network:
+  lms_network_dev:
     driver: overlay
     attachable: true
-    external: true
 
 volumes:
   postgres_query_data_dev:
