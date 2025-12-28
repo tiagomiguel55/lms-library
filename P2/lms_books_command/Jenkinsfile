@@ -161,7 +161,8 @@ pipeline {
                         docker service ls --filter "name=rabbitmq" || echo "RabbitMQ service found"
                     else
                         echo "Deploying \${STACK_NAME} stack with RabbitMQ..."
-                        docker stack deploy -c \${COMPOSE_FILE} \${STACK_NAME}
+                        # Use absolute path from repository root
+                        docker stack deploy -c "\${COMPOSE_FILE}" \${STACK_NAME}
 
                         echo "Waiting 30 seconds for RabbitMQ to start..."
                         sleep 30
