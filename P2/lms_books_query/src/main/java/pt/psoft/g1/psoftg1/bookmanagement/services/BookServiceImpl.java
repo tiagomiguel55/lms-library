@@ -415,6 +415,12 @@ public class BookServiceImpl implements BookService {
             System.out.println(" [QUERY] 📚 Book created from finalized event: " + event.getBookId() +
                              " with author: " + event.getAuthorName() +
                              " and genre: " + event.getGenreName());
+
+            // Clean up any pending event for this book (in case it was stored before)
+            pendingBookEventRepository.findByBookId(event.getBookId()).ifPresent(pending -> {
+                pendingBookEventRepository.delete(pending);
+                System.out.println(" [QUERY] 🧹 Cleaned up pending event for: " + event.getBookId());
+            });
         } catch (Exception e) {
             System.out.println(" [QUERY] ❌ Error handling book finalized: " + e.getMessage());
             e.printStackTrace();
