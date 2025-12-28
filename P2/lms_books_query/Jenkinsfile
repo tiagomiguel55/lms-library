@@ -199,6 +199,48 @@ pipeline {
                     sh """
                         export IMAGE_TAG=${IMAGE_TAG}
                         docker stack deploy -c docker-compose-swarm.yml ${STACK_NAME_DEV}
+
+                        echo ""
+                        echo "=========================================="
+                        echo "VERIFYING RABBITMQ CONNECTIVITY"
+                        echo "=========================================="
+
+                        # List all services
+                        echo "All services:"
+                        docker service ls
+
+                        echo ""
+                        echo "Services on lms_network:"
+                        docker network inspect lms_network --format '{{range .Services}}{{.Name}} {{end}}' || echo "Could not inspect network services"
+
+                        echo ""
+                        echo "Looking for RabbitMQ service..."
+                        docker service ls | grep rabbitmq || echo "No RabbitMQ service found!"
+
+                        echo ""
+                        echo "Checking if RabbitMQ service from command stack exists:"
+                        docker service inspect lmsbooks-dev_rabbitmq_dev 2>/dev/null && echo "✅ RabbitMQ service exists" || echo "❌ RabbitMQ service NOT FOUND"
+
+                        echo ""
+                        echo "RabbitMQ service details:"
+                        docker service ps lmsbooks-dev_rabbitmq_dev --format "{{.Name}}: {{.CurrentState}}" 2>/dev/null || echo "Could not get RabbitMQ status"
+
+                        echo ""
+                        echo "Testing DNS resolution from query service..."
+                        sleep 15
+
+                        # Get a query service task/container
+                        QUERY_TASK=\$(docker service ps ${STACK_NAME_DEV}_lmsbooks_query --filter "desired-state=running" --format "{{.Name}}.{{.ID}}" 2>/dev/null | head -1)
+
+                        if [ -n "\$QUERY_TASK" ]; then
+                            echo "Testing from task: \$QUERY_TASK"
+                            docker exec \$QUERY_TASK nslookup lmsbooks-dev_rabbitmq_dev 2>/dev/null || echo "DNS lookup failed"
+                            docker exec \$QUERY_TASK ping -c 2 lmsbooks-dev_rabbitmq_dev 2>/dev/null || echo "Ping failed"
+                        else
+                            echo "Could not find running query task"
+                        fi
+
+                        echo "=========================================="
                     """
                 }
             }
@@ -648,4 +690,3 @@ pipeline {
         }
     }
 }
-

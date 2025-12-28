@@ -127,63 +127,9 @@ pipeline {
             }
             steps {
                 sh '''
-                    set -e
-
-                    # Initialize Docker Swarm if not already initialized
                     docker info | grep -q "Swarm: active" || docker swarm init || true
-
-                    echo "Checking for lms_network..."
-
-                    # Check if lms_network exists
-                    if docker network ls --format '{{.Name}}' | grep -q '^lms_network$'; then
-                        echo "Network 'lms_network' found. Inspecting..."
-
-                        # Get network details
-                        NETWORK_INFO=$(docker network inspect lms_network 2>/dev/null || echo "")
-
-                        if [ -n "$NETWORK_INFO" ]; then
-                            # Extract scope and driver using grep and cut
-                            NETWORK_SCOPE=$(echo "$NETWORK_INFO" | grep '"Scope":' | head -1 | cut -d'"' -f4)
-                            NETWORK_DRIVER=$(echo "$NETWORK_INFO" | grep '"Driver":' | head -1 | cut -d'"' -f4)
-
-                            echo "Network scope: $NETWORK_SCOPE"
-                            echo "Network driver: $NETWORK_DRIVER"
-
-                            # If network is local scope, remove it and create overlay
-                            if [ "$NETWORK_SCOPE" = "local" ]; then
-                                echo "Removing local network 'lms_network'..."
-                                docker network rm lms_network || true
-                                sleep 2
-
-                                echo "Creating overlay network 'lms_network'..."
-                                docker network create --driver overlay --attachable lms_network
-                            elif [ "$NETWORK_DRIVER" != "overlay" ]; then
-                                echo "Network exists but is not overlay type. Removing and recreating..."
-                                docker network rm lms_network || true
-                                sleep 2
-
-                                echo "Creating overlay network 'lms_network'..."
-                                docker network create --driver overlay --attachable lms_network
-                            else
-                                echo "✅ Network 'lms_network' already exists as overlay network"
-                            fi
-                        else
-                            echo "Could not inspect network. Creating new overlay network..."
-                            docker network create --driver overlay --attachable lms_network || true
-                        fi
-                    else
-                        echo "Network 'lms_network' does not exist. Creating overlay network..."
-                        docker network create --driver overlay --attachable lms_network
-                    fi
-
-                    # Final verification
-                    echo ""
-                    echo "Final network verification:"
-                    docker network ls | grep lms_network || echo "Network not found!"
-                    docker network inspect lms_network --format 'Name: {{.Name}}, Driver: {{.Driver}}, Scope: {{.Scope}}' || echo "Inspection failed"
-
-                    echo ""
-                    echo "✅ Network initialization completed"
+                    docker network ls | grep -q lms_network || \
+                    docker network create --driver overlay --attachable lms_network || true
                 '''
             }
         }

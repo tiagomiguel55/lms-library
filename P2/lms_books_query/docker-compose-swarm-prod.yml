@@ -12,7 +12,7 @@ services:
       - spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
       - spring.jpa.hibernate.ddl-auto=update
       - file.upload-dir=/tmp/uploads-psoft-g1
-      - spring.rabbitmq.host=lmsbooks-prod_rabbitmq_prod
+      - spring.rabbitmq.host=rabbitmq_prod
       - spring.rabbitmq.port=5672
       - spring.rabbitmq.username=guest
       - spring.rabbitmq.password=guest
