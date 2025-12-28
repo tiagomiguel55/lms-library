@@ -200,11 +200,20 @@ pipeline {
 
                     ENVIRONMENT="${params.ENVIRONMENT}"
                     STACK_NAME="lms_shared_\${ENVIRONMENT}"
-                    COMPOSE_FILE="docker-compose-swarm-shared-\${ENVIRONMENT}.yml"
+                    COMPOSE_FILE="${WORKSPACE}/docker-compose-swarm-shared-\${ENVIRONMENT}.yml"
 
                     echo "Stack Name: \$STACK_NAME"
                     echo "Compose File: \$COMPOSE_FILE"
+                    echo "Current working directory: \$(pwd)"
                     echo ""
+
+                    # Verify the compose file exists
+                    if [ ! -f "\$COMPOSE_FILE" ]; then
+                        echo "❌ ERROR: Compose file not found at \$COMPOSE_FILE"
+                        echo "Available files in \${WORKSPACE}:"
+                        ls -la "\${WORKSPACE}"/docker-compose-swarm-shared-* 2>/dev/null || echo "No matching files found"
+                        exit 1
+                    fi
 
                     # Check if lms_shared stack already exists
                     if docker stack ls | grep -q "\${STACK_NAME}"; then
@@ -214,8 +223,7 @@ pipeline {
                         docker service ls --filter "name=rabbitmq" || echo "RabbitMQ service found"
                     else
                         echo "Deploying \${STACK_NAME} stack with RabbitMQ..."
-                        # Use absolute path from repository root
-                        docker stack deploy -c "\${COMPOSE_FILE}" \${STACK_NAME}
+                        docker stack deploy -c "\$COMPOSE_FILE" \${STACK_NAME}
 
                         echo "Waiting 30 seconds for RabbitMQ to start..."
                         sleep 30
