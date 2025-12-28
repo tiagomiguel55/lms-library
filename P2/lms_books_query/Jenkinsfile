@@ -192,21 +192,29 @@ pipeline {
                 expression { params.SKIP_DEPLOY == false }
             }
             steps {
-                sh '''
+                sh """
                     echo "=========================================="
                     echo "Deploying Shared RabbitMQ Infrastructure"
+                    echo "Environment: ${params.ENVIRONMENT}"
                     echo "=========================================="
 
+                    ENVIRONMENT="${params.ENVIRONMENT}"
+                    STACK_NAME="lms_shared_\${ENVIRONMENT}"
+                    COMPOSE_FILE="docker-compose-swarm-shared-\${ENVIRONMENT}.yml"
+
+                    echo "Stack Name: \$STACK_NAME"
+                    echo "Compose File: \$COMPOSE_FILE"
+                    echo ""
+
                     # Check if lms_shared stack already exists
-                    if docker stack ls | grep -q "lms_shared"; then
-                        echo "✅ lms_shared stack already deployed"
+                    if docker stack ls | grep -q "\${STACK_NAME}"; then
+                        echo "✅ \${STACK_NAME} stack already deployed"
                         echo ""
                         echo "Current RabbitMQ service status:"
                         docker service ls --filter "name=rabbitmq" || echo "RabbitMQ service found"
                     else
-                        echo "Deploying lms_shared stack with RabbitMQ..."
-                        # Use current working directory (workspace root)
-                        docker stack deploy -c docker-compose-swarm-shared.yml lms_shared
+                        echo "Deploying \${STACK_NAME} stack with RabbitMQ..."
+                        docker stack deploy -c \${COMPOSE_FILE} \${STACK_NAME}
 
                         echo "Waiting 30 seconds for RabbitMQ to start..."
                         sleep 30
@@ -216,14 +224,9 @@ pipeline {
                         docker service ls --filter "name=rabbitmq"
                     fi
 
-                    # Verify RabbitMQ is on the correct network
-                    echo ""
-                    echo "Verifying RabbitMQ is on lms_network:"
-                    docker network inspect lms_network --format '{{range .Services}}{{.Name}} {{end}}' 2>/dev/null || echo "RabbitMQ service verification completed"
-
                     echo ""
                     echo "=========================================="
-                '''
+                """
             }
         }
 
