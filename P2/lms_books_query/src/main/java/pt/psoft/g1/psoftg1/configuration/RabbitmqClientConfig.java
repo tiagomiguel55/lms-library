@@ -35,57 +35,57 @@ public class RabbitmqClientConfig {
         return new DirectExchange("genres.exchange");
     }
 
-    // ========== BOOK QUEUES (DURABLE) ==========
+    // ========== BOOK QUEUES (DURABLE) - Match command service queue names ==========
     @Bean(name = "autoDeleteQueue_Book_Created")
     public Queue autoDeleteQueue_Book_Created() {
-        return new Queue("query.book.created", true);  // ✅ Durable, partilhada
+        return new Queue("book.created", true);
     }
 
     @Bean
     public Queue autoDeleteQueue_Book_Updated() {
-        return new Queue("query.book.updated", true);
+        return new Queue("book.updated", true);
     }
 
     @Bean
     public Queue autoDeleteQueue_Book_Deleted() {
-        return new Queue("query.book.deleted", true);
+        return new Queue("book.deleted", true);
     }
 
     @Bean
     public Queue autoDeleteQueue_Book_Finalized() {
-        return new Queue("query.book.finalized", true);
+        return new Queue("book.finalized", true);
     }
 
-    // ========== AUTHOR QUEUES (DURABLE) ==========
+    // ========== AUTHOR QUEUES (DURABLE) - Match command service queue names ==========
     @Bean(name = "autoDeleteQueue_Author_Created")
     public Queue autoDeleteQueue_Author_Created() {
-        return new Queue("query.author.created", true);
+        return new Queue("book.author.created", true);
     }
 
     @Bean
     public Queue autoDeleteQueue_Author_Updated() {
-        return new Queue("query.author.updated", true);
+        return new Queue("book.author.updated", true);
     }
 
     @Bean
     public Queue autoDeleteQueue_Author_Deleted() {
-        return new Queue("query.author.deleted", true);
+        return new Queue("book.author.deleted", true);
     }
 
-    // ========== GENRE QUEUES (DURABLE) ==========
+    // ========== GENRE QUEUES (DURABLE) - Match command service queue names ==========
     @Bean(name = "autoDeleteQueue_Genre_Created")
     public Queue autoDeleteQueue_Genre_Created() {
-        return new Queue("query.genre.created", true);
+        return new Queue("book.genre.created", true);
     }
 
     @Bean
     public Queue autoDeleteQueue_Genre_Updated() {
-        return new Queue("query.genre.updated", true);
+        return new Queue("book.genre.updated", true);
     }
 
     @Bean
     public Queue autoDeleteQueue_Genre_Deleted() {
-        return new Queue("query.genre.deleted", true);
+        return new Queue("book.genre.deleted", true);
     }
 
     // ========== BOOK BINDINGS ==========
