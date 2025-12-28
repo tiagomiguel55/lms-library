@@ -67,6 +67,8 @@ services:
 
 networks:
   lms_network_prod:
+    driver: overlay
+    attachable: true
     external: true
 
 volumes:

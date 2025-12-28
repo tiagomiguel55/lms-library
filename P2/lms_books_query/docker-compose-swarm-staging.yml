@@ -52,6 +52,8 @@ services:
 
 networks:
   lms_network_staging:
+    driver: overlay
+    attachable: true
     external: true
 
 volumes:
