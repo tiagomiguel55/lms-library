@@ -218,12 +218,12 @@ pipeline {
                         docker service ls | grep rabbitmq || echo "No RabbitMQ service found!"
 
                         echo ""
-                        echo "Checking if RabbitMQ service from command stack exists:"
-                        docker service inspect lmsbooks-dev_rabbitmq_dev 2>/dev/null && echo "✅ RabbitMQ service exists" || echo "❌ RabbitMQ service NOT FOUND"
+                        echo "Checking if RabbitMQ service from dev stack exists:"
+                        docker service inspect ${STACK_NAME_DEV}_rabbitmq_dev 2>/dev/null && echo "✅ RabbitMQ service exists" || echo "❌ RabbitMQ service NOT FOUND"
 
                         echo ""
                         echo "RabbitMQ service details:"
-                        docker service ps lmsbooks-dev_rabbitmq_dev --format "{{.Name}}: {{.CurrentState}}" 2>/dev/null || echo "Could not get RabbitMQ status"
+                        docker service ps ${STACK_NAME_DEV}_rabbitmq_dev --format "{{.Name}}: {{.CurrentState}}" 2>/dev/null || echo "Could not get RabbitMQ status"
 
                         echo ""
                         echo "Testing DNS resolution from query service..."
@@ -234,8 +234,9 @@ pipeline {
 
                         if [ -n "\$QUERY_TASK" ]; then
                             echo "Testing from task: \$QUERY_TASK"
-                            docker exec \$QUERY_TASK nslookup lmsbooks-dev_rabbitmq_dev 2>/dev/null || echo "DNS lookup failed"
-                            docker exec \$QUERY_TASK ping -c 2 lmsbooks-dev_rabbitmq_dev 2>/dev/null || echo "Ping failed"
+                            echo "Attempting to resolve rabbitmq_dev hostname..."
+                            docker exec \$QUERY_TASK nslookup rabbitmq_dev 2>/dev/null || echo "DNS lookup for rabbitmq_dev failed"
+                            docker exec \$QUERY_TASK ping -c 2 rabbitmq_dev 2>/dev/null || echo "Ping to rabbitmq_dev failed"
                         else
                             echo "Could not find running query task"
                         fi

@@ -146,6 +146,32 @@ pipeline {
                     sh """
                         export IMAGE_TAG=${IMAGE_TAG}
                         docker stack deploy -c docker-compose-swarm.yml ${STACK_NAME_DEV}
+
+                        echo ""
+                        echo "=========================================="
+                        echo "VERIFYING RABBITMQ SERVICE"
+                        echo "=========================================="
+
+                        echo "Waiting for services to stabilize..."
+                        sleep 15
+
+                        # List all services
+                        echo "All services:"
+                        docker service ls
+
+                        echo ""
+                        echo "Looking for RabbitMQ service..."
+                        docker service ls | grep rabbitmq || echo "No RabbitMQ service found!"
+
+                        echo ""
+                        echo "Checking if RabbitMQ service from dev stack exists:"
+                        docker service inspect ${STACK_NAME_DEV}_rabbitmq_dev 2>/dev/null && echo "✅ RabbitMQ service exists" || echo "❌ RabbitMQ service NOT FOUND"
+
+                        echo ""
+                        echo "RabbitMQ service details:"
+                        docker service ps ${STACK_NAME_DEV}_rabbitmq_dev --format "{{.Name}}: {{.CurrentState}}" 2>/dev/null || echo "Could not get RabbitMQ status"
+
+                        echo "=========================================="
                     """
                 }
             }
