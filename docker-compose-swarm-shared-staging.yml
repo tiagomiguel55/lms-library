@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  lms_shared_rabbitmq_staging:
+    image: rabbitmq:3-management
+    restart: unless-stopped
+    ports:
+      - "5673:5672"
+      - "15673:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq_data_staging:/var/lib/rabbitmq
+    networks:
+      - lms_network_staging
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 10s
+      retries: 5
+      timeout: 5s
+
+networks:
+  lms_network_staging:
+    external: true
+
+volumes:
+  rabbitmq_data_staging:
+
