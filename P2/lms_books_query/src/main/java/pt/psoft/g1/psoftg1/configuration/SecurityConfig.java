@@ -84,7 +84,7 @@ public class SecurityConfig {
 
         // Set session management to stateless
         http = http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
-
+/*
         if (securityEnabled) {
             // Set unauthorized requests exception handler
             http = http.exceptionHandling(
@@ -134,10 +134,10 @@ public class SecurityConfig {
                     .requestMatchers("/**").hasRole(Role.ADMIN).anyRequest().authenticated()
                     // Set up oauth2 resource server
                     .and().httpBasic(Customizer.withDefaults()).oauth2ResourceServer().jwt();
-        } else {
+        } else { */
             // Security disabled, permit all
             http.authorizeHttpRequests().anyRequest().permitAll();
-        }
+      //  }
 
         return http.build();
     }
