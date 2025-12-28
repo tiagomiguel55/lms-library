@@ -201,34 +201,81 @@ pipeline {
                     ENVIRONMENT="${params.ENVIRONMENT}"
                     STACK_NAME="lms_shared_\${ENVIRONMENT}"
 
-                    echo "Current working directory: \$(pwd)"
-                    echo "Workspace: ${WORKSPACE}"
+                    # Define environment-specific ports
+                    case "\${ENVIRONMENT}" in
+                        dev)
+                            RABBITMQ_PORT=5672
+                            RABBITMQ_MGMT_PORT=15672
+                            VOLUME_NAME="rabbitmq_data_dev"
+                            ;;
+                        staging)
+                            RABBITMQ_PORT=5673
+                            RABBITMQ_MGMT_PORT=15673
+                            VOLUME_NAME="rabbitmq_data_staging"
+                            ;;
+                        prod)
+                            RABBITMQ_PORT=5674
+                            RABBITMQ_MGMT_PORT=15674
+                            VOLUME_NAME="rabbitmq_data_prod"
+                            ;;
+                        *)
+                            echo "❌ ERROR: Unknown environment: \${ENVIRONMENT}"
+                            exit 1
+                            ;;
+                    esac
+
+                    echo "Environment: \${ENVIRONMENT}"
+                    echo "Stack Name: \${STACK_NAME}"
+                    echo "RabbitMQ Port: \${RABBITMQ_PORT}"
+                    echo "RabbitMQ Management Port: \${RABBITMQ_MGMT_PORT}"
+                    echo "Volume Name: \${VOLUME_NAME}"
                     echo ""
 
-                    # Find the repo root (it should be at workspace root since git checks it out there)
-                    REPO_ROOT="${WORKSPACE}"
+                    # Generate environment-specific docker-compose file
+                    COMPOSE_FILE="${WORKSPACE}/docker-compose-rabbitmq-\${ENVIRONMENT}-generated.yml"
 
-                    # Look for docker-compose files
-                    if [ -f "\${REPO_ROOT}/docker-compose-swarm-shared-\${ENVIRONMENT}.yml" ]; then
-                        COMPOSE_FILE="\${REPO_ROOT}/docker-compose-swarm-shared-\${ENVIRONMENT}.yml"
-                    elif [ -f "docker-compose-swarm-shared-\${ENVIRONMENT}.yml" ]; then
-                        COMPOSE_FILE="docker-compose-swarm-shared-\${ENVIRONMENT}.yml"
-                    else
-                        echo "❌ ERROR: Compose file not found!"
-                        echo "Searched in:"
-                        echo "  1. \${REPO_ROOT}/docker-compose-swarm-shared-\${ENVIRONMENT}.yml"
-                        echo "  2. \$(pwd)/docker-compose-swarm-shared-\${ENVIRONMENT}.yml"
-                        echo ""
-                        echo "Contents of \${REPO_ROOT}:"
-                        ls -la "\${REPO_ROOT}" | head -20
-                        echo ""
-                        echo "Looking for any docker-compose files:"
-                        find "\${REPO_ROOT}" -maxdepth 2 -name "docker-compose-swarm-shared-*" 2>/dev/null || echo "None found"
-                        exit 1
-                    fi
+                    cat > "\${COMPOSE_FILE}" <<EOF
+version: '3.8'
 
-                    echo "Stack Name: \$STACK_NAME"
-                    echo "Compose File: \$COMPOSE_FILE"
+services:
+  lms_shared_rabbitmq:
+    image: rabbitmq:3-management
+    restart: unless-stopped
+    ports:
+      - "\${RABBITMQ_PORT}:5672"
+      - "\${RABBITMQ_MGMT_PORT}:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - \${VOLUME_NAME}:/var/lib/rabbitmq
+    networks:
+      - lms_network
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 10s
+      retries: 5
+      timeout: 5s
+
+networks:
+  lms_network:
+    external: true
+
+volumes:
+  \${VOLUME_NAME}:
+EOF
+
+                    echo "✅ Generated compose file: \${COMPOSE_FILE}"
+                    echo ""
+                    echo "Content:"
+                    cat "\${COMPOSE_FILE}"
                     echo ""
 
                     # Check if lms_shared stack already exists
@@ -236,20 +283,42 @@ pipeline {
                         echo "✅ \${STACK_NAME} stack already deployed"
                         echo ""
                         echo "Current RabbitMQ service status:"
-                        docker service ls --filter "name=rabbitmq" || echo "RabbitMQ service found"
+                        docker service ls --filter "name=\${STACK_NAME}" || echo "RabbitMQ service found"
+
+                        echo ""
+                        echo "Updating existing stack with new configuration..."
+                        docker stack deploy -c "\${COMPOSE_FILE}" \${STACK_NAME}
+
+                        echo "Waiting 15 seconds for update to stabilize..."
+                        sleep 15
                     else
                         echo "Deploying \${STACK_NAME} stack with RabbitMQ..."
-                        docker stack deploy -c "\$COMPOSE_FILE" \${STACK_NAME}
+                        docker stack deploy -c "\${COMPOSE_FILE}" \${STACK_NAME}
 
                         echo "Waiting 30 seconds for RabbitMQ to start..."
                         sleep 30
 
                         echo ""
                         echo "Verifying RabbitMQ deployment:"
-                        docker service ls --filter "name=rabbitmq"
+                        docker service ls --filter "name=\${STACK_NAME}"
                     fi
 
                     echo ""
+                    echo "RabbitMQ service full name:"
+                    docker service ls | grep "\${STACK_NAME}" || echo "No RabbitMQ found for \${STACK_NAME}"
+
+                    echo ""
+                    echo "RabbitMQ service details:"
+                    docker service ps "\${STACK_NAME}_lms_shared_rabbitmq" --format "{{.Name}}: {{.CurrentState}}" 2>/dev/null || echo "Service is starting..."
+
+                    echo ""
+                    echo "=========================================="
+                    echo "✅ RabbitMQ Infrastructure deployed for \${ENVIRONMENT}"
+                    echo "   - Internal port: 5672 (for applications)"
+                    echo "   - External port: \${RABBITMQ_PORT}"
+                    echo "   - Management UI: http://localhost:\${RABBITMQ_MGMT_PORT}"
+                    echo "   - Service name: \${STACK_NAME}_lms_shared_rabbitmq"
+                    echo "   - DNS hostname: lms_shared_rabbitmq"
                     echo "=========================================="
                 """
             }
