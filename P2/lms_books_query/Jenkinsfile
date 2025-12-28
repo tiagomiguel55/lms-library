@@ -58,7 +58,7 @@ pipeline {
 
         stage('Build & Package') {
             when {
-                expression { params.ENVIRONMENT != 'prod' }
+                expression { params.ENVIRONMENT != 'prod' } // Build apenas em dev/staging
             }
             steps {
                 dir("${WORK_DIR}") {
@@ -71,7 +71,7 @@ pipeline {
 
         stage('Build Docker Image') {
             when {
-                expression { params.ENVIRONMENT != 'prod' }
+                expression { params.ENVIRONMENT != 'prod' } // Build apenas em dev/staging
             }
             steps {
                 dir("${WORK_DIR}") {
@@ -85,34 +85,77 @@ pipeline {
 
         stage('Push Docker Image to Registry') {
             when {
-                expression { params.ENVIRONMENT == 'prod' }
+                expression { params.ENVIRONMENT == 'staging' } // Push após validação em staging
             }
             steps {
                 script {
                     withCredentials([usernamePassword(credentialsId: "${DOCKER_REGISTRY_CREDENTIALS}", usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
                         sh """
                             echo "=========================================="
-                            echo "Logging in to Docker Registry..."
+                            echo "Pushing tested image to registry..."
                             echo "Registry: ${DOCKER_REGISTRY}"
                             echo "Namespace: ${DOCKER_REGISTRY_NAMESPACE}"
+                            echo "Image: ${IMAGE_NAME}:${IMAGE_TAG}"
                             echo "=========================================="
+
                             echo "\$DOCKER_PASSWORD" | docker login ${DOCKER_REGISTRY} -u "\$DOCKER_USERNAME" --password-stdin
 
                             echo ""
-                            echo "Tagging image ${IMAGE_NAME}:${IMAGE_TAG} as ${FULL_IMAGE_NAME}:${IMAGE_TAG}..."
+                            echo "Tagging for registry..."
                             docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${FULL_IMAGE_NAME}:${IMAGE_TAG}
+                            docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${FULL_IMAGE_NAME}:staging
 
                             echo ""
-                            echo "Pushing image to registry..."
-                            echo "Target: ${FULL_IMAGE_NAME}:${IMAGE_TAG}"
-                            echo "=========================================="
+                            echo "Pushing image..."
                             docker push ${FULL_IMAGE_NAME}:${IMAGE_TAG}
+                            docker push ${FULL_IMAGE_NAME}:staging
 
                             echo ""
                             echo "=========================================="
-                            echo "✅ Image successfully pushed to registry!"
-                            echo "Full image name: ${FULL_IMAGE_NAME}:${IMAGE_TAG}"
-                            echo "Registry URL: ${DOCKER_REGISTRY}/${DOCKER_REGISTRY_NAMESPACE}/${IMAGE_NAME}"
+                            echo "✅ Image pushed to registry!"
+                            echo "   ${FULL_IMAGE_NAME}:${IMAGE_TAG}"
+                            echo "   ${FULL_IMAGE_NAME}:staging"
+                            echo "=========================================="
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Pull Docker Image from Registry') {
+            when {
+                expression { params.ENVIRONMENT == 'prod' } // Prod faz pull da imagem de staging
+            }
+            steps {
+                script {
+                    withCredentials([usernamePassword(credentialsId: "${DOCKER_REGISTRY_CREDENTIALS}", usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                        sh """
+                            echo "=========================================="
+                            echo "Pulling image from registry for Production..."
+                            echo "Registry: ${DOCKER_REGISTRY}"
+                            echo "Image: ${FULL_IMAGE_NAME}:${IMAGE_TAG}"
+                            echo "=========================================="
+
+                            echo "\$DOCKER_PASSWORD" | docker login ${DOCKER_REGISTRY} -u "\$DOCKER_USERNAME" --password-stdin
+
+                            echo ""
+                            echo "Pulling image..."
+                            docker pull ${FULL_IMAGE_NAME}:${IMAGE_TAG}
+
+                            echo ""
+                            echo "Tagging as prod and local name..."
+                            docker tag ${FULL_IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:${IMAGE_TAG}
+                            docker tag ${FULL_IMAGE_NAME}:${IMAGE_TAG} ${FULL_IMAGE_NAME}:prod
+
+                            echo ""
+                            echo "Pushing prod tag to registry..."
+                            docker push ${FULL_IMAGE_NAME}:prod
+
+                            echo ""
+                            echo "=========================================="
+                            echo "✅ Production image ready!"
+                            echo "   Local: ${IMAGE_NAME}:${IMAGE_TAG}"
+                            echo "   Registry: ${FULL_IMAGE_NAME}:prod"
                             echo "=========================================="
                         """
                     }
