@@ -104,7 +104,7 @@ Write-Host "Waiting for Readers Command database to initialize (15 seconds)..." 
 Start-Sleep -Seconds 15
 
 # Deploy Readers Query microservice
-Write-Host "`n[5/7] Deploying Readers Query microservice (MongoDB)..." -ForegroundColor Yellow
+Write-Host "`n[5/7] Deploying Readers Query microservice (PostgreSQL)..." -ForegroundColor Yellow
 Set-Location -Path $PSScriptRoot\lms_readers_query
 docker stack deploy -c docker-compose-swarm.yml readers_query_stack
 if ($LASTEXITCODE -eq 0) {
@@ -132,7 +132,7 @@ Write-Host "Waiting for Lendings Command database to initialize (15 seconds)..."
 Start-Sleep -Seconds 15
 
 # Deploy Lendings Query microservice
-Write-Host "`n[7/7] Deploying Lendings Query microservice (MongoDB)..." -ForegroundColor Yellow
+Write-Host "`n[7/7] Deploying Lendings Query microservice (PostgreSQL)..." -ForegroundColor Yellow
 Set-Location -Path $PSScriptRoot\lms_lendings_query
 docker stack deploy -c docker-compose-swarm.yml lendings_query_stack
 if ($LASTEXITCODE -eq 0) {
@@ -165,11 +165,11 @@ Write-Host "  - Lendings Query:      http://localhost:8091" -ForegroundColor Whi
 
 Write-Host "`nDatabase Ports:" -ForegroundColor Yellow
 Write-Host "  - PostgreSQL (Books):    localhost:5432" -ForegroundColor White
-Write-Host "  - PostgreSQL (Readers):  localhost:5434" -ForegroundColor White
-Write-Host "  - PostgreSQL (Lendings): localhost:5436" -ForegroundColor White
+Write-Host "  - PostgreSQL (Readers Command): localhost:5434" -ForegroundColor White
+Write-Host "  - PostgreSQL (Readers Query):   localhost:5435" -ForegroundColor White
+Write-Host "  - PostgreSQL (Lendings Command): localhost:5436" -ForegroundColor White
+Write-Host "  - PostgreSQL (Lendings Query):   localhost:5437" -ForegroundColor White
 Write-Host "  - MongoDB (Books):       localhost:27017" -ForegroundColor White
-Write-Host "  - MongoDB (Readers):     localhost:27019" -ForegroundColor White
-Write-Host "  - MongoDB (Lendings):    localhost:27018" -ForegroundColor White
 
 Write-Host "`nTo check service status:" -ForegroundColor Yellow
 Write-Host "  docker stack ls" -ForegroundColor Gray

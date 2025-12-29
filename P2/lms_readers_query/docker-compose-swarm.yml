@@ -4,22 +4,27 @@ services:
   lmsreaders_query:
     image: lmsreaders:query
     environment:
-      - SPRING_PROFILES_ACTIVE=mongodb
-      - spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
-      - spring.data.mongodb.uri=mongodb://readers_query_stack_mongodb_readers_query:27017/LMS_Readers_Query
-      - spring.data.mongodb.database=LMS_Readers_Query
+      - SPRING_PROFILES_ACTIVE=sqlServer,bootstrap
+      - spring.datasource.url=jdbc:postgresql://postgres_readers_query:5432/query_readers?connectTimeout=30000
+      - spring.datasource.username=postgres
+      - spring.datasource.password=password
+      - spring.datasource.driver-class-name=org.postgresql.Driver
+      - spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
+      - spring.datasource.hikari.connection-timeout=60000
+      - spring.datasource.hikari.maximum-pool-size=5
+      - spring.datasource.hikari.minimum-idle=2
       - spring.rabbitmq.host=shared_stack_rabbitmq
       - spring.rabbitmq.port=5672
       - spring.rabbitmq.username=guest
       - spring.rabbitmq.password=guest
-      - WAIT_FOR_HOSTS=readers_query_stack_mongodb_readers_query:27017,shared_stack_rabbitmq:5672
+      - WAIT_FOR_HOSTS=postgres_readers_query:5432,shared_stack_rabbitmq:5672
     deploy:
       replicas: 2
       restart_policy:
         condition: on-failure
-        delay: 15s
-        max_attempts: 5
-        window: 2m
+        delay: 20s
+        max_attempts: 10
+        window: 3m
     ports:
       - "8086:8081"
     networks:
@@ -29,14 +34,14 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 60s
+      start_period: 90s
 
-  mongodb_readers_query:
-    image: mongo:latest
+  postgres_readers_query:
+    image: postgres:latest
     environment:
-      - MONGO_INITDB_DATABASE=LMS_Readers_Query
-    volumes:
-      - mongodb_readers_query_data:/data/db
+      - POSTGRES_DB=query_readers
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
     deploy:
       replicas: 1
       placement:
@@ -44,24 +49,20 @@ services:
           - node.role == manager
       restart_policy:
         condition: on-failure
-        delay: 10s
-        max_attempts: 3
-        window: 1m
+        delay: 5s
+        max_attempts: 10
+        window: 3m
     ports:
-      - "27019:27017"
+      - "5435:5432"
     healthcheck:
-      test: ["CMD-SHELL", "mongosh --eval 'db.runCommand(\"ping\").ok' --quiet"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+      start_period: 2s
     networks:
       - lms_network
 
 networks:
   lms_network:
     external: true
-
-volumes:
-  mongodb_readers_query_data:
-    driver: local

@@ -22,6 +22,10 @@ public class ReaderNumberEntity implements Serializable {
 
     protected ReaderNumberEntity() {}
 
+    public String getReaderNumber() {
+        return this.readerNumber;
+    }
+
     public String toString() {
         return this.readerNumber;
     }

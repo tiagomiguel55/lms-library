@@ -7,7 +7,7 @@ services:
       - SPRING_PROFILES_ACTIVE=sqlServer,bootstrap,hash
       - bootstrap.mode=static
       - server.port=8080
-      - spring.datasource.url=jdbc:postgresql://readers_command_stack_postgres_readers_command:5432/command_readers
+      - spring.datasource.url=jdbc:postgresql://postgres_readers_command:5432/command_readers
       - spring.datasource.username=postgres
       - spring.datasource.password=password
       - spring.datasource.driver-class-name=org.postgresql.Driver
@@ -17,7 +17,7 @@ services:
       - spring.rabbitmq.port=5672
       - spring.rabbitmq.username=guest
       - spring.rabbitmq.password=guest
-      - WAIT_FOR_HOSTS=readers_command_stack_postgres_readers_command:5432,shared_stack_rabbitmq:5672
+      - WAIT_FOR_HOSTS=postgres_readers_command:5432,shared_stack_rabbitmq:5672
     deploy:
       replicas: 2
       restart_policy:

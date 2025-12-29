@@ -1,17 +1,10 @@
 package pt.psoft.g1.psoftg1.shared.services.generator;
 
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Profile;
-import org.springframework.stereotype.Component;
-
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.UUID;
 
-@Profile("hash")
-@Component
 public class HashGenerator implements IdGenerator{
 
     @Override

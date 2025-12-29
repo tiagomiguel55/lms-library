@@ -231,4 +231,15 @@ public class BookController {
         final var bookList = bookService.searchBooks(request.getPage(), request.getQuery());
         return new ListResponse<>(bookViewMapper.toBookView(bookList));
     }
+
+    @Operation(summary = "Check if a book exists by ISBN")
+    @GetMapping("/exists/{isbn}")
+    public ResponseEntity<Map<String, Boolean>> checkBookExists(@PathVariable("isbn") final String isbn) {
+        try {
+            bookService.findByIsbn(isbn);
+            return ResponseEntity.ok(Map.of("exists", true));
+        } catch (NotFoundException e) {
+            return ResponseEntity.ok(Map.of("exists", false));
+        }
+    }
 }

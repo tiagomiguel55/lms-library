@@ -8,8 +8,12 @@ import org.springframework.context.Lifecycle;
 import org.springframework.context.annotation.Profile;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.core.annotation.Order;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.IncorrectResultSizeDataAccessException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import pt.psoft.g1.psoftg1.bookmanagement.api.BookViewAMQP;
 import pt.psoft.g1.psoftg1.bookmanagement.model.Book;
 import pt.psoft.g1.psoftg1.bookmanagement.repositories.BookRepository;
@@ -43,6 +47,8 @@ import java.util.Optional;
 @PropertySource({"classpath:config/library.properties"})
 @Order(2)
 public class Bootstrapper implements CommandLineRunner {
+    private static final Logger logger = LoggerFactory.getLogger(Bootstrapper.class);
+    
     @Value("${lendingDurationInDays}")
     private int lendingDurationInDays;
     @Value("${fineValuePerDayInCents}")
@@ -60,92 +66,126 @@ public class Bootstrapper implements CommandLineRunner {
     private final RpcBootstrapPublisher rpcBootstrapPublisher;
     private final  RabbitListenerEndpointRegistry registry;
 
-
     private final ForbiddenNameService forbiddenNameService;
 
     @Override
     @Transactional
     public void run(final String... args) {
-            int count=0;
-            try{
-                registry.getListenerContainers().forEach(Lifecycle::stop);
+        int count = 0;
+        try {
+            registry.getListenerContainers().forEach(Lifecycle::stop);
 
             ViewContainer data = rpcBootstrapPublisher.sendRpcBootstrapRequest();
+            
+            logger.info("Successfully received RPC bootstrap data. Processing readers...");
             createReaderRPC(data.getReaders());
-                System.out.println("READERS CREATED");
+            logger.info("READERS CREATED");
             count++;
+            
+            logger.info("Processing genres...");
             createGenresRPC(data.getGenres());
-                System.out.println("GENRES CREATED");
+            logger.info("GENRES CREATED");
             count++;
+            
+            logger.info("Processing books...");
             createBooksRPC(data.getBooks());
-                System.out.println("BOOKS CREATED");
+            logger.info("BOOKS CREATED");
             count++;
+            
+            logger.info("Loading forbidden names...");
             loadForbiddenNames();
             count++;
+            
+            logger.info("Processing lendings...");
             createLendingsRPC(data.getLendings());
-                System.out.println("LENDINGS CREATED");
+            logger.info("LENDINGS CREATED");
             count++;
-            } catch (Exception e) {
-                System.out.println("Error sending RPC request");
-                System.out.println(e);
-                e.printStackTrace();
+        } catch (Exception e) {
+            logger.error("Error sending RPC request", e);
+            logger.info("Falling back to local bootstrap data creation...");
 
-                if (count == 0) {
-                    createGenres();
-                    createBooks();
-                    loadForbiddenNames();
-                    createLendings();
-                    //createPhotos();
-                }else if (count == 1) {
-                    createBooks();
-                    loadForbiddenNames();
-                    createLendings();
-                    //createPhotos();
-
-                }else if (count == 2) {
-                    loadForbiddenNames();
-                    createLendings();
-                    //createPhotos();
-                }else if (count == 3) {
-                    createLendings();
-                    //createPhotos();
-                }
-            } finally {
-                registry.getListenerContainers().forEach(Lifecycle::start);
+            if (count == 0) {
+                createReaders();
+                createGenres();
+                createBooks();
+                loadForbiddenNames();
+                createLendings();
+            } else if (count == 1) {
+                createGenres();
+                createBooks();
+                loadForbiddenNames();
+                createLendings();
+            } else if (count == 2) {
+                createBooks();
+                loadForbiddenNames();
+                createLendings();
+            } else if (count == 3) {
+                loadForbiddenNames();
+                createLendings();
+            } else if (count == 4) {
+                createLendings();
             }
-
-
+        } finally {
+            registry.getListenerContainers().forEach(Lifecycle::start);
+        }
     }
 
     private void createLendingsRPC(List<LendingViewAMQP> lendings) {
         for (LendingViewAMQP lending : lendings) {
-            if (lendingRepository.findByLendingNumber(lending.getLendingNumber()).isEmpty()) {
-                final var book = bookRepository.findByIsbn(lending.getIsbn())
-                        .orElseThrow(() -> new NotFoundException("Book not found"));
-                final var reader = readerRepository.findByReaderNumber(lending.getReaderNumber())
-                        .orElseThrow(() -> new NotFoundException("Reader not found"));
-                int seq = lendingRepository.getCountFromCurrentYear() + 1;
-                final Lending newLending = new Lending(book, reader, seq, lendingDurationInDays, fineValuePerDayInCents);
-                lendingRepository.save(newLending);
+            try {
+                if (lendingRepository.findByLendingNumber(lending.getLendingNumber()).isEmpty()) {
+                    final var book = bookRepository.findByIsbn(lending.getIsbn())
+                            .orElseThrow(() -> new NotFoundException("Book not found"));
+                    final var reader = readerRepository.findByReaderNumber(lending.getReaderNumber())
+                            .orElseThrow(() -> new NotFoundException("Reader not found"));
+                    int seq = lendingRepository.getCountFromCurrentYear() + 1;
+                    final Lending newLending = new Lending(book, reader, seq, lendingDurationInDays, fineValuePerDayInCents);
+                    lendingRepository.save(newLending);
+                }
+            } catch (DataIntegrityViolationException e) {
+                logger.warn("Data integrity violation when creating lending {}: {}. Likely duplicate entry. Skipping...", 
+                           lending.getLendingNumber(), e.getMessage());
+                // Continue with the next lending
+            } catch (Exception e) {
+                logger.warn("Failed to create lending {}: {}. Skipping...", lending.getLendingNumber(), e.getMessage());
+                // Continue with the next lending
             }
         }
     }
 
     private void createBooksRPC(List<BookViewAMQP> books) {
         for (BookViewAMQP book : books) {
-            if (bookRepository.findByIsbn(book.getIsbn()).isEmpty()) {
-                final Genre genre = genreRepository.findByName(book.getGenre()).orElseThrow(() -> new NotFoundException("Cannot find genre"));
-                final Book newBook = new Book(book.getIsbn(), book.getTitle(), book.getDescription(), genre, null);
-                bookRepository.save(newBook);
+            try {
+                if (bookRepository.findByIsbn(book.getIsbn()).isEmpty()) {
+                    final Genre genre = genreRepository.findByName(book.getGenre()).orElseThrow(() -> new NotFoundException("Cannot find genre"));
+                    final Book newBook = new Book(book.getIsbn(), book.getTitle(), book.getDescription(), genre, null);
+                    bookRepository.save(newBook);
+                }
+            } catch (DataIntegrityViolationException e) {
+                logger.warn("Data integrity violation when creating book {}: {}. Likely duplicate entry. Skipping...", 
+                           book.getIsbn(), e.getMessage());
+                // Continue with the next book
+            } catch (Exception e) {
+                logger.warn("Failed to create book {}: {}. Skipping...", book.getIsbn(), e.getMessage());
+                // Continue with the next book
             }
         }
     }
 
     private void createGenresRPC(List<GenreViewAMQP> genres) {
         for (GenreViewAMQP genre : genres) {
-            if (genreRepository.findByName(genre.getGenre()).isEmpty()) {
-                final Genre newGenre = new Genre(genre.getGenre());
-                genreRepository.save(newGenre);
+            try {
+                if (genreRepository.findByName(genre.getGenre()).isEmpty()) {
+                    final Genre newGenre = new Genre(genre.getGenre());
+                    genreRepository.save(newGenre);
+                }
+            } catch (DataIntegrityViolationException e) {
+                logger.warn("Data integrity violation when creating genre {}: {}. Likely duplicate entry. Skipping...", 
+                           genre.getGenre(), e.getMessage());
+                // Continue with the next genre
+            } catch (Exception e) {
+                logger.warn("Failed to create genre {}: {}. Skipping...", genre.getGenre(), e.getMessage());
+                // Continue with the next genre
             }
         }
     }
@@ -155,27 +195,143 @@ public class Bootstrapper implements CommandLineRunner {
         List<Genre> genres = new ArrayList<>();
 
         for (ReaderViewAMQP reader : readers) {
-                if (readerRepository.findByReaderNumber(reader.getReaderNumber()).isEmpty()) {
+            try {
+                // Check both reader number and username to avoid duplicates
+                boolean readerNumberExists = false;
+                try {
+                    readerNumberExists = readerRepository.findByReaderNumber(reader.getReaderNumber()).isPresent();
+                } catch (IncorrectResultSizeDataAccessException e) {
+                    logger.warn("Multiple readers found with number {}, skipping creation", reader.getReaderNumber());
+                    continue;
+                }
+                
+                if (!readerNumberExists && userRepository.findByUsername(reader.getUsername()).isEmpty()) {
 
-                if (reader.getInterestList() != null) {
-                    for (String genre : reader.getInterestList()) {
+                    if (reader.getInterestList() != null) {
+                        for (String genre : reader.getInterestList()) {
 
-                        final Genre g = new Genre(genre);
+                            final Genre g = new Genre(genre);
 
-                        genres.add(g);
+                            genres.add(g);
+                        }
                     }
+                    final Reader user = Reader.newReader(reader.getUsername(), reader.getPassword(), reader.getFullName());
+
+                    final ReaderDetails newReader = new ReaderDetails(Integer.parseInt(reader.getReaderNumber().split("/")[0]),user,reader.getBirthDate(),reader.getPhoneNumber(),
+                            reader.isGdpr(),reader.isMarketing(),reader.isThirdParty(),reader.getVersion(),genres);
+
+                    readerRepository.save(newReader);
+                    genres.clear();
+                } else {
+                    logger.info("Reader {} or username {} already exists. Skipping...", reader.getReaderNumber(), reader.getUsername());
+                    genres.clear();
                 }
-                final Reader user = Reader.newReader(reader.getUsername(), reader.getPassword(), reader.getFullName());
-
-                final ReaderDetails newReader = new ReaderDetails(Integer.parseInt(reader.getReaderNumber().split("/")[0]),user,reader.getBirthDate(),reader.getPhoneNumber(),
-                        reader.isGdpr(),reader.isMarketing(),reader.isThirdParty(),reader.getVersion(),genres);
-
-                readerRepository.save(newReader);
+            } catch (DataIntegrityViolationException e) {
+                logger.warn("Data integrity violation when creating reader {}: {}. Likely duplicate entry. Skipping...", 
+                           reader.getReaderNumber(), e.getMessage());
                 genres.clear();
-
-                }
+                // Continue with the next reader
+            } catch (Exception e) {
+                logger.warn("Failed to create reader {}: {}. Skipping...", reader.getReaderNumber(), e.getMessage());
+                genres.clear();
+                // Continue with the next reader
+            }
         }
 
+    }
+
+    private void createReaders() {
+        List<Genre> genres = new ArrayList<>();
+        
+        // Create Reader 1 - 2025/1
+        if (readerRepository.findByReaderNumber("2025/1").isEmpty()) {
+            final Genre fantasyGenre = new Genre("Fantasia");
+            final Genre infoGenre = new Genre("Informação");
+            genres.add(fantasyGenre);
+            genres.add(infoGenre);
+            
+            final Reader user1 = Reader.newReader("manuel123", "Manuel123!", "Manuel Silva");
+            final ReaderDetails newReader1 = new ReaderDetails(1, user1, 
+                "1990-05-15", "912345678", 
+                true, false, false, null, genres);
+            readerRepository.save(newReader1);
+            genres.clear();
+        }
+        
+        // Create Reader 2 - 2025/2
+        if (readerRepository.findByReaderNumber("2025/2").isEmpty()) {
+            final Genre romanceGenre = new Genre("Romance");
+            final Genre infantilGenre = new Genre("Infantil");
+            genres.add(romanceGenre);
+            genres.add(infantilGenre);
+            
+            final Reader user2 = Reader.newReader("maria456", "Maria456!", "Maria Santos");
+            final ReaderDetails newReader2 = new ReaderDetails(2, user2, 
+                "1985-08-22", "923456789", 
+                true, true, false, null, genres);
+            readerRepository.save(newReader2);
+            genres.clear();
+        }
+        
+        // Create Reader 3 - 2025/3
+        if (readerRepository.findByReaderNumber("2025/3").isEmpty()) {
+            final Genre thrillerGenre = new Genre("Thriller");
+            final Genre fantasyGenre = new Genre("Fantasia");
+            genres.add(thrillerGenre);
+            genres.add(fantasyGenre);
+            
+            final Reader user3 = Reader.newReader("joao789", "Joao789!", "João Costa");
+            final ReaderDetails newReader3 = new ReaderDetails(3, user3, 
+                "1992-12-03", "934567890", 
+                true, false, true, null, genres);
+            readerRepository.save(newReader3);
+            genres.clear();
+        }
+        
+        // Create Reader 4 - 2025/4
+        if (readerRepository.findByReaderNumber("2025/4").isEmpty()) {
+            final Genre infoGenre = new Genre("Informação");
+            final Genre thrillerGenre = new Genre("Thriller");
+            genres.add(infoGenre);
+            genres.add(thrillerGenre);
+            
+            final Reader user4 = Reader.newReader("ana123", "Ana123!", "Ana Ferreira");
+            final ReaderDetails newReader4 = new ReaderDetails(4, user4, 
+                "1988-04-18", "945678901", 
+                true, true, true, null, genres);
+            readerRepository.save(newReader4);
+            genres.clear();
+        }
+        
+        // Create Reader 5 - 2025/5
+        if (readerRepository.findByReaderNumber("2025/5").isEmpty()) {
+            final Genre fantasyGenre = new Genre("Fantasia");
+            final Genre romanceGenre = new Genre("Romance");
+            genres.add(fantasyGenre);
+            genres.add(romanceGenre);
+            
+            final Reader user5 = Reader.newReader("pedro456", "Pedro456!", "Pedro Lima");
+            final ReaderDetails newReader5 = new ReaderDetails(5, user5, 
+                "1995-09-07", "956789012", 
+                true, false, false, null, genres);
+            readerRepository.save(newReader5);
+            genres.clear();
+        }
+        
+        // Create Reader 6 - 2025/6
+        if (readerRepository.findByReaderNumber("2025/6").isEmpty()) {
+            final Genre infantilGenre = new Genre("Infantil");
+            final Genre infoGenre = new Genre("Informação");
+            genres.add(infantilGenre);
+            genres.add(infoGenre);
+            
+            final Reader user6 = Reader.newReader("sofia789", "Sofia789!", "Sofia Oliveira");
+            final ReaderDetails newReader6 = new ReaderDetails(6, user6, 
+                "1993-11-25", "967890123", 
+                true, true, false, null, genres);
+            readerRepository.save(newReader6);
+            genres.clear();
+        }
     }
 
 
@@ -440,18 +596,48 @@ public class Bootstrapper implements CommandLineRunner {
                     book8.get(), book9.get(), book10.get()});
         }
 
-        final var readerDetails1 = readerRepository.findByReaderNumber("2025/1");
-        //System.out.println(readerDetails1.toString());
-        final var readerDetails2 = readerRepository.findByReaderNumber("2025/2");
-        //System.out.println(readerDetails2.toString());
-        final var readerDetails3 = readerRepository.findByReaderNumber("2025/3");
-        //System.out.println(readerDetails3.toString());
-        final var readerDetails4 = readerRepository.findByReaderNumber("2025/4");
-        //System.out.println(readerDetails4.toString());
-        final var readerDetails5 = readerRepository.findByReaderNumber("2025/5");
-        //System.out.println(readerDetails5.toString());
-        final var readerDetails6 = readerRepository.findByReaderNumber("2025/6");
-        //System.out.println(readerDetails6.toString());
+        Optional<ReaderDetails> readerDetails1 = Optional.empty();
+        Optional<ReaderDetails> readerDetails2 = Optional.empty();
+        Optional<ReaderDetails> readerDetails3 = Optional.empty();
+        Optional<ReaderDetails> readerDetails4 = Optional.empty();
+        Optional<ReaderDetails> readerDetails5 = Optional.empty();
+        Optional<ReaderDetails> readerDetails6 = Optional.empty();
+        
+        try {
+            readerDetails1 = readerRepository.findByReaderNumber("2025/1");
+        } catch (IncorrectResultSizeDataAccessException e) {
+            logger.warn("Multiple readers found with number 2025/1, skipping lending creation for this reader");
+        }
+        
+        try {
+            readerDetails2 = readerRepository.findByReaderNumber("2025/2");
+        } catch (IncorrectResultSizeDataAccessException e) {
+            logger.warn("Multiple readers found with number 2025/2, skipping lending creation for this reader");
+        }
+        
+        try {
+            readerDetails3 = readerRepository.findByReaderNumber("2025/3");
+        } catch (IncorrectResultSizeDataAccessException e) {
+            logger.warn("Multiple readers found with number 2025/3, skipping lending creation for this reader");
+        }
+        
+        try {
+            readerDetails4 = readerRepository.findByReaderNumber("2025/4");
+        } catch (IncorrectResultSizeDataAccessException e) {
+            logger.warn("Multiple readers found with number 2025/4, skipping lending creation for this reader");
+        }
+        
+        try {
+            readerDetails5 = readerRepository.findByReaderNumber("2025/5");
+        } catch (IncorrectResultSizeDataAccessException e) {
+            logger.warn("Multiple readers found with number 2025/5, skipping lending creation for this reader");
+        }
+        
+        try {
+            readerDetails6 = readerRepository.findByReaderNumber("2025/6");
+        } catch (IncorrectResultSizeDataAccessException e) {
+            logger.warn("Multiple readers found with number 2025/6, skipping lending creation for this reader");
+        }
 
 
 
@@ -474,11 +660,16 @@ public class Bootstrapper implements CommandLineRunner {
             if(lendingRepository.findByLendingNumber("2025/" + (seq)).isEmpty()){
                 //System.out.println("tou aqui");
 
-                startDate = LocalDate.of(2024, 1,31-i);
-                returnedDate = LocalDate.of(2024,2,15+i);
-                //System.out.println(books.get(i).toString());
-                lending = Lending.newBootstrappingLending(books.get(i), readers.get(i*2), 2024, seq, startDate, returnedDate, lendingDurationInDays, fineValuePerDayInCents);
-                //System.out.println("tou aqui");
+                try {
+                    startDate = LocalDate.of(2024, 1,31-i);
+                    returnedDate = LocalDate.of(2024,2,15+i);
+                    //System.out.println(books.get(i).toString());
+                    lending = Lending.newBootstrappingLending(books.get(i), readers.get(i*2), 2024, seq, startDate, returnedDate, lendingDurationInDays, fineValuePerDayInCents);
+                    //System.out.println("tou aqui");
+                } catch (NullPointerException npe) {
+                    logger.error("IdGenerator not available, skipping lending creation {}: {}", "2025/" + seq, npe.getMessage());
+                    continue;
+                }
                 //System.out.println(lending.getLendingNumber());
                 //System.out.println(lending.getBook().getAuthors());
                 //System.out.println(lending.getReaderDetails().toString());
@@ -491,18 +682,28 @@ public class Bootstrapper implements CommandLineRunner {
         for(i = 0; i < 3; i++){
             ++seq;
             if(lendingRepository.findByLendingNumber("2025/" + (seq)).isEmpty()){
-                startDate = LocalDate.of(2024, 3,25+i);
-                lending = Lending.newBootstrappingLending(books.get(1+i), readers.get(1+i*2),2024, seq, startDate, null, lendingDurationInDays, fineValuePerDayInCents);
-                lendingRepository.save(lending);
+                try {
+                    startDate = LocalDate.of(2024, 3,25+i);
+                    lending = Lending.newBootstrappingLending(books.get(1+i), readers.get(1+i*2),2024, seq, startDate, null, lendingDurationInDays, fineValuePerDayInCents);
+                    lendingRepository.save(lending);
+                } catch (NullPointerException npe) {
+                    logger.error("IdGenerator not available, skipping lending creation {}: {}", "2025/" + seq, npe.getMessage());
+                    continue;
+                }
             }
         }
         //Lendings 7 through 9 (late, overdue, not returned)
         for(i = 0; i < 3; i++){
             ++seq;
             if(lendingRepository.findByLendingNumber("2025/" + seq).isEmpty()){
-                startDate = LocalDate.of(2024, 4,(1+2*i));
-                lending = Lending.newBootstrappingLending(books.get(3/(i+1)), readers.get(i*2),2024, seq, startDate, null, lendingDurationInDays, fineValuePerDayInCents);
-                lendingRepository.save(lending);
+                try {
+                    startDate = LocalDate.of(2024, 4,(1+2*i));
+                    lending = Lending.newBootstrappingLending(books.get(3/(i+1)), readers.get(i*2),2024, seq, startDate, null, lendingDurationInDays, fineValuePerDayInCents);
+                    lendingRepository.save(lending);
+                } catch (NullPointerException npe) {
+                    logger.error("IdGenerator not available, skipping lending creation {}: {}", "2025/" + seq, npe.getMessage());
+                    continue;
+                }
             }
         }
 
@@ -510,10 +711,15 @@ public class Bootstrapper implements CommandLineRunner {
         for(i = 0; i < 3; i++){
             ++seq;
             if(lendingRepository.findByLendingNumber("2025/" + seq).isEmpty()){
-                startDate = LocalDate.of(2024, 5,(i+1));
-                returnedDate = LocalDate.of(2024,5,(i+2));
-                lending = Lending.newBootstrappingLending(books.get(3-i), readers.get(1+i*2),2024, seq, startDate, returnedDate, lendingDurationInDays, fineValuePerDayInCents);
-                lendingRepository.save(lending);
+                try {
+                    startDate = LocalDate.of(2024, 5,(i+1));
+                    returnedDate = LocalDate.of(2024,5,(i+2));
+                    lending = Lending.newBootstrappingLending(books.get(3+i), readers.get(i*2),2024, seq, startDate, returnedDate, lendingDurationInDays, fineValuePerDayInCents);
+                    lendingRepository.save(lending);
+                } catch (NullPointerException npe) {
+                    logger.error("IdGenerator not available, skipping lending creation {}: {}", "2025/" + seq, npe.getMessage());
+                    continue;
+                }
             }
         }
 

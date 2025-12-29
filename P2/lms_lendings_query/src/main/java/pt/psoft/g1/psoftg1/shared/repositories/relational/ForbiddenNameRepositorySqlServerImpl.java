@@ -3,6 +3,7 @@ package pt.psoft.g1.psoftg1.shared.repositories.relational;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.context.annotation.Primary;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 import pt.psoft.g1.psoftg1.shared.model.ForbiddenName;
@@ -15,6 +16,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Profile("sqlServer")
+@Primary
 @Qualifier("forbiddenNameSqlServerRepo")
 @Component
 public class ForbiddenNameRepositorySqlServerImpl implements ForbiddenNameRepository {

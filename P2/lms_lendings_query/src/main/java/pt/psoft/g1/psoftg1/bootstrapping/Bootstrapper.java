@@ -15,7 +15,6 @@ import pt.psoft.g1.psoftg1.lendingmanagement.model.Lending;
 import pt.psoft.g1.psoftg1.lendingmanagement.repositories.LendingRepository;
 import pt.psoft.g1.psoftg1.readermanagement.model.ReaderDetails;
 import pt.psoft.g1.psoftg1.readermanagement.repositories.ReaderRepository;
-import pt.psoft.g1.psoftg1.shared.repositories.PhotoRepository;
 import pt.psoft.g1.psoftg1.shared.services.ForbiddenNameService;
 
 import java.time.LocalDate;
@@ -39,7 +38,6 @@ public class Bootstrapper implements CommandLineRunner {
     private final BookRepository bookRepository;
     private final LendingRepository lendingRepository;
     private final ReaderRepository readerRepository;
-    private final PhotoRepository photoRepository;
 
     private final ForbiddenNameService forbiddenNameService;
     private final BootstrapLockService bootstrapLockService;

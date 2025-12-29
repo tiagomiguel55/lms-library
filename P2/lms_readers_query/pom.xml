@@ -153,12 +153,6 @@
 			<version>6.4.4.Final</version>
 		</dependency>
 
-		<!-- Mongo Driver -->
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-data-mongodb</artifactId>
-		</dependency>
-
 		<!-- Firebase Auth -->
 		<dependency>
 			<groupId>com.google.firebase</groupId>

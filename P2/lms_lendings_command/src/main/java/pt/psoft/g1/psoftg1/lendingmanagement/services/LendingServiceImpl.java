@@ -102,9 +102,18 @@ public class LendingServiceImpl implements LendingService{
         System.out.println("Book exists in Books service");
 
         System.out.println("Fetching book with ISBN: " + resource.getIsbn());
-        final var b = bookRepository.findByIsbn(resource.getIsbn())
-                .orElseThrow(() -> new NotFoundException("Book not found"));
-        System.out.println("Book found: " + b.getIsbn());
+        // Try to find the book locally first
+        var optionalBook = bookRepository.findByIsbn(resource.getIsbn());
+        final Book b;
+        if (optionalBook.isPresent()) {
+            b = optionalBook.get();
+            System.out.println("Book found locally: " + b.getIsbn());
+        } else {
+            // Book exists in Books service but not locally, create a temporary Book object for the lending
+            System.out.println("Book not found locally, creating temporary book object for lending");
+            b = new Book(resource.getIsbn(), "Book from Books Service", "Book validated via Books service", null);
+            System.out.println("Temporary book created: " + b.getIsbn());
+        }
         
         final var r = readerDetails;
         System.out.println("Reader details: " + r.getReaderNumber());
