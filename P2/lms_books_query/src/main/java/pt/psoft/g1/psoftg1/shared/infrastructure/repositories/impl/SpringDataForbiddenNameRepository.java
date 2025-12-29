@@ -18,9 +18,13 @@ public interface SpringDataForbiddenNameRepository
     Optional<ForbiddenName> findByForbiddenName(String forbiddenName);
 
     @Override
+    default List<ForbiddenName> findByForbiddenNameIsContained(String pat) {
+        return findByForbiddenNameIsContainedCustom(pat);
+    }
+
+    @Override
     default int deleteForbiddenName(String forbiddenName) {
-        // Will be handled by custom implementation
-        return 0;
+        return deleteForbiddenNameCustom(forbiddenName);
     }
 }
 
