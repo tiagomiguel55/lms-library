@@ -681,11 +681,26 @@ EOF
                                    (params.ENVIRONMENT == 'staging' ? env.STACK_NAME_STAGING : env.STACK_NAME_PROD)
 
                     sh """
-                        echo "Verifying deployment for ${params.ENVIRONMENT} environment..."
+                        echo "=========================================="
+                        echo "POST-DEPLOYMENT VERIFICATION"
+                        echo "Environment: ${params.ENVIRONMENT}"
+                        echo "=========================================="
+
+                        # Wait for Docker Swarm to update replica status
+                        echo ""
+                        echo "Waiting 15 seconds for Docker Swarm to update replica status..."
+                        sleep 15
+
+                        echo ""
+                        echo "Current service status:"
                         docker stack services ${stackName}
+
                         echo ""
                         echo "Service tasks:"
                         docker stack ps ${stackName} --no-trunc
+
+                        echo ""
+                        echo "=========================================="
                     """
 
                     // Show health checks for production only
