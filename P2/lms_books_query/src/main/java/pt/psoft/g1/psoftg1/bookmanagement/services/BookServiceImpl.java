@@ -411,10 +411,17 @@ public class BookServiceImpl implements BookService {
             String description = "Finalized book from event";
 
             Book newBook = new Book(event.getBookId(), title, description, genre, List.of(author), null);
-            bookRepository.save(newBook);
-            System.out.println(" [QUERY] 📚 Book created from finalized event: " + event.getBookId() +
-                             " with author: " + event.getAuthorName() +
-                             " and genre: " + event.getGenreName());
+
+            try {
+                bookRepository.save(newBook);
+                System.out.println(" [QUERY] 📚 Book created from finalized event: " + event.getBookId() +
+                                 " with author: " + event.getAuthorName() +
+                                 " and genre: " + event.getGenreName());
+            } catch (DuplicateKeyException duplicateEx) {
+                // Another replica created the book first - this is expected in distributed systems
+                System.out.println(" [QUERY] ℹ️ Book already created by another replica: " + event.getBookId());
+                return;
+            }
 
             // Clean up any pending event for this book (in case it was stored before)
             pendingBookEventRepository.findByBookId(event.getBookId()).ifPresent(pending -> {
@@ -478,13 +485,20 @@ public class BookServiceImpl implements BookService {
                     null
                 );
 
-                bookRepository.save(newBook);
-                System.out.println(" [QUERY] ✅ Pending book finalized and created: " + pending.getBookId() +
-                                 " with author: " + pending.getAuthorName() +
-                                 " and genre: " + genreName);
+                try {
+                    bookRepository.save(newBook);
+                    System.out.println(" [QUERY] ✅ Pending book finalized and created: " + pending.getBookId() +
+                                     " with author: " + pending.getAuthorName() +
+                                     " and genre: " + genreName);
 
-                // Remove from pending only after successful creation
-                pendingBookEventRepository.delete(pending);
+                    // Remove from pending only after successful creation
+                    pendingBookEventRepository.delete(pending);
+                } catch (DuplicateKeyException duplicateEx) {
+                    // Another replica created the book first - this is expected in distributed systems
+                    System.out.println(" [QUERY] ℹ️ Pending book already created by another replica: " + pending.getBookId());
+                    // Clean up the pending event since book now exists
+                    pendingBookEventRepository.delete(pending);
+                }
 
             } catch (Exception e) {
                 System.out.println(" [QUERY] ⚠️ Could not process pending book event: " + e.getMessage());
@@ -554,13 +568,20 @@ public class BookServiceImpl implements BookService {
                     null
                 );
 
-                bookRepository.save(newBook);
-                System.out.println(" [QUERY] ✅ Pending book finalized and created: " + pending.getBookId() +
-                                 " with author: " + pending.getAuthorName() +
-                                 " and genre: " + pending.getGenreName());
+                try {
+                    bookRepository.save(newBook);
+                    System.out.println(" [QUERY] ✅ Pending book finalized and created: " + pending.getBookId() +
+                                     " with author: " + pending.getAuthorName() +
+                                     " and genre: " + pending.getGenreName());
 
-                // Remove from pending only after successful creation
-                pendingBookEventRepository.delete(pending);
+                    // Remove from pending only after successful creation
+                    pendingBookEventRepository.delete(pending);
+                } catch (DuplicateKeyException duplicateEx) {
+                    // Another replica created the book first - this is expected in distributed systems
+                    System.out.println(" [QUERY] ℹ️ Pending book already created by another replica: " + pending.getBookId());
+                    // Clean up the pending event since book now exists
+                    pendingBookEventRepository.delete(pending);
+                }
 
             } catch (Exception e) {
                 System.out.println(" [QUERY] ⚠️ Could not process pending book event: " + e.getMessage());
