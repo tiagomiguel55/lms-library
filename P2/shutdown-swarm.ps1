@@ -11,6 +11,12 @@ docker stack rm lendings_query_stack
 Write-Host "Removing Lendings Command stack..." -ForegroundColor Yellow
 docker stack rm lendings_command_stack
 
+Write-Host "Removing Readers Query stack..." -ForegroundColor Yellow
+docker stack rm readers_query_stack
+
+Write-Host "Removing Readers Command stack..." -ForegroundColor Yellow
+docker stack rm readers_command_stack
+
 Write-Host "Removing Books Query stack..." -ForegroundColor Yellow
 docker stack rm books_query_stack
 

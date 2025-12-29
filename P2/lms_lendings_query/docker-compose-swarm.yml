@@ -4,14 +4,14 @@ services:
   lmslendings_query:
     image: lmslendings:query
     environment:
-      - SPRING_PROFILES_ACTIVE=mongodb
-      - spring.data.mongodb.uri=mongodb://mongodb_lendings_query:27017/LMS_Lending_Query
+      - SPRING_PROFILES_ACTIVE=mongodb,bootstrap
+      - spring.data.mongodb.uri=mongodb://lendings_query_stack_mongodb_lendings_query:27017/LMS_Lending_Query
       - spring.data.mongodb.database=LMS_Lending_Query
       - spring.rabbitmq.host=shared_stack_rabbitmq
       - spring.rabbitmq.port=5672
       - spring.rabbitmq.username=guest
       - spring.rabbitmq.password=guest
-      - WAIT_FOR_HOSTS=mongodb_lendings_query:27017,shared_stack_rabbitmq:5672
+      - WAIT_FOR_HOSTS=lendings_query_stack_mongodb_lendings_query:27017,shared_stack_rabbitmq:5672
     deploy:
       replicas: 2
       restart_policy:

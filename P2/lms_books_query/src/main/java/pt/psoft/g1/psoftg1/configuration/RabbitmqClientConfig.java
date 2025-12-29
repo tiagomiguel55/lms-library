@@ -24,7 +24,7 @@ public class RabbitmqClientConfig {
     @Bean
     @Primary
     public DirectExchange direct() {
-        return new DirectExchange("books.exchange");
+        return new DirectExchange("LMS.direct");  // ✅ Must match books_command exchange
     }
 
     // Shared exchange across services for validation flows
@@ -41,6 +41,11 @@ public class RabbitmqClientConfig {
     @Bean
     public DirectExchange directGenres() {
         return new DirectExchange("genres.exchange");
+    }
+
+    @Bean
+    public DirectExchange directBooks() {
+        return new DirectExchange("books.exchange");
     }
 
     // ========== BOOK QUEUES (DURABLE) ==========
@@ -135,50 +140,50 @@ public class RabbitmqClientConfig {
     }
 
     // ========== AUTHOR BINDINGS ==========
-    @Bean
-    public Binding bindingAuthor1(DirectExchange directAuthors,
-                                  @Qualifier("autoDeleteQueue_Author_Created") Queue autoDeleteQueue_Author_Created) {
+        @Bean
+        public Binding bindingAuthor1(@Qualifier("directAuthors") DirectExchange directAuthors,
+                      @Qualifier("autoDeleteQueue_Author_Created") Queue autoDeleteQueue_Author_Created) {
         return BindingBuilder.bind(autoDeleteQueue_Author_Created)
                 .to(directAuthors)
                 .with(AuthorEvents.AUTHOR_CREATED);
     }
 
-    @Bean
-    public Binding bindingAuthor2(DirectExchange directAuthors,
-                                  Queue autoDeleteQueue_Author_Updated) {
+        @Bean
+        public Binding bindingAuthor2(@Qualifier("directAuthors") DirectExchange directAuthors,
+                      Queue autoDeleteQueue_Author_Updated) {
         return BindingBuilder.bind(autoDeleteQueue_Author_Updated)
                 .to(directAuthors)
                 .with(AuthorEvents.AUTHOR_UPDATED);
     }
 
-    @Bean
-    public Binding bindingAuthor3(DirectExchange directAuthors,
-                                  Queue autoDeleteQueue_Author_Deleted) {
+        @Bean
+        public Binding bindingAuthor3(@Qualifier("directAuthors") DirectExchange directAuthors,
+                      Queue autoDeleteQueue_Author_Deleted) {
         return BindingBuilder.bind(autoDeleteQueue_Author_Deleted)
                 .to(directAuthors)
                 .with(AuthorEvents.AUTHOR_DELETED);
     }
 
     // ========== GENRE BINDINGS ==========
-    @Bean
-    public Binding bindingGenre1(DirectExchange directGenres,
-                                 @Qualifier("autoDeleteQueue_Genre_Created") Queue autoDeleteQueue_Genre_Created) {
+        @Bean
+        public Binding bindingGenre1(@Qualifier("directGenres") DirectExchange directGenres,
+                     @Qualifier("autoDeleteQueue_Genre_Created") Queue autoDeleteQueue_Genre_Created) {
         return BindingBuilder.bind(autoDeleteQueue_Genre_Created)
                 .to(directGenres)
                 .with(GenreEvents.GENRE_CREATED);
     }
 
-    @Bean
-    public Binding bindingGenre2(DirectExchange directGenres,
-                                 Queue autoDeleteQueue_Genre_Updated) {
+        @Bean
+        public Binding bindingGenre2(@Qualifier("directGenres") DirectExchange directGenres,
+                     Queue autoDeleteQueue_Genre_Updated) {
         return BindingBuilder.bind(autoDeleteQueue_Genre_Updated)
                 .to(directGenres)
                 .with(GenreEvents.GENRE_UPDATED);
     }
 
-    @Bean
-    public Binding bindingGenre3(DirectExchange directGenres,
-                                 Queue autoDeleteQueue_Genre_Deleted) {
+        @Bean
+        public Binding bindingGenre3(@Qualifier("directGenres") DirectExchange directGenres,
+                     Queue autoDeleteQueue_Genre_Deleted) {
         return BindingBuilder.bind(autoDeleteQueue_Genre_Deleted)
                 .to(directGenres)
                 .with(GenreEvents.GENRE_DELETED);

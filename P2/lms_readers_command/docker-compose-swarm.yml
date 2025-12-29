@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  lmsreaders_command:
+    image: lmsreaders:command
+    environment:
+      - SPRING_PROFILES_ACTIVE=sqlServer,bootstrap,hash
+      - bootstrap.mode=static
+      - server.port=8080
+      - spring.datasource.url=jdbc:postgresql://readers_command_stack_postgres_readers_command:5432/command_readers
+      - spring.datasource.username=postgres
+      - spring.datasource.password=password
+      - spring.datasource.driver-class-name=org.postgresql.Driver
+      - spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
+      - spring.jpa.hibernate.ddl-auto=validate
+      - spring.rabbitmq.host=shared_stack_rabbitmq
+      - spring.rabbitmq.port=5672
+      - spring.rabbitmq.username=guest
+      - spring.rabbitmq.password=guest
+      - WAIT_FOR_HOSTS=readers_command_stack_postgres_readers_command:5432,shared_stack_rabbitmq:5672
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+        delay: 15s
+        max_attempts: 5
+        window: 2m
+    ports:
+      - "8082:8080"
+    networks:
+      - lms_network
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '>/dev/tcp/127.0.0.1/8080' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  postgres_readers_command:
+    image: postgres:latest
+    environment:
+      - POSTGRES_DB=command_readers
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - postgres_readers_command_data:/var/lib/postgresql
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+        window: 1m
+    ports:
+      - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - lms_network
+
+networks:
+  lms_network:
+    external: true
+
+volumes:
+  postgres_readers_command_data:
+    driver: local

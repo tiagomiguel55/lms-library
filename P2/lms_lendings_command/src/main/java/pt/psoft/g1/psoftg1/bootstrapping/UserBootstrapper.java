@@ -1,6 +1,8 @@
 package pt.psoft.g1.psoftg1.bootstrapping;
 
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
@@ -27,18 +29,36 @@ import java.util.Optional;
 @Profile("bootstrap")
 @Order(1)
 public class UserBootstrapper implements CommandLineRunner {
+    private static final Logger logger = LoggerFactory.getLogger(UserBootstrapper.class);
 
     private final UserRepository userRepository;
     private final ReaderRepository readerRepository;
     private final JdbcTemplate jdbcTemplate;
+    private final BootstrapLockService bootstrapLockService;
     private List<String> queriesToExecute = new ArrayList<>();
+    
+    private static final String USER_BOOTSTRAP_LOCK = "USER_BOOTSTRAP_LOCK";
 
     @Override
     @Transactional
     public void run(final String... args)  {
+        // Check if bootstrap was already completed by another replica
+        if (bootstrapLockService.isBootstrapCompleted(USER_BOOTSTRAP_LOCK)) {
+            logger.info("UserBootstrap already completed by another replica. Skipping...");
+            return;
+        }
+        
+        // Try to acquire the bootstrap lock
+        if (!bootstrapLockService.tryAcquireLock(USER_BOOTSTRAP_LOCK)) {
+            logger.info("Could not acquire bootstrap lock. Another replica is bootstrapping. Skipping...");
+            return;
+        }
+        
+        logger.info("========== USER BOOTSTRAPPER STARTED ==========");
         createReaders();
         createLibrarian();
         executeQueries();
+        logger.info("========== USER BOOTSTRAPPER FINISHED ==========");
     }
 
     private void createReaders() {

@@ -1,6 +1,5 @@
 package pt.psoft.g1.psoftg1.authormanagement.model;
 
-import org.hibernate.StaleObjectStateException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import pt.psoft.g1.psoftg1.authormanagement.model.Author;
@@ -32,13 +31,6 @@ class AuthorTest {
     @Test
     void ensureBioNotNull() {
         assertThrows(IllegalArgumentException.class, () -> new Author(validName, null, null));
-    }
-
-    @Test
-    void whenVersionIsStaleItIsNotPossibleToPatch() {
-        final var subject = new Author(validName, validBio, null);
-
-        assertThrows(StaleObjectStateException.class, () -> subject.applyPatch(999, request));
     }
 
     @Test

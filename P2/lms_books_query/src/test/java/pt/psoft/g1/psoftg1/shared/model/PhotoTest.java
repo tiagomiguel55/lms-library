@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class PhotoTest {
     @Test
     void ensurePathMustNotBeNull() {
-        assertThrows(NullPointerException.class, () -> new Photo(null));
+        assertThrows(NullPointerException.class, () -> new Photo((Path) null));
     }
 
     @Test

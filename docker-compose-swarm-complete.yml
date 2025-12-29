@@ -38,13 +38,15 @@ services:
   lmsbooks_command:
     image: lmsbooks:command
     environment:
-      - SPRING_PROFILES_ACTIVE=
+      - SPRING_PROFILES_ACTIVE=sqlServer,hash
       - spring.datasource.url=jdbc:postgresql://postgres_books_command:5432/command_books
       - spring.datasource.username=postgres
       - spring.datasource.password=password
       - spring.datasource.driver-class-name=org.postgresql.Driver
       - spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
-      - spring.jpa.hibernate.ddl-auto=update
+      - spring.jpa.hibernate.ddl-auto=none
+      - spring.jpa.generate-ddl=false
+      - server.port=8080
       - spring.rabbitmq.host=rabbitmq
     deploy:
       replicas: 2
@@ -88,14 +90,17 @@ services:
   lmslendings_command:
     image: lmslendings:command
     environment:
-      - SPRING_PROFILES_ACTIVE=bootstrap
+      - SPRING_PROFILES_ACTIVE=sqlServer,hash
       - spring.datasource.url=jdbc:postgresql://postgres_lendings_command:5432/command_lendings
       - spring.datasource.username=postgres
       - spring.datasource.password=password
       - spring.datasource.driver-class-name=org.postgresql.Driver
       - spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
-      - spring.jpa.hibernate.ddl-auto=update
+      - spring.jpa.hibernate.ddl-auto=none
+      - spring.jpa.generate-ddl=false
+      - server.port=8080
       - spring.rabbitmq.host=rabbitmq
+      - books.service.url=http://lmsbooks_command:8080
     deploy:
       replicas: 2
       restart_policy:

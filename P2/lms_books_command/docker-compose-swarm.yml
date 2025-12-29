@@ -4,13 +4,13 @@ services:
   lmsbooks_command:
     image: lmsbooks:command
     environment:
-      - SPRING_PROFILES_ACTIVE=sqlServer
+      - SPRING_PROFILES_ACTIVE=sqlServer,bootstrap
       - spring.datasource.url=jdbc:postgresql://postgres_books_command:5432/command_books
       - spring.datasource.username=postgres
       - spring.datasource.password=password
       - spring.datasource.driver-class-name=org.postgresql.Driver
       - spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
-      - spring.jpa.hibernate.ddl-auto=update
+      - spring.jpa.hibernate.ddl-auto=validate
       - spring.rabbitmq.host=shared_stack_rabbitmq
       - spring.rabbitmq.port=5672
       - spring.rabbitmq.username=guest

@@ -28,8 +28,9 @@ public interface SpringDataBookRepository extends BookRepository, BookRepoCustom
     @org.springframework.data.mongodb.repository.Query("{ 'title': { $regex: ?0, $options: 'i' } }")
     List<Book> findByTitle(String title);
 
-    @org.springframework.data.mongodb.repository.Query("{ 'authors.name': { $regex: ?0, $options: 'i' } }")
-    List<Book> findByAuthorName(String authorName);
+    // Removed direct query annotation - using custom implementation instead due to @DBRef limitations
+    // @org.springframework.data.mongodb.repository.Query("{ 'authors.name': { $regex: ?0, $options: 'i' } }")
+    // List<Book> findByAuthorName(String authorName);
 
     @org.springframework.data.mongodb.repository.Query("{ 'authors.$id': ?0 }")
     List<Book> findBooksByAuthorNumber(Long authorNumber);
@@ -38,6 +39,7 @@ public interface SpringDataBookRepository extends BookRepository, BookRepoCustom
 interface BookRepoCustom {
     List<Book> searchBooks(pt.psoft.g1.psoftg1.shared.services.Page page, SearchBooksQuery query);
     List<Book> findByGenreName(String genreName);
+    List<Book> findByAuthorName(String authorName);
 }
 
 @RequiredArgsConstructor
@@ -79,5 +81,26 @@ class BookRepoCustomImpl implements BookRepoCustom {
         Query mongoQuery = new Query();
         mongoQuery.addCriteria(Criteria.where("genre.genre").regex(genreName, "i"));
         return mongoTemplate.find(mongoQuery, Book.class);
+    }
+
+    @Override
+    public List<Book> findByAuthorName(String authorName) {
+        // First, find all authors that match the name
+        Query authorQuery = new Query(Criteria.where("name").regex(authorName, "i"));
+        List<pt.psoft.g1.psoftg1.authormanagement.model.Author> authors = 
+            mongoTemplate.find(authorQuery, pt.psoft.g1.psoftg1.authormanagement.model.Author.class);
+        
+        if (authors.isEmpty()) {
+            return List.of();
+        }
+        
+        // Extract author numbers (IDs)
+        List<Long> authorIds = authors.stream()
+            .map(pt.psoft.g1.psoftg1.authormanagement.model.Author::getId)
+            .toList();
+        
+        // Find books that reference these authors
+        Query bookQuery = new Query(Criteria.where("authors.$id").in(authorIds));
+        return mongoTemplate.find(bookQuery, Book.class);
     }
 }

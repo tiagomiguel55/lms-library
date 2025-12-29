@@ -7,7 +7,6 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 import pt.psoft.g1.psoftg1.authormanagement.model.Author;
 import pt.psoft.g1.psoftg1.authormanagement.repositories.AuthorRepository;
 import pt.psoft.g1.psoftg1.bookmanagement.model.Book;
@@ -23,6 +22,8 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Component
 @RequiredArgsConstructor
@@ -30,6 +31,8 @@ import java.util.Optional;
 @PropertySource({ "classpath:config/library.properties" })
 @Order(2)
 public class Bootstrapper implements CommandLineRunner {
+    private static final Logger logger = LoggerFactory.getLogger(Bootstrapper.class);
+    
     @Value("${lendingDurationInDays}")
     private int lendingDurationInDays;
     @Value("${fineValuePerDayInCents}")
@@ -41,15 +44,31 @@ public class Bootstrapper implements CommandLineRunner {
     private final PhotoRepository photoRepository;
 
     private final ForbiddenNameService forbiddenNameService;
+    private final BootstrapLockService bootstrapLockService;
+    
+    private static final String DATA_BOOTSTRAP_LOCK = "DATA_BOOTSTRAP_LOCK";
 
     @Override
-    @Transactional
     public void run(final String... args) {
+        // Check if bootstrap was already completed by another replica
+        if (bootstrapLockService.isBootstrapCompleted(DATA_BOOTSTRAP_LOCK)) {
+            logger.info("Bootstrap already completed by another replica. Skipping...");
+            return;
+        }
+        
+        // Try to acquire the bootstrap lock
+        if (!bootstrapLockService.tryAcquireLock(DATA_BOOTSTRAP_LOCK)) {
+            logger.info("Could not acquire bootstrap lock. Another replica is bootstrapping. Skipping...");
+            return;
+        }
+        
+        logger.info("========== BOOTSTRAPPER STARTED ==========");
         createAuthors();
         createGenres();
         createBooks();
         loadForbiddenNames();
         createPhotos();
+        logger.info("========== BOOTSTRAPPER FINISHED ==========");
     }
 
     private void createAuthors() {
