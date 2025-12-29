@@ -85,14 +85,15 @@ pipeline {
 
         stage('Push Docker Image to Registry') {
             when {
-                expression { params.ENVIRONMENT == 'staging' } // Push após validação em staging
+                expression { params.ENVIRONMENT == 'dev' || params.ENVIRONMENT == 'staging' }
             }
             steps {
                 script {
                     withCredentials([usernamePassword(credentialsId: "${DOCKER_REGISTRY_CREDENTIALS}", usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
                         sh """
                             echo "=========================================="
-                            echo "Pushing tested image to registry..."
+                            echo "Pushing image to registry..."
+                            echo "Environment: ${params.ENVIRONMENT}"
                             echo "Registry: ${DOCKER_REGISTRY}"
                             echo "Namespace: ${DOCKER_REGISTRY_NAMESPACE}"
                             echo "Image: ${IMAGE_NAME}:${IMAGE_TAG}"
@@ -103,18 +104,18 @@ pipeline {
                             echo ""
                             echo "Tagging for registry..."
                             docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${FULL_IMAGE_NAME}:${IMAGE_TAG}
-                            docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${FULL_IMAGE_NAME}:staging
+                            docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${FULL_IMAGE_NAME}:${params.ENVIRONMENT}
 
                             echo ""
                             echo "Pushing image..."
                             docker push ${FULL_IMAGE_NAME}:${IMAGE_TAG}
-                            docker push ${FULL_IMAGE_NAME}:staging
+                            docker push ${FULL_IMAGE_NAME}:${params.ENVIRONMENT}
 
                             echo ""
                             echo "=========================================="
                             echo "✅ Image pushed to registry!"
                             echo "   ${FULL_IMAGE_NAME}:${IMAGE_TAG}"
-                            echo "   ${FULL_IMAGE_NAME}:staging"
+                            echo "   ${FULL_IMAGE_NAME}:${params.ENVIRONMENT}"
                             echo "=========================================="
                         """
                     }
@@ -750,11 +751,26 @@ EOF
                                    (params.ENVIRONMENT == 'staging' ? env.STACK_NAME_STAGING : env.STACK_NAME_PROD)
 
                     sh """
-                        echo "Verifying deployment for ${params.ENVIRONMENT} environment..."
+                        echo "=========================================="
+                        echo "POST-DEPLOYMENT VERIFICATION"
+                        echo "Environment: ${params.ENVIRONMENT}"
+                        echo "=========================================="
+
+                        # Wait for Docker Swarm to update replica status
+                        echo ""
+                        echo "Waiting 15 seconds for Docker Swarm to update replica status..."
+                        sleep 15
+
+                        echo ""
+                        echo "Current service status:"
                         docker stack services ${stackName}
+
                         echo ""
                         echo "Service tasks:"
                         docker stack ps ${stackName} --no-trunc
+
+                        echo ""
+                        echo "=========================================="
                     """
 
                     // Show health checks for production only
