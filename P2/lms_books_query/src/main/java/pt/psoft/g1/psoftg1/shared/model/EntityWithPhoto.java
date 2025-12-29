@@ -1,21 +1,14 @@
 package pt.psoft.g1.psoftg1.shared.model;
 
 import jakarta.annotation.Nullable;
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.MappedSuperclass;
-import jakarta.persistence.OneToOne;
 import lombok.Getter;
 
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 
 @Getter
-@MappedSuperclass
 public abstract class EntityWithPhoto {
     @Nullable
-    @OneToOne(cascade = CascadeType.ALL)
-    @JoinColumn(name = "photo_id")
     protected Photo photo;
 
     // This method is used by the mapper in order to set the photo. This will call the setPhotoInternal method that

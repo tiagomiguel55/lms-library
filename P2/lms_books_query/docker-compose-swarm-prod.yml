@@ -5,12 +5,12 @@ services:
     image: docker.io/tiagomiguel55/lmsbooks-query:${IMAGE_TAG}
     environment:
       - SPRING_PROFILES_ACTIVE=bootstrap
-      - spring.datasource.url=jdbc:postgresql://postgres_query_prod:5432/query_books_prod
-      - spring.datasource.username=lmsuser
-      - spring.datasource.password=lmspass
-      - spring.datasource.driver-class-name=org.postgresql.Driver
-      - spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
-      - spring.jpa.hibernate.ddl-auto=update
+      - spring.data.mongodb.host=mongodb_query_prod
+      - spring.data.mongodb.port=27017
+      - spring.data.mongodb.database=query_books_prod
+      - spring.data.mongodb.username=lmsuser
+      - spring.data.mongodb.password=lmspass
+      - spring.data.mongodb.authentication-database=admin
       - file.upload-dir=/tmp/uploads-psoft-g1
       - spring.rabbitmq.host=lms_shared_rabbitmq
       - spring.rabbitmq.port=5672
@@ -42,16 +42,17 @@ services:
       - lms_network_prod
       - lms_network
 
-  postgres_query_prod:
-    image: postgres:15
+  mongodb_query_prod:
+    image: mongo:7.0
     environment:
-      - POSTGRES_DB=query_books_prod
-      - POSTGRES_USER=lmsuser
-      - POSTGRES_PASSWORD=lmspass
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=admin
+      - MONGO_INITDB_DATABASE=query_books_prod
     volumes:
-      - postgres_query_data_prod:/var/lib/postgresql/data
+      - mongodb_query_data_prod:/data/db
+      - ./init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U lmsuser -d query_books_prod"]
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -64,7 +65,7 @@ services:
       restart_policy:
         condition: on-failure
     ports:
-      - "5437:5432"
+      - "27019:27017"
     networks:
       - lms_network_prod
 
@@ -76,4 +77,4 @@ networks:
     external: true
 
 volumes:
-  postgres_query_data_prod:
+  mongodb_query_data_prod:

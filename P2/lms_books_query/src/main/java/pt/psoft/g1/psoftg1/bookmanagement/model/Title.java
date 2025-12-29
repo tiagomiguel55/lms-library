@@ -1,20 +1,17 @@
 package pt.psoft.g1.psoftg1.bookmanagement.model;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Embeddable;
-import jakarta.persistence.Transient;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
+import org.springframework.data.annotation.Transient;
 
-@Embeddable
+@Getter
 public class Title {
     @Transient
     private final int TITLE_MAX_LENGTH = 128;
+
     @NotBlank(message = "Title cannot be blank")
     @Size(min = 1, max = TITLE_MAX_LENGTH)
-    @Column(name = "TITLE", length = TITLE_MAX_LENGTH)
-    @Getter
     String title;
 
     protected Title() {

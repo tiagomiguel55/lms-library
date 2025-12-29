@@ -3,6 +3,7 @@ package pt.psoft.g1.psoftg1.bookmanagement.services;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.stereotype.Service;
+import org.springframework.dao.DuplicateKeyException;
 
 import org.springframework.web.multipart.MultipartFile;
 import pt.psoft.g1.psoftg1.authormanagement.model.Author;
@@ -27,7 +28,6 @@ import java.util.Optional;
 
 import pt.psoft.g1.psoftg1.authormanagement.api.AuthorViewAMQP;
 import pt.psoft.g1.psoftg1.genremanagement.api.GenreViewAMQP;
-import org.hibernate.exception.ConstraintViolationException;
 
 @Service
 @RequiredArgsConstructor
@@ -96,7 +96,7 @@ public class BookServiceImpl implements BookService {
         try {
             Book savedBook = bookRepository.save(newBook);
             return savedBook;
-        } catch (ConstraintViolationException e) {
+        } catch (DuplicateKeyException e) {
             // Book already exists, return the existing one
             return bookRepository.findByIsbn(isbn).orElseThrow(() -> new NotFoundException("Book not found"));
         }

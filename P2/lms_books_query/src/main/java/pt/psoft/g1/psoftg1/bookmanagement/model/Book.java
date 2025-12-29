@@ -1,11 +1,13 @@
 package pt.psoft.g1.psoftg1.bookmanagement.model;
 
-import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
-import org.hibernate.StaleObjectStateException;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Version;
+import org.springframework.data.mongodb.core.index.Indexed;
+import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.mapping.DBRef;
 import pt.psoft.g1.psoftg1.authormanagement.model.Author;
-import pt.psoft.g1.psoftg1.bookmanagement.services.UpdateBookRequest;
 import pt.psoft.g1.psoftg1.exceptions.ConflictException;
 import pt.psoft.g1.psoftg1.genremanagement.model.Genre;
 import pt.psoft.g1.psoftg1.shared.model.EntityWithPhoto;
@@ -14,36 +16,33 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-@Entity
-@Table(name = "Book", uniqueConstraints = { @UniqueConstraint(name = "uc_book_isbn", columnNames = { "ISBN" }) })
+@Document(collection = "books")
 public class Book extends EntityWithPhoto {
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
-    long pk;
+    @Getter
+    private String id;
 
     @Version
     @Getter
     private Long version;
 
-    @Embedded
-    Isbn isbn;
+    @Indexed(unique = true)
+    private Isbn isbn;
 
     @Getter
-    @Embedded
     @NotNull
-    Title title;
+    private Title title;
 
     @Getter
-    @ManyToOne
+    @DBRef
     @NotNull
-    Genre genre;
+    private Genre genre;
 
     @Getter
-    @ManyToMany
+    @DBRef
     private List<Author> authors = new ArrayList<>();
 
-    @Embedded
-    Description description;
+    private Description description;
 
     private void setTitle(String title) {
         this.title = new Title(title);
@@ -87,7 +86,7 @@ public class Book extends EntityWithPhoto {
     }
 
     protected Book() {
-        // got ORM only
+        // for ORM only
     }
 
     public void removePhoto(long desiredVersion) {
@@ -106,7 +105,7 @@ public class Book extends EntityWithPhoto {
                            final List<Author> authors ) {
 
         if (!Objects.equals(this.version, desiredVersion))
-            throw new StaleObjectStateException("Object was already modified by another user", this.pk);
+            throw new ConflictException("Object was already modified by another user");
 
         if (title != null) {
             setTitle(title);
@@ -131,17 +130,5 @@ public class Book extends EntityWithPhoto {
 
     public String getIsbn() {
         return this.isbn.toString();
-    }
-
-    public Title getTitle() {
-        return title;
-    }
-
-    public Long getVersion() {
-        return version;
-    }
-
-    public List<Author> getAuthors() {
-        return authors;
     }
 }

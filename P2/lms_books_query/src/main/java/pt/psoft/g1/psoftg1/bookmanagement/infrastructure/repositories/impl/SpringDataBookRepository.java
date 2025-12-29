@@ -1,103 +1,110 @@
 package pt.psoft.g1.psoftg1.bookmanagement.infrastructure.repositories.impl;
 
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.TypedQuery;
-import jakarta.persistence.criteria.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.CrudRepository;
-import org.springframework.data.repository.query.Param;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.util.StringUtils;
-import pt.psoft.g1.psoftg1.authormanagement.model.Author;
 import pt.psoft.g1.psoftg1.bookmanagement.model.Book;
-import pt.psoft.g1.psoftg1.bookmanagement.services.BookCountDTO;
-import pt.psoft.g1.psoftg1.bookmanagement.model.Isbn;
 import pt.psoft.g1.psoftg1.bookmanagement.repositories.BookRepository;
 import pt.psoft.g1.psoftg1.bookmanagement.services.SearchBooksQuery;
-import pt.psoft.g1.psoftg1.genremanagement.model.Genre;
 
-import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-public interface SpringDataBookRepository extends BookRepository, BookRepoCustom, CrudRepository<Book, Isbn> {
+public interface SpringDataBookRepository extends BookRepository, BookRepoCustom, MongoRepository<Book, String> {
 
-    @Query("SELECT b " + "FROM Book b " + "WHERE b.isbn.isbn = :isbn")
-    Optional<Book> findByIsbn(@Param("isbn") String isbn);
+    default Optional<Book> findByIsbn(String isbn) {
+        return ((BookRepoCustom) this).findByIsbnCustom(isbn);
+    }
 
-//    @Override
-//    @Query("SELECT new pt.psoft.g1.psoftg1.bookmanagement.services.BookCountDTO(b, COUNT(l)) " + "FROM Book b "
-//            + "JOIN Lending l ON l.book = b " + "WHERE l.startDate > :oneYearAgo " + "GROUP BY b "
-//            + "ORDER BY COUNT(l) DESC")
-//    Page<BookCountDTO> findTop5BooksLent(@Param("oneYearAgo") LocalDate oneYearAgo, Pageable pageable);
+    default List<Book> findByGenre(String genre) {
+        return ((BookRepoCustom) this).findByGenreCustom(genre);
+    }
 
-    @Override
-    @Query("SELECT b " + "FROM Book b " + "WHERE b.genre.genre LIKE %:genre%")
-    List<Book> findByGenre(@Param("genre") String genre);
+    default List<Book> findByTitle(String title) {
+        return ((BookRepoCustom) this).findByTitleCustom(title);
+    }
 
-    @Override
-    @Query("SELECT b FROM Book b WHERE b.title.title LIKE %:title%")
-    List<Book> findByTitle(@Param("title") String title);
+    default List<Book> findByAuthorName(String authorName) {
+        return ((BookRepoCustom) this).findByAuthorNameCustom(authorName);
+    }
 
-    @Override
-    @Query(value = "SELECT b.* " + "FROM Book b " + "JOIN BOOK_AUTHORS on b.pk = BOOK_AUTHORS.BOOK_PK "
-            + "JOIN AUTHOR a on BOOK_AUTHORS.AUTHORS_AUTHOR_NUMBER = a.AUTHOR_NUMBER "
-            + "WHERE a.NAME LIKE :authorName", nativeQuery = true)
-    List<Book> findByAuthorName(@Param("authorName") String authorName);
-
-    @Override
-    @Query(value = "SELECT b.* " + "FROM Book b " + "JOIN BOOK_AUTHORS on b.pk = BOOK_AUTHORS.BOOK_PK "
-            + "JOIN AUTHOR a on BOOK_AUTHORS.AUTHORS_AUTHOR_NUMBER = a.AUTHOR_NUMBER "
-            + "WHERE a.AUTHOR_NUMBER = :authorNumber ", nativeQuery = true)
-    List<Book> findBooksByAuthorNumber(Long authorNumber);
-
+    default List<Book> findBooksByAuthorNumber(Long authorNumber) {
+        return ((BookRepoCustom) this).findBooksByAuthorNumberCustom(authorNumber);
+    }
 }
 
 interface BookRepoCustom {
+    Optional<Book> findByIsbnCustom(String isbn);
     List<Book> searchBooks(pt.psoft.g1.psoftg1.shared.services.Page page, SearchBooksQuery query);
-
+    List<Book> findByGenreCustom(String genre);
+    List<Book> findByTitleCustom(String title);
+    List<Book> findByAuthorNameCustom(String authorName);
+    List<Book> findBooksByAuthorNumberCustom(Long authorNumber);
 }
 
 @RequiredArgsConstructor
 class BookRepoCustomImpl implements BookRepoCustom {
-    // get the underlying JPA Entity Manager via spring thru constructor dependency
-    // injection
-    private final EntityManager em;
+    private final MongoTemplate mongoTemplate;
 
     @Override
-    public List<Book> searchBooks(pt.psoft.g1.psoftg1.shared.services.Page page, SearchBooksQuery query) {
-        String title = query.getTitle();
-        String genre = query.getGenre();
-        String authorName = query.getAuthorName();
+    public Optional<Book> findByIsbnCustom(String isbn) {
+        Query query = new Query();
+        query.addCriteria(Criteria.where("isbn.isbn").is(isbn));
+        return Optional.ofNullable(mongoTemplate.findOne(query, Book.class));
+    }
 
-        final CriteriaBuilder cb = em.getCriteriaBuilder();
-        final CriteriaQuery<Book> cq = cb.createQuery(Book.class);
-        final Root<Book> root = cq.from(Book.class);
-        final Join<Book, Genre> genreJoin = root.join("genre");
-        final Join<Book, Author> authorJoin = root.join("authors");
-        cq.select(root);
+    @Override
+    public List<Book> searchBooks(pt.psoft.g1.psoftg1.shared.services.Page page, SearchBooksQuery searchQuery) {
+        Query query = new Query();
 
-        final List<Predicate> where = new ArrayList<>();
+        if (StringUtils.hasText(searchQuery.getTitle())) {
+            query.addCriteria(Criteria.where("title.title").regex("^" + searchQuery.getTitle(), "i"));
+        }
 
-        if (StringUtils.hasText(title))
-            where.add(cb.like(root.get("title").get("title"), title + "%"));
+        if (StringUtils.hasText(searchQuery.getGenre())) {
+            query.addCriteria(Criteria.where("genre.genre").regex("^" + searchQuery.getGenre(), "i"));
+        }
 
-        if (StringUtils.hasText(genre))
-            where.add(cb.like(genreJoin.get("genre"), genre + "%"));
+        if (StringUtils.hasText(searchQuery.getAuthorName())) {
+            query.addCriteria(Criteria.where("authors.name.name").regex("^" + searchQuery.getAuthorName(), "i"));
+        }
 
-        if (StringUtils.hasText(authorName))
-            where.add(cb.like(authorJoin.get("name").get("name"), authorName + "%"));
+        query.skip((long) (page.getNumber() - 1) * page.getLimit());
+        query.limit(page.getLimit());
 
-        cq.where(where.toArray(new Predicate[0]));
-        cq.orderBy(cb.asc(root.get("title"))); // Order by title, alphabetically
+        return mongoTemplate.find(query, Book.class);
+    }
 
-        final TypedQuery<Book> q = em.createQuery(cq);
-        q.setFirstResult((page.getNumber() - 1) * page.getLimit());
-        q.setMaxResults(page.getLimit());
+    @Override
+    public List<Book> findByGenreCustom(String genre) {
+        Query query = new Query();
+        query.addCriteria(Criteria.where("genre.genre").regex(genre, "i"));
+        return mongoTemplate.find(query, Book.class);
+    }
 
-        return q.getResultList();
+    @Override
+    public List<Book> findByTitleCustom(String title) {
+        Query query = new Query();
+        query.addCriteria(Criteria.where("title.title").regex(title, "i"));
+        return mongoTemplate.find(query, Book.class);
+    }
+
+    @Override
+    public List<Book> findByAuthorNameCustom(String authorName) {
+        Query query = new Query();
+        query.addCriteria(Criteria.where("authors.name.name").regex(authorName, "i"));
+        return mongoTemplate.find(query, Book.class);
+    }
+
+    @Override
+    public List<Book> findBooksByAuthorNumberCustom(Long authorNumber) {
+        Query query = new Query();
+        query.addCriteria(Criteria.where("authors.authorNumber").is(authorNumber));
+        return mongoTemplate.find(query, Book.class);
     }
 }

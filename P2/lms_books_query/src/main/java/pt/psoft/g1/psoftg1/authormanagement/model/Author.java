@@ -1,28 +1,29 @@
 package pt.psoft.g1.psoftg1.authormanagement.model;
 
-import jakarta.persistence.*;
 import lombok.Getter;
-import org.hibernate.StaleObjectStateException;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Version;
+import org.springframework.data.mongodb.core.mapping.Document;
 import pt.psoft.g1.psoftg1.authormanagement.services.UpdateAuthorRequest;
 import pt.psoft.g1.psoftg1.exceptions.ConflictException;
 import pt.psoft.g1.psoftg1.shared.model.EntityWithPhoto;
 import pt.psoft.g1.psoftg1.shared.model.Name;
 import pt.psoft.g1.psoftg1.shared.model.Photo;
 
-@Entity
+@Document(collection = "authors")
 public class Author extends EntityWithPhoto {
     @Id
-    @Column(name = "AUTHOR_NUMBER")
+    @Getter
+    private String id;
+
     @Getter
     private long authorNumber;
 
     @Version
     private long version;
 
-    @Embedded
     private Name name;
 
-    @Embedded
     private Bio bio;
 
     public void setName(String name) {
@@ -55,12 +56,12 @@ public class Author extends EntityWithPhoto {
     }
 
     public Author() {
-        // got ORM only
+        // for ORM only
     }
 
     public void applyPatch(final long desiredVersion, final UpdateAuthorRequest request) {
         if (this.version != desiredVersion)
-            throw new StaleObjectStateException("Object was already modified by another user", this.authorNumber);
+            throw new ConflictException("Object was already modified by another user");
         if (request.getName() != null)
             setName(request.getName());
         if (request.getBio() != null)
