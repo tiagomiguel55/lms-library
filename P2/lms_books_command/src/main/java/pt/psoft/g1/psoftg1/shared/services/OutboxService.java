@@ -30,9 +30,20 @@ public class OutboxService {
         try {
             String payload = objectMapper.writeValueAsString(eventPayload);
             OutboxEvent event = new OutboxEvent(aggregateType, aggregateId, eventType, payload);
-            return outboxEventRepository.save(event);
+            OutboxEvent saved = outboxEventRepository.save(event);
+
+            System.out.println(" [x] ✅ OUTBOX: Event saved - ID: " + saved.getId() +
+                    " | Type: " + eventType +
+                    " | Aggregate: " + aggregateType + ":" + aggregateId +
+                    " | Payload: " + payload);
+
+            return saved;
         } catch (JsonProcessingException e) {
+            System.out.println(" [x] ❌ OUTBOX: Failed to serialize - " + e.getMessage());
             throw new RuntimeException("Failed to serialize event payload", e);
+        } catch (Exception e) {
+            System.out.println(" [x] ❌ OUTBOX: Failed to save - " + e.getMessage());
+            throw e;
         }
     }
 
@@ -41,7 +52,9 @@ public class OutboxService {
      */
     @Transactional(readOnly = true)
     public List<OutboxEvent> getUnprocessedEvents() {
-        return outboxEventRepository.findUnprocessedEvents();
+        List<OutboxEvent> events = outboxEventRepository.findUnprocessedEvents();
+        System.out.println(" [x] 🔍 OutboxService: Found " + events.size() + " unprocessed events");
+        return events;
     }
 
     /**
@@ -75,4 +88,3 @@ public class OutboxService {
         return outboxEventRepository.findFailedEventsForRetry();
     }
 }
-

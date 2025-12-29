@@ -30,43 +30,51 @@ public class OutboxPublisher {
      */
     @Scheduled(fixedDelayString = "${outbox.polling-interval:5000}")
     public void publishPendingEvents() {
-        List<OutboxEvent> events = outboxService.getUnprocessedEvents();
+        try {
+            List<OutboxEvent> events = outboxService.getUnprocessedEvents();
 
-        if (!events.isEmpty()) {
-            log.info("Processing {} outbox events", events.size());
-        }
+            log.info("OutboxPublisher: Checking for pending events. Found: {}", events.size());
 
-        for (OutboxEvent event : events) {
-            try {
-                // Check if event exceeded max retries
-                if (event.hasExceededMaxRetries(maxRetries)) {
-                    log.error("Event {} exceeded max retries ({}). Skipping.", event.getId(), maxRetries);
-                    continue;
-                }
-
-                // Publish to RabbitMQ - determine exchange based on aggregate type
-                String exchangeName = determineExchange(event.getAggregateType());
-
-                log.debug("Publishing event {} - Type: {} - Aggregate: {}",
-                    event.getId(), event.getEventType(), event.getAggregateId());
-
-                rabbitTemplate.convertAndSend(
-                    exchangeName,
-                    event.getEventType(),
-                    event.getPayload()
-                );
-
-                // Mark as processed
-                outboxService.markAsProcessed(event.getId());
-
-                log.debug("Successfully published event {}", event.getId());
-
-            } catch (Exception e) {
-                log.error("Failed to publish event {} - Retry count: {}",
-                    event.getId(), event.getRetryCount(), e);
-
-                outboxService.recordFailure(event.getId(), e.getMessage());
+            if (!events.isEmpty()) {
+                log.info("Processing {} outbox events", events.size());
             }
+
+            for (OutboxEvent event : events) {
+                try {
+                    // Check if event exceeded max retries
+                    if (event.hasExceededMaxRetries(maxRetries)) {
+                        log.error("Event {} exceeded max retries ({}). Skipping.", event.getId(), maxRetries);
+                        continue;
+                    }
+
+                    // Publish to RabbitMQ - determine exchange based on aggregate type
+                    String exchangeName = determineExchange(event.getAggregateType());
+
+                    log.info("Publishing event {} - Type: {} - Aggregate: {} - Exchange: {}",
+                        event.getId(), event.getEventType(), event.getAggregateId(), exchangeName);
+
+                    // Send the JSON string directly - RabbitMQ will handle it as a string message
+                    // The payload is already a JSON string from OutboxService
+                    rabbitTemplate.convertAndSend(
+                        exchangeName,
+                        event.getEventType(),
+                        event.getPayload()  // This is the JSON string
+                    );
+
+                    // Mark as processed
+                    outboxService.markAsProcessed(event.getId());
+
+                    log.info("Successfully published event {} with payload: {}", event.getId(), event.getPayload());
+
+                } catch (Exception e) {
+                    log.error("Failed to publish event {} - Retry count: {}",
+                        event.getId(), event.getRetryCount(), e);
+
+                    outboxService.recordFailure(event.getId(), e.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error in OutboxPublisher.publishPendingEvents()", e);
         }
     }
 
@@ -115,9 +123,9 @@ public class OutboxPublisher {
      */
     private String determineExchange(String aggregateType) {
         return switch (aggregateType) {
-            case "Author" -> "q.authors.events";
-            case "Genre" -> "q.genres.events";
-            default -> "q.books.events"; // Book and default
+            case "Author" -> "authors.exchange";
+            case "Genre" -> "genres.exchange";
+            default -> "books.exchange"; // Book and default
         };
     }
 }
