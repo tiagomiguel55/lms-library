@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   lmsbooks_command:
-    image: docker.io/tiagomiguel55/lmsbooks:${IMAGE_TAG}
+    image: docker.io/tiagomiguel55/lmsbooks-command:${IMAGE_TAG}
     environment:
       - SPRING_PROFILES_ACTIVE=bootstrap
       - spring.datasource.url=jdbc:postgresql://postgres_command_dev:5432/lmsbooks_dev
