@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import pt.psoft.g1.psoftg1.bookmanagement.services.GenreBookCountDTO;
 import pt.psoft.g1.psoftg1.exceptions.NotFoundException;
 import pt.psoft.g1.psoftg1.genremanagement.model.Genre;
@@ -39,6 +40,7 @@ public class GenreServiceImpl implements GenreService {
 //    }
 
     @Override
+    @Transactional
     public Genre save(Genre genre) {
         Genre savedGenre = this.genreRepository.save(genre);
 
@@ -51,6 +53,7 @@ public class GenreServiceImpl implements GenreService {
     }
 
     @Override
+    @Transactional
     public void markGenreAsFinalized(String genreName) {
         Optional<Genre> genreOpt = genreRepository.findByString(genreName);
         if (genreOpt.isEmpty()) {
