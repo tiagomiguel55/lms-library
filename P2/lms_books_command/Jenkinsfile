@@ -487,7 +487,7 @@ EOF
                                 ELAPSED=0
 
                                 while [ \$ELAPSED -lt \$MAX_WAIT ]; do
-                                    RUNNING_REPLICAS=\$(docker service ps \$SERVICE_NAME --filter "desired-state=running" --format "{{.CurrentState}}" 2>/dev/null | grep -c "Running" || echo "0")
+                                    RUNNING_REPLICAS=\$(docker service ps \$SERVICE_NAME --filter "desired-state=running" --format "{{.CurrentState}}" 2>/dev/null | grep -c "Running")
                                     echo "Running replicas: \$RUNNING_REPLICAS/\$EXPECTED_REPLICAS (elapsed: \${ELAPSED}s)"
 
                                     if [ \$RUNNING_REPLICAS -ge \$EXPECTED_REPLICAS ]; then
