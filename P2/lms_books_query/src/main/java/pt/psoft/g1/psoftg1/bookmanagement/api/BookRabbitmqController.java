@@ -70,7 +70,7 @@ public class BookRabbitmqController {
 
             bookService.handleBookFinalized(event);
 
-            System.out.println(" [QUERY] ✅ Book finalized and saved: " + event.getBookId());
+            // Removed misleading success message - the service logs the actual result
         } catch (Exception ex) {
             System.out.println(" [QUERY] ❌ Error receiving book finalized: " + ex.getMessage());
             ex.printStackTrace();

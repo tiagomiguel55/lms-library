@@ -498,15 +498,21 @@ public class BookServiceImpl implements BookService {
      */
     public void processPendingBooksForAuthor(Long authorId) {
         List<PendingBookEvent> pendingEvents = pendingBookEventRepository.findAll();
+        System.out.println(" [QUERY] 🔍 Found " + pendingEvents.size() + " total pending events in database");
+
         List<PendingBookEvent> relevantPending = new ArrayList<>();
 
         for (PendingBookEvent pending : pendingEvents) {
+            System.out.println(" [QUERY] 🔍 Pending event: bookId=" + pending.getBookId() +
+                             ", authorId=" + pending.getAuthorId() +
+                             ", genreName=" + pending.getGenreName());
             if (pending.getAuthorId().equals(authorId)) {
                 relevantPending.add(pending);
             }
         }
 
         if (relevantPending.isEmpty()) {
+            System.out.println(" [QUERY] ℹ️ No pending book events found for author ID: " + authorId);
             return;
         }
 
@@ -558,6 +564,7 @@ public class BookServiceImpl implements BookService {
 
             } catch (Exception e) {
                 System.out.println(" [QUERY] ⚠️ Could not process pending book event: " + e.getMessage());
+                e.printStackTrace();
             }
         }
     }
