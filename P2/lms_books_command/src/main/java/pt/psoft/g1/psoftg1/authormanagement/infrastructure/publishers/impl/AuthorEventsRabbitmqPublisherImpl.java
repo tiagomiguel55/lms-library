@@ -74,6 +74,7 @@ public class AuthorEventsRabbitmqPublisherImpl implements AuthorEventsPublisher 
         try {
             AuthorViewAMQP authorViewAMQP = authorViewAMQPMapper.toAuthorViewAMQP(author);
             authorViewAMQP.setVersion(currentVersion);
+            authorViewAMQP.setBookId(bookId); // ✅ SET THE BOOK ID!
 
             outboxService.saveEvent("Author", String.valueOf(author.getAuthorNumber()), authorEventType, authorViewAMQP);
 

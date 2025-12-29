@@ -17,22 +17,22 @@ public class GenreEventsRabbitmqPublisherImpl implements GenreEventsPublisher {
 
     @Override
     public GenreViewAMQP sendGenreCreated(Genre genre) {
-        return sendGenreEvent(genre, 1L, GenreEvents.GENRE_CREATED);
+        return sendGenreEvent(genre, 1L, GenreEvents.GENRE_CREATED, null);
     }
 
     @Override
     public void sendGenreCreated(Genre genre, String bookId) {
-        sendGenreEvent(genre, 1L, GenreEvents.GENRE_CREATED);
+        sendGenreEvent(genre, 1L, GenreEvents.GENRE_CREATED, bookId);
     }
 
     @Override
     public GenreViewAMQP sendGenreUpdated(Genre genre, Long currentVersion) {
-        return sendGenreEvent(genre, currentVersion, GenreEvents.GENRE_UPDATED);
+        return sendGenreEvent(genre, currentVersion, GenreEvents.GENRE_UPDATED, null);
     }
 
     @Override
     public GenreViewAMQP sendGenreDeleted(Genre genre, Long currentVersion) {
-        return sendGenreEvent(genre, currentVersion, GenreEvents.GENRE_DELETED);
+        return sendGenreEvent(genre, currentVersion, GenreEvents.GENRE_DELETED, null);
     }
 
     @Override
@@ -63,12 +63,13 @@ public class GenreEventsRabbitmqPublisherImpl implements GenreEventsPublisher {
         }
     }
 
-    private GenreViewAMQP sendGenreEvent(Genre genre, Long currentVersion, String genreEventType) {
+    private GenreViewAMQP sendGenreEvent(Genre genre, Long currentVersion, String genreEventType, String bookId) {
         System.out.println("Save Genre event to Outbox: " + genre.getGenre());
 
         try {
             GenreViewAMQP genreViewAMQP = genreViewAMQPMapper.toGenreViewAMQP(genre);
             genreViewAMQP.setVersion(currentVersion);
+            genreViewAMQP.setBookId(bookId); // ✅ SET THE BOOK ID!
 
             outboxService.saveEvent("Genre", genre.getGenre(), genreEventType, genreViewAMQP);
 
