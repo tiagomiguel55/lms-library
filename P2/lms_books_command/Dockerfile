@@ -1,6 +1,11 @@
 # Use the official OpenJDK 21 slim image (Debian-based, Ubuntu-compatible)
 FROM eclipse-temurin:17-jdk
 
+# Install curl for health checks
+RUN apt-get update && \
+    apt-get install -y curl && \
+    rm -rf /var/lib/apt/lists/*
+
 # Set a working directory inside the container
 WORKDIR /app
 
