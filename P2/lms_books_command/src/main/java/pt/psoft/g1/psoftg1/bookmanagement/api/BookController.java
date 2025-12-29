@@ -37,7 +37,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @RequestMapping("/api/books")
 public class BookController {
-    private final BookService bookService;
+    private final BookService bookService; // Service layer for Book operations
     private final ConcurrencyService concurrencyService;
     private final FileStorageService fileStorageService;
 
