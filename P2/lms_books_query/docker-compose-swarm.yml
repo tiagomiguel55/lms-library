@@ -8,8 +8,8 @@ services:
       - spring.data.mongodb.host=mongodb_query_dev
       - spring.data.mongodb.port=27017
       - spring.data.mongodb.database=query_books_dev
-      - spring.data.mongodb.username=lmsuser
-      - spring.data.mongodb.password=lmspass
+      - spring.data.mongodb.username=admin
+      - spring.data.mongodb.password=admin
       - spring.data.mongodb.authentication-database=admin
       - file.upload-dir=/tmp/uploads-psoft-g1
       - spring.rabbitmq.host=lms_shared_rabbitmq
@@ -44,7 +44,6 @@ services:
       - MONGO_INITDB_DATABASE=query_books_dev
     volumes:
       - mongodb_query_data_dev:/data/db
-      - ./init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
     deploy:
       replicas: 1
       placement:
