@@ -86,32 +86,8 @@ public class BookRabbitmqController {
 
             // Handle book finalized event
             bookService.handleBookFinalized(event);
-            System.out.println(" [QUERY] ✅ Book finalized processed");
-        } catch (Exception ex) {
-            System.out.println(" [QUERY] ❌ Error receiving book finalized: " + ex.getMessage());
-            ex.printStackTrace();
-        }
-    }
 
-
-    // ========== GENRE EVENTS ==========
-
-    @RabbitListener(queues = "#{autoDeleteQueue_Genre_Created.name}")
-    public void receiveGenreCreated(Message msg) {
-        try {
-            String jsonReceived = new String(msg.getBody(), StandardCharsets.UTF_8);
-            ObjectMapper objectMapper = new ObjectMapper();
-            GenreViewAMQP event = objectMapper.readValue(jsonReceived, GenreViewAMQP.class);
-
-           System.out.println(" [QUERY] 📥 Received Genre Created: " + event.getGenre());
-
-            // Se o evento tem bookId associado, atualiza o book
-            if (event.getBookId() != null && !event.getBookId().isEmpty()) {
-                bookService.handleGenreCreated(event, event.getBookId());
-                System.out.println(" [QUERY] ✅ Book updated with genre: " + event.getGenre());
-            } else {
-                System.out.println(" [QUERY] ℹ️ Genre created without associated book, skipping book update");
-            }
+            // Removed misleading success message - the service logs the actual result
         } catch (Exception ex) {
             System.out.println(" [QUERY] ❌ Error receiving book finalized: " + ex.getMessage());
             ex.printStackTrace();

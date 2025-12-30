@@ -3,18 +3,16 @@ package pt.psoft.g1.psoftg1.bookmanagement.model;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
+import org.springframework.data.annotation.Transient;
 
-/**
- * Value object for Title.
- * Used as an embedded field in MongoDB documents.
- */
+@Getter
 public class Title {
-    private static final int TITLE_MAX_LENGTH = 128;
-    
+    @Transient
+    private final int TITLE_MAX_LENGTH = 128;
+
     @NotBlank(message = "Title cannot be blank")
     @Size(min = 1, max = TITLE_MAX_LENGTH)
-    @Getter
-    private String title;
+    String title;
 
     protected Title() {
     }

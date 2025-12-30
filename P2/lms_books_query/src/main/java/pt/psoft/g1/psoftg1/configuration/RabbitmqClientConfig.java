@@ -43,12 +43,7 @@ public class RabbitmqClientConfig {
         return new DirectExchange("genres.exchange");
     }
 
-    @Bean
-    public DirectExchange directBooks() {
-        return new DirectExchange("books.exchange");
-    }
-
-    // ========== BOOK QUEUES (DURABLE) ==========
+    // ========== BOOK QUEUES (DURABLE) - Match command service queue names ==========
     @Bean(name = "autoDeleteQueue_Book_Created")
     public Queue autoDeleteQueue_Book_Created() {
         return new Queue("query.book.created", true);  // ✅ Durable, partilhada
@@ -69,7 +64,7 @@ public class RabbitmqClientConfig {
         return new Queue("query.book.finalized", true);
     }
 
-    // ========== AUTHOR QUEUES (DURABLE) ==========
+    // ========== AUTHOR QUEUES (DURABLE) - Match command service queue names ==========
     @Bean(name = "autoDeleteQueue_Author_Created")
     public Queue autoDeleteQueue_Author_Created() {
         return new Queue("query.author.created", true);
@@ -85,7 +80,7 @@ public class RabbitmqClientConfig {
         return new Queue("query.author.deleted", true);
     }
 
-    // ========== GENRE QUEUES (DURABLE) ==========
+    // ========== GENRE QUEUES (DURABLE) - Match command service queue names ==========
     @Bean(name = "autoDeleteQueue_Genre_Created")
     public Queue autoDeleteQueue_Genre_Created() {
         return new Queue("query.genre.created", true);

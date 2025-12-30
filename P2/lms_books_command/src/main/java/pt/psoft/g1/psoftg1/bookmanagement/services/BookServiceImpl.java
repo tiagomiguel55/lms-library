@@ -4,7 +4,7 @@ import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.stereotype.Service;
-
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import pt.psoft.g1.psoftg1.authormanagement.model.Author;
 import pt.psoft.g1.psoftg1.bookmanagement.api.BookRequestedEvent;
@@ -43,6 +43,7 @@ public class BookServiceImpl implements BookService {
     private long suggestionsLimitPerGenre;
 
     @Override
+    @Transactional
     public Book createWithAuthorAndGenre(BookRequestedEvent request) {
         // Extract data from the event
         final String isbn = request.getBookId();
@@ -92,6 +93,7 @@ public class BookServiceImpl implements BookService {
     }
 
     @Override
+    @Transactional
     public Book create(CreateBookRequest request, String isbn) {
 
         final String title = request.getTitle();
@@ -111,6 +113,7 @@ public class BookServiceImpl implements BookService {
     }
 
     @Override
+    @Transactional
     public Book create(BookViewAMQP bookViewAMQP) {
 
         final String isbn = bookViewAMQP.getIsbn();
@@ -149,6 +152,7 @@ public class BookServiceImpl implements BookService {
     }
 
     @Override
+    @Transactional
     public Book update(UpdateBookRequest request, Long currentVersion) {
 
         var book = findByIsbn(request.getIsbn());
@@ -174,6 +178,7 @@ public class BookServiceImpl implements BookService {
     }
 
     @Override
+    @Transactional
     public Book update(BookViewAMQP bookViewAMQP) {
 
         final Long version = bookViewAMQP.getVersion();
@@ -280,6 +285,7 @@ public class BookServiceImpl implements BookService {
     }
 
     @Override
+    @Transactional
     public void publishBookFinalized(Long authorId, String authorName, String bookId, String genreName) {
         System.out.println(" [x] Publishing BOOK_FINALIZED event for Author ID: " + authorId + " - Book ID: " + bookId + " - Genre: " + genreName);
         bookEventsPublisher.sendBookFinalizedEvent(authorId, authorName, bookId, genreName);

@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import pt.psoft.g1.psoftg1.authormanagement.model.Author;
 import pt.psoft.g1.psoftg1.authormanagement.services.CreateAuthorRequest;
 import pt.psoft.g1.psoftg1.authormanagement.services.UpdateAuthorRequest;
+import pt.psoft.g1.psoftg1.exceptions.ConflictException;
 import pt.psoft.g1.psoftg1.shared.model.EntityWithPhoto;
 import pt.psoft.g1.psoftg1.shared.model.Photo;
 
@@ -31,6 +32,13 @@ class AuthorTest {
     @Test
     void ensureBioNotNull() {
         assertThrows(IllegalArgumentException.class, () -> new Author(validName, null, null));
+    }
+
+    @Test
+    void whenVersionIsStaleItIsNotPossibleToPatch() {
+        final var subject = new Author(validName, validBio, null);
+
+        assertThrows(ConflictException.class, () -> subject.applyPatch(999, request));
     }
 
     @Test

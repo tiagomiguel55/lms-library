@@ -2,12 +2,11 @@ package pt.psoft.g1.psoftg1.bookmanagement.model;
 
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
-import lombok.Setter;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Version;
 import org.springframework.data.mongodb.core.index.Indexed;
-import org.springframework.data.mongodb.core.mapping.DBRef;
 import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.mapping.DBRef;
 import pt.psoft.g1.psoftg1.authormanagement.model.Author;
 import pt.psoft.g1.psoftg1.exceptions.ConflictException;
 import pt.psoft.g1.psoftg1.genremanagement.model.Genre;
@@ -18,7 +17,7 @@ import java.util.List;
 import java.util.Objects;
 
 @Document(collection = "books")
-public class Book {
+public class Book extends EntityWithPhoto {
     @Id
     @Getter
     private String id;
@@ -28,11 +27,11 @@ public class Book {
     private Long version;
 
     @Indexed(unique = true)
-    private String isbn;
+    private Isbn isbn;
 
     @Getter
     @NotNull
-    private String title;
+    private Title title;
 
     @Getter
     @DBRef
@@ -43,11 +42,7 @@ public class Book {
     @DBRef
     private List<Author> authors = new ArrayList<>();
 
-    private String description;
-
-    @Getter
-    @Setter
-    private Photo photo;
+    private Description description;
 
     private void setTitle(String title) {
         if (title == null)
@@ -191,9 +186,5 @@ public class Book {
 
     public String getIsbn() {
         return this.isbn;
-    }
-
-    public String getTitleString() {
-        return title;
     }
 }

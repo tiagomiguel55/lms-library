@@ -1,6 +1,11 @@
 # Use Microsoft OpenJDK 17 (Ubuntu base) hosted on MCR
 FROM mcr.microsoft.com/openjdk/jdk:17-ubuntu
 
+# Install curl for health checks
+RUN apt-get update && \
+    apt-get install -y curl && \
+    rm -rf /var/lib/apt/lists/*
+
 # Set a working directory inside the container
 WORKDIR /app
 

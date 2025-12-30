@@ -23,7 +23,6 @@ public class PendingBookEvent {
     @Indexed(unique = true)
     private String bookId;
 
-    @Indexed
     private String genreName;
 
     private Long authorId;
@@ -43,4 +42,3 @@ public class PendingBookEvent {
         this.description = description;
     }
 }
-

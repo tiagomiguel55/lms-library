@@ -1,18 +1,16 @@
 package pt.psoft.g1.psoftg1.bookmanagement.model;
 
-import java.io.Serializable;
-
 import jakarta.validation.constraints.Size;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 
-/**
- * Value object for ISBN.
- * Used as an embedded field in MongoDB documents.
- */
+import java.io.Serializable;
+
+@Getter
 @EqualsAndHashCode
 public class Isbn implements Serializable {
     @Size(min = 10, max = 13)
-    private String isbn;
+    String isbn;
 
     public Isbn(String isbn) {
         if (isValidIsbn(isbn)) {

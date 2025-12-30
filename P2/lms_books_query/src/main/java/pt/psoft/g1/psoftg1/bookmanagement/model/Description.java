@@ -2,17 +2,16 @@ package pt.psoft.g1.psoftg1.bookmanagement.model;
 
 import jakarta.annotation.Nullable;
 import jakarta.validation.constraints.Size;
+import lombok.Getter;
+import org.springframework.data.annotation.Transient;
 import pt.psoft.g1.psoftg1.shared.model.StringUtilsCustom;
 
-/**
- * Value object for Description.
- * Used as an embedded field in MongoDB documents.
- */
+@Getter
 public class Description {
     private static final int DESC_MAX_LENGTH = 4096;
 
     @Size(max = DESC_MAX_LENGTH)
-    private String description;
+    String description;
 
     public Description(String description) {
         setDescription(description);

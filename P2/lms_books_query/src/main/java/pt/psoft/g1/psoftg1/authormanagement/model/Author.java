@@ -1,20 +1,19 @@
 package pt.psoft.g1.psoftg1.authormanagement.model;
 
 import lombok.Getter;
-import lombok.Setter;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Version;
-import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
+import pt.psoft.g1.psoftg1.authormanagement.services.UpdateAuthorRequest;
 import pt.psoft.g1.psoftg1.exceptions.ConflictException;
 import pt.psoft.g1.psoftg1.shared.model.Photo;
 
 @Document(collection = "authors")
-public class Author {
+public class Author extends EntityWithPhoto {
     @Id
+    @Getter
     private String id;
 
-    @Indexed(unique = true)
     @Getter
     private long authorNumber;
 
@@ -24,12 +23,9 @@ public class Author {
     @Getter
     private String name;
 
-    @Getter
-    private String bio;
+    private Name name;
 
-    @Getter
-    @Setter
-    private Photo photo;
+    private Bio bio;
 
     public void setName(String name) {
         if (name == null)
@@ -77,12 +73,12 @@ public class Author {
     public void applyPatch(final long desiredVersion, final String name, final String bio, final String photoURI) {
         if (this.version != desiredVersion)
             throw new ConflictException("Object was already modified by another user");
-        if (name != null)
-            setName(name);
-        if (bio != null)
-            setBio(bio);
-        if (photoURI != null)
-            setPhotoInternal(photoURI);
+        if (request.getName() != null)
+            setName(request.getName());
+        if (request.getBio() != null)
+            setBio(request.getBio());
+        if (request.getPhotoURI() != null)
+            setPhotoInternal(request.getPhotoURI());
     }
 
     public void removePhoto(long desiredVersion) {

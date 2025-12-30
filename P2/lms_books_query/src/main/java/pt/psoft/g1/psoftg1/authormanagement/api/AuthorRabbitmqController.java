@@ -3,7 +3,6 @@ package pt.psoft.g1.psoftg1.authormanagement.api;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import pt.psoft.g1.psoftg1.authormanagement.model.Author;
 import pt.psoft.g1.psoftg1.authormanagement.repositories.AuthorRepository;
 import pt.psoft.g1.psoftg1.bookmanagement.services.BookService;
@@ -24,7 +23,6 @@ public class AuthorRabbitmqController {
     }
 
     @RabbitListener(queues = "#{autoDeleteQueue_Author_Created.name}")
-    @Transactional
     public void receiveAuthorCreatedMsg(Message msg) {
 
         try {
@@ -39,6 +37,8 @@ public class AuthorRabbitmqController {
             Optional<Author> existing = authorRepository.findByAuthorNumber(authorViewAMQP.getAuthorNumber());
             if (existing.isPresent()) {
                 System.out.println(" [QUERY] ℹ️ Author already exists in query model: " + authorViewAMQP.getName());
+                // Still try to process pending books in case they weren't processed before
+                bookService.processPendingBooksForAuthor(authorViewAMQP.getAuthorNumber());
                 return;
             }
 
@@ -50,6 +50,7 @@ public class AuthorRabbitmqController {
                     "Author biography",
                     null
                 );
+
                 Author savedAuthor = authorRepository.save(newAuthor);
                 System.out.println(" [QUERY] ✅ Author created in query model: " + savedAuthor.getName() + " (ID: " + savedAuthor.getAuthorNumber() + ")");
 
@@ -58,7 +59,7 @@ public class AuthorRabbitmqController {
             } catch (Exception e) {
                 System.out.println(" [QUERY] ❌ Error creating author: " + e.getMessage());
                 e.printStackTrace();
-                throw e; // Re-throw to trigger rollback if needed
+                throw e;
             }
         }
         catch(Exception ex) {

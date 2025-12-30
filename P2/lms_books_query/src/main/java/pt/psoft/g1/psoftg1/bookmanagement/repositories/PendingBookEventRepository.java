@@ -12,4 +12,3 @@ public interface PendingBookEventRepository extends MongoRepository<PendingBookE
     Optional<PendingBookEvent> findByBookId(String bookId);
     List<PendingBookEvent> findByGenreName(String genreName);
 }
-

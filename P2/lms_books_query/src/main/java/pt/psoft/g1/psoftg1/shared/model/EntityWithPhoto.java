@@ -1,5 +1,8 @@
 package pt.psoft.g1.psoftg1.shared.model;
 
+import jakarta.annotation.Nullable;
+import lombok.Getter;
+
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 

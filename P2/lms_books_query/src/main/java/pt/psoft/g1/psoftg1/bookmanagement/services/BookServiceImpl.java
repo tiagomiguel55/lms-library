@@ -3,6 +3,7 @@ package pt.psoft.g1.psoftg1.bookmanagement.services;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.stereotype.Service;
+import org.springframework.dao.DuplicateKeyException;
 
 import org.springframework.web.multipart.MultipartFile;
 import pt.psoft.g1.psoftg1.authormanagement.model.Author;
@@ -27,7 +28,6 @@ import java.util.Optional;
 
 import pt.psoft.g1.psoftg1.authormanagement.api.AuthorViewAMQP;
 import pt.psoft.g1.psoftg1.genremanagement.api.GenreViewAMQP;
-import org.springframework.dao.DuplicateKeyException;
 
 @Service
 @RequiredArgsConstructor
@@ -370,53 +370,66 @@ public class BookServiceImpl implements BookService {
         // The book might not exist yet due to out-of-order events
         // Try to find it, if not found, create it with the finalized info
         try {
-            Optional<Book> existingBook = bookRepository.findByIsbn(event.getBookId());
+            // Quick check: if book already exists, skip processing
+            if (bookRepository.findByIsbn(event.getBookId()).isPresent()) {
+                System.out.println(" [QUERY] 📚 Book already exists in read model: " + event.getBookId());
+                return;
+            }
 
-            if (existingBook.isPresent()) {
-                Book book = existingBook.get();
-                System.out.println(" [QUERY] 📚 Book already finalized in read model: " + book.getIsbn() +
+            // Check if already pending to avoid duplicate pending events
+            if (pendingBookEventRepository.findByBookId(event.getBookId()).isPresent()) {
+                System.out.println(" [QUERY] ℹ️ Book event already pending: " + event.getBookId());
+                return;
+            }
+
+            // Get dependencies (author and genre)
+            Author author = authorRepository.findByAuthorNumber(event.getAuthorId()).orElse(null);
+            Optional<Genre> genreOpt = genreRepository.findByString(event.getGenreName());
+
+            // If genre is missing, store as pending
+            if (genreOpt.isEmpty()) {
+                System.out.println(" [QUERY] ⚠️ Genre not found for finalized book: " + event.getGenreName());
+                savePendingBookEvent(event);
+                System.out.println(" [QUERY] 📝 Stored pending book event, waiting for genre: " + event.getGenreName());
+                return;
+            }
+
+            // If author is missing, store as pending
+            if (author == null) {
+                System.out.println(" [QUERY] ⚠️ Author not found for finalized book (ID: " + event.getAuthorId() + ")");
+                savePendingBookEvent(event);
+                System.out.println(" [QUERY] 📝 Stored pending book event, waiting for author ID: " + event.getAuthorId());
+                return;
+            }
+
+            // All dependencies available - try to create the book
+            Genre genre = genreOpt.get();
+            String title = "Book by " + event.getAuthorName();
+            String description = "Finalized book from event";
+
+            Book newBook = new Book(event.getBookId(), title, description, genre, List.of(author), null);
+
+            try {
+                // Try to save - MongoDB unique index will prevent duplicates
+                bookRepository.save(newBook);
+                // Only log success if save was successful
+                System.out.println(" [QUERY] ✅ Book created from finalized event: " + event.getBookId() +
                                  " with author: " + event.getAuthorName() +
                                  " and genre: " + event.getGenreName());
-            } else {
-                // Book doesn't exist yet - create it with finalized info
-                try {
-                    Author author = authorRepository.findByAuthorNumber(event.getAuthorId())
-                            .orElse(null);
-                    Optional<Genre> genreOpt = genreRepository.findByString(event.getGenreName());
 
-                    if (genreOpt.isEmpty()) {
-                        System.out.println(" [QUERY] ⚠️ Genre not found for finalized book: " + event.getGenreName());
-                        // Check if already pending before trying to save
-                        if (pendingBookEventRepository.findByBookId(event.getBookId()).isEmpty()) {
-                            // Store the pending event to process later when genre becomes available
-                            savePendingBookEvent(event);
-                            System.out.println(" [QUERY] 📝 Stored pending book event, waiting for genre: " + event.getGenreName());
-                        } else {
-                            System.out.println(" [QUERY] ℹ️ Pending book event already exists, skipping duplicate: " + event.getBookId());
-                        }
-                        return;
-                    }
-
-                    if (author == null) {
-                        System.out.println(" [QUERY] ⚠️ Author not found for finalized book (ID: " + event.getAuthorId() + ")");
-                        return;
-                    }
-
-                    Genre genre = genreOpt.get();
-                    String title = "Book by " + event.getAuthorName();
-                    String description = "Finalized book from event";
-
-                    Book newBook = new Book(event.getBookId(), title, description, genre, List.of(author), null);
-                    bookRepository.save(newBook);
-                    System.out.println(" [QUERY] 📚 Book created from finalized event: " + event.getBookId() +
-                                     " with author: " + event.getAuthorName() +
-                                     " and genre: " + event.getGenreName());
-                } catch (Exception e) {
-                    System.out.println(" [QUERY] ⚠️ Could not create book from finalized event: " + e.getMessage());
-                }
+                // Clean up any pending event for this book
+                pendingBookEventRepository.findByBookId(event.getBookId()).ifPresent(pending -> {
+                    pendingBookEventRepository.delete(pending);
+                    System.out.println(" [QUERY] 🧹 Cleaned up pending event for: " + event.getBookId());
+                });
+            } catch (DuplicateKeyException duplicateEx) {
+                // Another thread/replica created the book first - this is normal and expected
+                System.out.println(" [QUERY] ℹ️ Book already created (duplicate event handled by unique index): " + event.getBookId());
             }
+
         } catch (Exception e) {
             System.out.println(" [QUERY] ❌ Error handling book finalized: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
@@ -471,13 +484,23 @@ public class BookServiceImpl implements BookService {
                     null
                 );
 
-                bookRepository.save(newBook);
-                System.out.println(" [QUERY] ✅ Pending book finalized and created: " + pending.getBookId() +
-                                 " with author: " + pending.getAuthorName() +
-                                 " and genre: " + genreName);
+                try {
+                    Book savedBook = bookRepository.save(newBook);
+                    System.out.println(" [QUERY] ✅ Pending book finalized and created: " + pending.getBookId() +
+                                     " with author: " + pending.getAuthorName() +
+                                     " and genre: " + genreName);
 
-                // Remove from pending only after successful creation
-                pendingBookEventRepository.delete(pending);
+                    // Remove from pending only after successful creation
+                    pendingBookEventRepository.delete(pending);
+                } catch (DuplicateKeyException duplicateEx) {
+                    // Another replica created the book first - this is expected in distributed systems
+                    System.out.println(" [QUERY] ℹ️ Pending book already created by another replica: " + pending.getBookId());
+                    // Clean up the pending event since book now exists
+                    pendingBookEventRepository.delete(pending);
+                } catch (Exception e) {
+                    System.out.println(" [QUERY] ⚠️ ERROR saving book: " + e.getClass().getName() + " - " + e.getMessage());
+                    e.printStackTrace();
+                }
 
             } catch (Exception e) {
                 System.out.println(" [QUERY] ⚠️ Could not process pending book event: " + e.getMessage());
@@ -491,6 +514,7 @@ public class BookServiceImpl implements BookService {
      */
     public void processPendingBooksForAuthor(Long authorId) {
         List<PendingBookEvent> pendingEvents = pendingBookEventRepository.findAll();
+
         List<PendingBookEvent> relevantPending = new ArrayList<>();
 
         for (PendingBookEvent pending : pendingEvents) {
@@ -541,16 +565,25 @@ public class BookServiceImpl implements BookService {
                     null
                 );
 
-                bookRepository.save(newBook);
-                System.out.println(" [QUERY] ✅ Pending book finalized and created: " + pending.getBookId() +
-                                 " with author: " + pending.getAuthorName() +
-                                 " and genre: " + pending.getGenreName());
+                try {
+                    Book savedBook = bookRepository.save(newBook);
 
-                // Remove from pending only after successful creation
-                pendingBookEventRepository.delete(pending);
+                    System.out.println(" [QUERY] ✅ Pending book finalized and created: " + pending.getBookId() +
+                                     " with author: " + pending.getAuthorName() +
+                                     " and genre: " + pending.getGenreName());
+
+                    // Remove from pending only after successful creation
+                    pendingBookEventRepository.delete(pending);
+                } catch (DuplicateKeyException duplicateEx) {
+                    // Another replica created the book first - this is expected in distributed systems
+                    System.out.println(" [QUERY] ℹ️ Pending book already created by another replica: " + pending.getBookId());
+                    // Clean up the pending event since book now exists
+                    pendingBookEventRepository.delete(pending);
+                }
 
             } catch (Exception e) {
                 System.out.println(" [QUERY] ⚠️ Could not process pending book event: " + e.getMessage());
+                e.printStackTrace();
             }
         }
     }

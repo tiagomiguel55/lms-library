@@ -2,12 +2,11 @@ package pt.psoft.g1.psoftg1.authormanagement.model;
 
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import lombok.Getter;
+import org.springframework.data.annotation.Transient;
 import pt.psoft.g1.psoftg1.shared.model.StringUtilsCustom;
 
-/**
- * Value object for Bio.
- * Used as an embedded field in MongoDB documents.
- */
+@Getter
 public class Bio {
     private static final int BIO_MAX_LENGTH = 4096;
 

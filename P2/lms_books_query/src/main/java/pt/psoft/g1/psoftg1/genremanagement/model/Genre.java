@@ -3,13 +3,15 @@ package pt.psoft.g1.psoftg1.genremanagement.model;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Transient;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 @Document(collection = "genres")
 public class Genre {
-    private static final int GENRE_MAX_LENGTH = 100;
-    
+    @Transient
+    private final int GENRE_MAX_LENGTH = 100;
+
     @Id
     @Getter
     private String id;

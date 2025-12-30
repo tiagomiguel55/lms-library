@@ -31,7 +31,7 @@ import org.apache.coyote.BadRequestException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -62,7 +62,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     private final Logger logger = LogManager.getLogger();
 
-    @ExceptionHandler(value = { OptimisticLockingFailureException.class, ConflictException.class })
+    @ExceptionHandler(value = { ConflictException.class })
     @ResponseStatus(HttpStatus.CONFLICT)
     protected ResponseEntity<Object> handleConflict(final HttpServletRequest request, final Exception ex) {
         logger.error("ConflictException {}\n", request.getRequestURI(), ex);
@@ -74,19 +74,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(new ApiCallError<>("Conflict", details.entrySet()));
     }
 
-    @ExceptionHandler({ DataIntegrityViolationException.class })
+    @ExceptionHandler({ DuplicateKeyException.class })
     @ResponseStatus(HttpStatus.CONFLICT)
-    protected ResponseEntity<Object> handleConstraintViolation(final HttpServletRequest request,
-            final DataIntegrityViolationException ex) {
-        logger.error("DataIntegrityViolationException {}\n", request.getRequestURI(), ex);
+    protected ResponseEntity<Object> handleDuplicateKey(final HttpServletRequest request,
+            final DuplicateKeyException ex) {
+        logger.error("DuplicateKeyException {}\n", request.getRequestURI(), ex);
 
         final Map<String, String> details = new HashMap<>();
         details.put("message", "The identity of the object you tried to create is already in use");
         details.put("error", ex.getMessage());
-        // MongoDB doesn't have constraint names or SQL state, so we use the root cause message
-        if (ex.getRootCause() != null) {
-            details.put("cause", ex.getRootCause().getMessage());
-        }
 
         return ResponseEntity.status(HttpStatus.CONFLICT).body(new ApiCallError<>("Conflict", details.entrySet()));
     }

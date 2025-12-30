@@ -1,7 +1,5 @@
 package pt.psoft.g1.psoftg1.shared.model;
 
-import org.springframework.context.annotation.PropertySource;
-
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
@@ -15,7 +13,7 @@ import lombok.Getter;
 public class Name {
     @NotNull
     @NotBlank
-    private String name;
+    String name;
 
     public Name(String name) {
         setName(name);
@@ -29,10 +27,6 @@ public class Name {
         if (!StringUtilsCustom.isAlphanumeric(name))
             throw new IllegalArgumentException("Name can only contain alphanumeric characters");
 
-        /*
-         * // Logic moved to UserService.java, ReaderService.java for(String forbidden : forbiddenNames){
-         * if(name.contains(forbidden)) throw new IllegalArgumentException("Name contains forbidden word"); }
-         */
         this.name = name;
     }
 
