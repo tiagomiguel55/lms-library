@@ -1,0 +1,204 @@
+pipeline {
+    agent any
+
+    environment {
+        // Maven e Java
+        MAVEN_HOME = '/usr/share/maven'
+        JAVA_HOME  = '/usr/lib/jvm/java-17-openjdk-amd64'
+
+        // Git
+        GIT_REPO_URL   = 'https://github.com/tiagomiguel55/lms-library.git'
+        GIT_BRANCH    = 'main'
+        CREDENTIALS_ID = 'password_for_github_tiago'
+
+        // Docker Registry
+        DOCKER_REGISTRY = 'docker.io'
+        DOCKER_REGISTRY_CREDENTIALS = 'dockerhub-credentials'
+        DOCKER_REGISTRY_NAMESPACE = 'tiagomiguel55'
+
+        // Docker
+        IMAGE_NAME = 'lmsauthnusers'
+        IMAGE_TAG  = "${GIT_COMMIT}"
+        FULL_IMAGE_NAME = "${DOCKER_REGISTRY}/${DOCKER_REGISTRY_NAMESPACE}/${IMAGE_NAME}"
+
+        // Swarm stacks
+        STACK_NAME_DEV     = 'lmsauthnusers-dev'
+        STACK_NAME_STAGING = 'lmsauthnusers-staging'
+        STACK_NAME_PROD    = 'lmsauthnusers-prod'
+
+        // Email
+        EMAIL_RECIPIENT = 'migueltiago255@gmail.com'
+
+        // Working directory
+        WORK_DIR = 'lms-authnusers'
+    }
+
+    parameters {
+        choice(
+            name: 'ENVIRONMENT',
+            choices: ['dev', 'staging', 'prod'],
+            description: 'Deployment environment'
+        )
+        booleanParam(
+            name: 'SKIP_DEPLOY',
+            defaultValue: false,
+            description: 'Skip deployment'
+        )
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                git branch: "${GIT_BRANCH}",
+                    url: "${GIT_REPO_URL}",
+                    credentialsId: "${CREDENTIALS_ID}"
+            }
+        }
+
+        stage('Build & Package') {
+            when {
+                expression { params.ENVIRONMENT != 'prod' }
+            }
+            steps {
+                dir("${WORK_DIR}") {
+                    sh """
+                        ${MAVEN_HOME}/bin/mvn clean package -DskipTests
+                    """
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            when {
+                expression { params.ENVIRONMENT != 'prod' }
+            }
+            steps {
+                dir("${WORK_DIR}") {
+                    sh """
+                        docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
+                        docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:${params.ENVIRONMENT}
+                    """
+                }
+            }
+        }
+
+        stage('Push Docker Image to Registry') {
+            when {
+                expression { params.ENVIRONMENT == 'dev' || params.ENVIRONMENT == 'staging' }
+            }
+            steps {
+                script {
+                    withCredentials([usernamePassword(credentialsId: "${DOCKER_REGISTRY_CREDENTIALS}", usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                        sh """
+                            echo "=========================================="
+                            echo "Pushing image to registry..."
+                            echo "Environment: ${params.ENVIRONMENT}"
+                            echo "Registry: ${DOCKER_REGISTRY}"
+                            echo "Namespace: ${DOCKER_REGISTRY_NAMESPACE}"
+                            echo "Image: ${IMAGE_NAME}:${IMAGE_TAG}"
+                            echo "=========================================="
+
+                            echo ${DOCKER_PASSWORD} | docker login ${DOCKER_REGISTRY} -u ${DOCKER_USERNAME} --password-stdin
+
+                            docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${FULL_IMAGE_NAME}:${IMAGE_TAG}
+                            docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${FULL_IMAGE_NAME}:${params.ENVIRONMENT}
+                            docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${FULL_IMAGE_NAME}:latest
+
+                            docker push ${FULL_IMAGE_NAME}:${IMAGE_TAG}
+                            docker push ${FULL_IMAGE_NAME}:${params.ENVIRONMENT}
+                            docker push ${FULL_IMAGE_NAME}:latest
+
+                            echo "Image pushed successfully!"
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Deploy to Swarm - Dev') {
+            when {
+                expression { params.ENVIRONMENT == 'dev' && !params.SKIP_DEPLOY }
+            }
+            steps {
+                dir("${WORK_DIR}") {
+                    sh """
+                        echo "Deploying to Dev environment..."
+                        export IMAGE_TAG=${IMAGE_TAG}
+                        docker stack deploy -c docker-compose-swarm.yml ${STACK_NAME_DEV} --with-registry-auth
+                        echo "Deployment to Dev completed!"
+                    """
+                }
+            }
+        }
+
+        stage('Deploy to Swarm - Staging') {
+            when {
+                expression { params.ENVIRONMENT == 'staging' && !params.SKIP_DEPLOY }
+            }
+            steps {
+                dir("${WORK_DIR}") {
+                    sh """
+                        echo "Deploying to Staging environment..."
+                        export IMAGE_TAG=${IMAGE_TAG}
+                        docker stack deploy -c docker-compose-swarm-staging.yml ${STACK_NAME_STAGING} --with-registry-auth
+                        echo "Deployment to Staging completed!"
+                    """
+                }
+            }
+        }
+
+        stage('Deploy to Swarm - Production') {
+            when {
+                expression { params.ENVIRONMENT == 'prod' && !params.SKIP_DEPLOY }
+            }
+            steps {
+                dir("${WORK_DIR}") {
+                    sh """
+                        echo "Deploying to Production environment..."
+                        export IMAGE_TAG=latest
+                        docker stack deploy -c docker-compose-swarm-prod.yml ${STACK_NAME_PROD} --with-registry-auth
+                        echo "Deployment to Production completed!"
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Pipeline executado com sucesso!'
+            emailext(
+                subject: "✅ Jenkins Build SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                body: """
+                    <h2>Build Successful</h2>
+                    <p><strong>Job:</strong> ${env.JOB_NAME}</p>
+                    <p><strong>Build Number:</strong> ${env.BUILD_NUMBER}</p>
+                    <p><strong>Environment:</strong> ${params.ENVIRONMENT}</p>
+                    <p><strong>Image:</strong> ${FULL_IMAGE_NAME}:${IMAGE_TAG}</p>
+                    <p><strong>URL:</strong> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
+                """,
+                to: "${EMAIL_RECIPIENT}",
+                mimeType: 'text/html'
+            )
+        }
+        failure {
+            echo 'Pipeline falhou!'
+            emailext(
+                subject: "❌ Jenkins Build FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                body: """
+                    <h2>Build Failed</h2>
+                    <p><strong>Job:</strong> ${env.JOB_NAME}</p>
+                    <p><strong>Build Number:</strong> ${env.BUILD_NUMBER}</p>
+                    <p><strong>Environment:</strong> ${params.ENVIRONMENT}</p>
+                    <p><strong>URL:</strong> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
+                """,
+                to: "${EMAIL_RECIPIENT}",
+                mimeType: 'text/html'
+            )
+        }
+        always {
+            cleanWs()
+        }
+    }
+}

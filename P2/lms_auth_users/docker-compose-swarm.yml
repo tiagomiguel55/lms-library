@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  lmsauthnusers:
+    image: docker.io/tiagomiguel55/lmsauthnusers:${IMAGE_TAG}
+    environment:
+      - SPRING_PROFILES_ACTIVE=bootstrap
+      - spring.datasource.url=jdbc:postgresql://postgres_authnusers_dev:5432/lmsauthnusers_dev
+      - spring.datasource.username=lmsuser
+      - spring.datasource.password=lmspass
+      - spring.datasource.driver-class-name=org.postgresql.Driver
+      - spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
+      - spring.jpa.hibernate.ddl-auto=update
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'java.*app.jar' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+      update_config:
+        order: start-first
+    ports:
+      - "8084:8080"
+    networks:
+      - lms_network_authnusers_dev
+      - lms_network
+
+  postgres_authnusers_dev:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=lmsauthnusers_dev
+      - POSTGRES_USER=lmsuser
+      - POSTGRES_PASSWORD=lmspass
+    volumes:
+      - postgres_authnusers_data_dev:/var/lib/postgresql/data
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+    ports:
+      - "5433:5432" # Changed from 5434 to 5433 to avoid conflicts
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lmsuser"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lms_network_authnusers_dev
+
+networks:
+  lms_network_authnusers_dev:
+    driver: overlay
+    attachable: true
+  lms_network:
+    external: true
+
+volumes:
+  postgres_authnusers_data_dev:
