@@ -102,18 +102,10 @@ public class LendingServiceImpl implements LendingService{
         System.out.println("Book exists in Books service");
 
         System.out.println("Fetching book with ISBN: " + resource.getIsbn());
-        // Try to find the book locally first
-        var optionalBook = bookRepository.findByIsbn(resource.getIsbn());
-        final Book b;
-        if (optionalBook.isPresent()) {
-            b = optionalBook.get();
-            System.out.println("Book found locally: " + b.getIsbn());
-        } else {
-            // Book exists in Books service but not locally, create a temporary Book object for the lending
-            System.out.println("Book not found locally, creating temporary book object for lending");
-            b = new Book(resource.getIsbn(), "Book from Books Service", "Book validated via Books service", null);
-            System.out.println("Temporary book created: " + b.getIsbn());
-        }
+        // Try to find the book locally - it should be synchronized via events
+        final Book b = bookRepository.findByIsbn(resource.getIsbn())
+            .orElseThrow(() -> new NotFoundException("Book with ISBN " + resource.getIsbn() + 
+                " exists in Books service but is not synchronized locally. Please wait for synchronization."));
         
         final var r = readerDetails;
         System.out.println("Reader details: " + r.getReaderNumber());
@@ -141,6 +133,14 @@ public class LendingServiceImpl implements LendingService{
 
     @Override
     public Lending createWithDetails(LendingDetailsView resource) {
+        // Validate that the book exists in the Books service
+        System.out.println("Checking if book exists in Books service with ISBN: " + resource.getBookIsbn());
+        boolean bookExists = booksServiceClient.checkBookExists(resource.getBookIsbn());
+        if (!bookExists) {
+            throw new NotFoundException("Book with ISBN " + resource.getBookIsbn() + " does not exist in Books service");
+        }
+        System.out.println("Book exists in Books service");
+
         // Validar os dados recebidos e criar os objetos necessários
         final var book = createBookFromDetails(resource);
 
