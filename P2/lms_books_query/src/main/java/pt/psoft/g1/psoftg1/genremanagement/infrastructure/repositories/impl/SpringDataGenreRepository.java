@@ -6,12 +6,14 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.repository.MongoRepository;
+import org.springframework.stereotype.Repository;
 import pt.psoft.g1.psoftg1.genremanagement.model.Genre;
 import pt.psoft.g1.psoftg1.genremanagement.repositories.GenreRepository;
 
 import java.util.List;
 import java.util.Optional;
 
+@Repository
 public interface SpringDataGenreRepository extends GenreRepository, GenreRepoCustom, MongoRepository<Genre, String> {
 
     default List<Genre> findAllGenres() {
