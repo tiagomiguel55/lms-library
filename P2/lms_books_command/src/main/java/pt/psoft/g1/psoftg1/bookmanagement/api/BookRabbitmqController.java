@@ -1,4 +1,4 @@
-    package pt.psoft.g1.psoftg1.bookmanagement.api;
+package pt.psoft.g1.psoftg1.bookmanagement.api;
 
     import com.fasterxml.jackson.databind.ObjectMapper;
     import lombok.RequiredArgsConstructor;
@@ -295,8 +295,8 @@
                 System.out.println("     - Author: " + author.getName() + " (ID: " + author.getAuthorNumber() + ", finalized: " + author.isFinalized() + ")");
                 System.out.println("     - Genre: " + genre.getGenre() + " (finalized: " + genre.isFinalized() + ")");
     
-                // Create book with finalized author and genre
-                String title = "Book by " + author.getName() + " (" + genre.getGenre() + ")";
+                // Create book with finalized author and genre - use title from pending request
+                String title = pendingRequest.getTitle();
                 String description = "Requested book - ISBN: " + isbn;
     
                 List<Author> authorList = new ArrayList<>();

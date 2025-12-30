@@ -60,7 +60,7 @@ public class BookEventsRabbitmqPublisherImpl implements BookEventsPublisher {
         System.out.println("Save Book Requested event to Outbox: " + bookId + " - " + authorName + " - " + genreName);
 
         try {
-            BookRequestedEvent event = new BookRequestedEvent(bookId, authorName, genreName);
+            BookRequestedEvent event = new BookRequestedEvent(bookId, null, authorName, genreName);
 
             outboxService.saveEvent("Book", bookId, BookEvents.BOOK_REQUESTED, event);
 

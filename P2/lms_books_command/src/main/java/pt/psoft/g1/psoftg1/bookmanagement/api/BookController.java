@@ -81,8 +81,8 @@ public class BookController {
         // Generate ISBN from title
         String isbn = Isbn.generate(resource.getTitle());
 
-        // Create BookRequestedEvent with generated ISBN
-        BookRequestedEvent event = new BookRequestedEvent(isbn, resource.getAuthorName(), resource.getGenreName());
+        // Create BookRequestedEvent with generated ISBN and title
+        BookRequestedEvent event = new BookRequestedEvent(isbn, resource.getTitle(), resource.getAuthorName(), resource.getGenreName());
 
         Book book;
         try {

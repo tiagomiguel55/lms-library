@@ -78,7 +78,7 @@ public class BookServiceImpl implements BookService {
         }
 
         // Save pending request - we need to wait for both AuthorCmd and GenreCmd
-        PendingBookRequest newPendingRequest = new PendingBookRequest(isbn, authorName, genreName);
+        PendingBookRequest newPendingRequest = new PendingBookRequest(isbn, request.getTitle(), authorName, genreName);
         pendingBookRequestRepository.save(newPendingRequest);
 
         System.out.println(" [x] Saved pending book request for ISBN: " + isbn);

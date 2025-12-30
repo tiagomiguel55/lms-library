@@ -15,6 +15,8 @@ public class BookRequestedEvent {
     @NotNull
     private String bookId;
 
+    private String title; // Optional: book title (may not always be available)
+
     @NotNull
     private String authorName;
 
