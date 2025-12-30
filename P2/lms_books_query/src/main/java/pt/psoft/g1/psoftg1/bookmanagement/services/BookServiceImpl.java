@@ -536,7 +536,7 @@ public class BookServiceImpl implements BookService {
             return;
         }
 
-        System.out.println(" [QUERY] 🔄 Processing " + relevantPending.size() + " pending book events for author ID: " + authorId);
+        System.out.println(" [QUERY] 🔄 Checking " + relevantPending.size() + " pending book events for author ID: " + authorId);
 
         for (PendingBookEvent pending : relevantPending) {
             try {
@@ -550,49 +550,20 @@ public class BookServiceImpl implements BookService {
                 // Get the genre
                 Optional<Genre> genreOpt = genreRepository.findByString(pending.getGenreName());
                 if (genreOpt.isEmpty()) {
-                    System.out.println(" [QUERY] ⚠️ Genre still not available: " + pending.getGenreName());
+                    System.out.println(" [QUERY] ⏳ Genre still not available for pending book: " + pending.getBookId() +
+                                     " (Genre: " + pending.getGenreName() + "), will retry when genre is created");
+                    // Don't delete - we'll try again when genre is created via processPendingBooksForGenre
                     continue;
                 }
 
-                // Get the author (we know it exists now)
-                Optional<Author> authorOpt = authorRepository.findByAuthorNumber(authorId);
-                if (authorOpt.isEmpty()) {
-                    System.out.println(" [QUERY] ⚠️ Author still not available: " + authorId);
-                    continue;
-                }
-
-                // Create the book with all required info
-                Genre genre = genreOpt.get();
-                Author author = authorOpt.get();
-
-                Book newBook = new Book(
-                    pending.getBookId(),
-                    pending.getTitle(),
-                    pending.getDescription(),
-                    genre,
-                    List.of(author),
-                    null
-                );
-
-                try {
-                    Book savedBook = bookRepository.save(newBook);
-
-                    System.out.println(" [QUERY] ✅ Pending book finalized and created: " + pending.getBookId() +
-                                     " with author: " + pending.getAuthorName() +
-                                     " and genre: " + pending.getGenreName());
-
-                    // Remove from pending only after successful creation
-                    pendingBookEventRepository.delete(pending);
-                } catch (DuplicateKeyException duplicateEx) {
-                    // Another replica created the book first - this is expected in distributed systems
-                    System.out.println(" [QUERY] ℹ️ Pending book already created by another replica: " + pending.getBookId());
-                    // Clean up the pending event since book now exists
-                    pendingBookEventRepository.delete(pending);
-                }
+                // Author exists (we know it does since this method was called for this author)
+                // Book will be created when processPendingBooksForGenre is called
+                // No need to create here - avoid duplicate creation
+                System.out.println(" [QUERY] ℹ️ Author now available for pending book: " + pending.getBookId() +
+                                 " - will be created when genre is processed");
 
             } catch (Exception e) {
                 System.out.println(" [QUERY] ⚠️ Could not process pending book event: " + e.getMessage());
-                e.printStackTrace();
             }
         }
     }
