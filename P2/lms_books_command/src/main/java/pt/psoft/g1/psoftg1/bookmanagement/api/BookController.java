@@ -14,8 +14,10 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import pt.psoft.g1.psoftg1.bookmanagement.model.Book;
+import pt.psoft.g1.psoftg1.bookmanagement.model.Isbn;
 import pt.psoft.g1.psoftg1.bookmanagement.services.BookService;
 import pt.psoft.g1.psoftg1.bookmanagement.services.CreateBookRequest;
+import pt.psoft.g1.psoftg1.bookmanagement.services.CreateBookWithAuthorAndGenreRequest;
 import pt.psoft.g1.psoftg1.bookmanagement.services.SearchBooksQuery;
 import pt.psoft.g1.psoftg1.bookmanagement.services.UpdateBookRequest;
 import pt.psoft.g1.psoftg1.exceptions.ConflictException;
@@ -74,11 +76,17 @@ public class BookController {
 
     @Operation(summary = "Register a new Book with new Author(s) and Genre in one process")
     @PostMapping(value = "/create-complete")
-    public ResponseEntity<?> createWithAuthorAndGenre(@Valid @RequestBody BookRequestedEvent resource) {
+    public ResponseEntity<?> createWithAuthorAndGenre(@Valid @RequestBody CreateBookWithAuthorAndGenreRequest resource) {
+
+        // Generate ISBN from title
+        String isbn = Isbn.generate(resource.getTitle());
+
+        // Create BookRequestedEvent with generated ISBN
+        BookRequestedEvent event = new BookRequestedEvent(isbn, resource.getAuthorName(), resource.getGenreName());
 
         Book book;
         try {
-            book = bookService.createWithAuthorAndGenre(resource);
+            book = bookService.createWithAuthorAndGenre(event);
         } catch (Exception e) {
             throw new ConflictException("Could not create book with authors and genre: " + e.getMessage());
         }
@@ -90,7 +98,7 @@ public class BookController {
                             "message", "Book creation request accepted",
                             "status", "PROCESSING",
                             "title", resource.getTitle(),
-                            "bookId", resource.getBookId(),
+                            "bookId", isbn,
                             "details", "The book will be created asynchronously. Author '" + resource.getAuthorName() +
                                       "' is being processed by the Author microservice. Please check back later."
                     ));

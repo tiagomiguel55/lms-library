@@ -46,15 +46,9 @@ public class BookServiceImpl implements BookService {
     @Transactional
     public Book createWithAuthorAndGenre(BookRequestedEvent request) {
         // Extract data from the event
-        final String title = request.getTitle();
+        final String isbn = request.getBookId();
         final String authorName = request.getAuthorName();
         final String genreName = request.getGenreName();
-
-        // Generate ISBN from title
-        final String isbn = Isbn.generate(title);
-
-        // Set the generated ISBN back to the request for subsequent processing
-        request.setBookId(isbn);
 
         // Check if book already exists - if so, return it
         Optional<Book> existingBook = bookRepository.findByIsbn(isbn);
@@ -84,14 +78,14 @@ public class BookServiceImpl implements BookService {
         }
 
         // Save pending request - we need to wait for both AuthorCmd and GenreCmd
-        PendingBookRequest newPendingRequest = new PendingBookRequest(isbn, title, authorName, genreName);
+        PendingBookRequest newPendingRequest = new PendingBookRequest(isbn, authorName, genreName);
         pendingBookRequestRepository.save(newPendingRequest);
 
-        System.out.println(" [x] Saved pending book request for ISBN: " + isbn + " (Title: " + title + ")");
+        System.out.println(" [x] Saved pending book request for ISBN: " + isbn);
 
         // Publish BookRequestedEvent - BOTH AuthorCmd and GenreCmd will listen to this event
-        System.out.println(" [x] Publishing Book Requested event for ISBN: " + isbn + " (Title: " + title + ")");
-        bookEventsPublisher.sendBookRequestedEvent(isbn, title, authorName, genreName);
+        System.out.println(" [x] Publishing Book Requested event for ISBN: " + isbn);
+        bookEventsPublisher.sendBookRequestedEvent(isbn, authorName, genreName);
 
         // Return null - the controller will handle this by returning HTTP 202 Accepted
         // The actual book will be created asynchronously when both AuthorPendingCreated and GenrePendingCreated events arrive

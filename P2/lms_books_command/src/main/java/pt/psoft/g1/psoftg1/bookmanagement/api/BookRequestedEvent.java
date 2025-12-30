@@ -13,13 +13,11 @@ import lombok.NoArgsConstructor;
 public class BookRequestedEvent {
 
     @NotNull
-    private String title;
+    private String bookId;
 
     @NotNull
     private String authorName;
 
     @NotNull
     private String genreName;
-
-    private String bookId; // ISBN - will be generated during processing
 }

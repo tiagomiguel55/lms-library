@@ -22,9 +22,6 @@ public class PendingBookRequest {
     private String bookId; // ISBN
 
     @Column(nullable = false)
-    private String title;
-
-    @Column(nullable = false)
     private String authorName;
 
     @Column(nullable = false)
@@ -68,9 +65,8 @@ public class PendingBookRequest {
         FAILED                         // Saga compensation - book creation aborted
     }
 
-    public PendingBookRequest(String bookId, String title, String authorName, String genreName) {
+    public PendingBookRequest(String bookId, String authorName, String genreName) {
         this.bookId = bookId;
-        this.title = title;
         this.authorName = authorName;
         this.genreName = genreName;
         this.requestedAt = LocalDateTime.now();
