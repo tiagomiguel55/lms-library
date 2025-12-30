@@ -557,7 +557,7 @@ public class BookServiceImpl implements BookService {
                 }
 
                 // Get the author (we know it exists since this method was called for this author)
-                Optional<Author> authorOpt = authorRepository.findByAuthorId(authorId);
+                Optional<Author> authorOpt = authorRepository.findByAuthorNumber(authorId);
                 if (authorOpt.isEmpty()) {
                     System.out.println(" [QUERY] ⏳ Author not found by ID: " + authorId + " for pending book: " + pending.getBookId());
                     continue;
