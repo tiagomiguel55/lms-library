@@ -47,7 +47,15 @@ public class AuthorRabbitmqController {
                     "Author biography",
                     null
                 );
+                System.out.println(" [QUERY] 🔧 DEBUG: About to save author: " + authorViewAMQP.getName());
+                System.out.println(" [QUERY] 🔧 DEBUG: AuthorRepository class: " + authorRepository.getClass().getName());
                 Author savedAuthor = authorRepository.save(newAuthor);
+                System.out.println(" [QUERY] 🔧 DEBUG: Author saved, returned ID: " + (savedAuthor != null ? savedAuthor.getId() : "null"));
+
+                // Verify the author was actually persisted
+                Optional<Author> verifyAuthor = authorRepository.findByAuthorNumber(authorViewAMQP.getAuthorNumber());
+                System.out.println(" [QUERY] 🔧 DEBUG: Verification lookup: " + (verifyAuthor.isPresent() ? "FOUND" : "NOT FOUND"));
+
                 System.out.println(" [QUERY] ✅ Author created in query model: " + savedAuthor.getName() + " (ID: " + savedAuthor.getAuthorNumber() + ")");
 
                 // Process any pending books waiting for this author

@@ -485,7 +485,15 @@ public class BookServiceImpl implements BookService {
                 );
 
                 try {
-                    bookRepository.save(newBook);
+                    System.out.println(" [QUERY] 🔧 DEBUG: About to save book with ISBN: " + pending.getBookId());
+                    System.out.println(" [QUERY] 🔧 DEBUG: BookRepository class: " + bookRepository.getClass().getName());
+                    Book savedBook = bookRepository.save(newBook);
+                    System.out.println(" [QUERY] 🔧 DEBUG: Book saved, returned ID: " + (savedBook != null ? savedBook.getId() : "null"));
+
+                    // Verify the book was actually persisted
+                    Optional<Book> verifyBook = bookRepository.findByIsbn(pending.getBookId());
+                    System.out.println(" [QUERY] 🔧 DEBUG: Verification lookup: " + (verifyBook.isPresent() ? "FOUND" : "NOT FOUND"));
+
                     System.out.println(" [QUERY] ✅ Pending book finalized and created: " + pending.getBookId() +
                                      " with author: " + pending.getAuthorName() +
                                      " and genre: " + genreName);
@@ -497,6 +505,9 @@ public class BookServiceImpl implements BookService {
                     System.out.println(" [QUERY] ℹ️ Pending book already created by another replica: " + pending.getBookId());
                     // Clean up the pending event since book now exists
                     pendingBookEventRepository.delete(pending);
+                } catch (Exception e) {
+                    System.out.println(" [QUERY] ⚠️ ERROR saving book: " + e.getClass().getName() + " - " + e.getMessage());
+                    e.printStackTrace();
                 }
 
             } catch (Exception e) {
