@@ -1,0 +1,6 @@
+@echo off
+cd /d C:\Users\migue\IdeaProjects\lms-library\P2\lms_books_command
+echo [INFO] Starting lms_books_command application...
+echo [INFO] This may take a few moments...
+mvn clean spring-boot:run
+

@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  lmslendings_command:
+    image: docker.io/tiagomiguel55/lmslendings:${IMAGE_TAG}
+    environment:
+      - SPRING_PROFILES_ACTIVE=bootstrap
+      - spring.datasource.url=jdbc:postgresql://postgres_lendings_command_staging:5432/lmslendings_staging
+      - spring.datasource.username=lmsuser
+      - spring.datasource.password=lmspass
+      - spring.datasource.driver-class-name=org.postgresql.Driver
+      - spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
+      - spring.jpa.hibernate.ddl-auto=update
+      - spring.rabbitmq.host=lms_shared_rabbitmq
+      - spring.rabbitmq.port=5672
+      - spring.rabbitmq.username=guest
+      - spring.rabbitmq.password=guest
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'java.*app.jar' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+      update_config:
+        order: start-first
+    ports:
+      - "8091:8080"
+    networks:
+      - lms_network_staging
+      - lms_network
+
+  postgres_lendings_command_staging:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=lmslendings_staging
+      - POSTGRES_USER=lmsuser
+      - POSTGRES_PASSWORD=lmspass
+    volumes:
+      - postgres_lendings_command_data_staging:/var/lib/postgresql/data
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+    ports:
+      - "5437:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lmsuser"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lms_network_staging
+
+networks:
+  lms_network_staging:
+    driver: overlay
+    attachable: true
+  lms_network:
+    external: true
+
+volumes:
+  postgres_lendings_command_data_staging:
+

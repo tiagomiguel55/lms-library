@@ -1,0 +1,349 @@
+pipeline {
+    agent any
+
+    environment {
+        JENKINS_NODE_COOKIE = 'dontKillMe'
+        REPO_URL = 'https://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@github.com/1210910/Arqsoft_Odsoft.git'
+        DOCKER_IMAGE = 'maven:3.8.8-eclipse-temurin-21-alpine' // Define a imagem Docker com Maven e Java
+    }
+
+    stages {
+        stage('Set Maven Home') {
+            steps {
+                script {
+                    if (isUnix()) {
+                        // Configuration for Unix/Linux/MacOS
+                        env.MAVEN_HOME = '/usr/share/maven/bin/'
+                    } else {
+                        // Configuration for Windows
+                        env.MAVEN_HOME = '"C:\\Program Files\\JetBrains\\IntelliJ IDEA 2022.3.1\\plugins\\maven\\lib\\maven3\\bin\\"'
+                    }
+                    echo "MAVEN_HOME is set to: ${env.MAVEN_HOME}" // Debugging line
+                }
+            }
+        }
+
+        stage('Checkout') {
+            steps {
+                echo 'Checking out source code...'
+                git branch: 'production', url: "${REPO_URL}"
+
+            }
+        }
+
+        stage('Clean') {
+            steps {
+                script {
+                    echo 'Cleaning workspace...'
+                    dir('P2/lms_readers_command'){
+                    if (isUnix()) {
+                        sh "${env.MAVEN_HOME}mvn clean"
+                    } else {
+                        bat "${env.MAVEN_HOME}mvn clean"
+                    }
+                    }
+                }
+            }
+        }
+
+        stage('Validate') {
+            steps {
+                script {
+                    echo 'Validating code...'
+                    dir('P2/lms_readers_command'){
+                    if (isUnix()) {
+                        sh "${env.MAVEN_HOME}mvn validate"
+                    } else {
+                        bat "${env.MAVEN_HOME}mvn validate"
+                    }
+                    }
+                }
+            }
+        }
+
+        stage('Build') {
+            steps {
+                script {
+                    echo 'Building the project...'
+                    dir('P2/lms_readers_command'){
+                    if (isUnix()) {
+                        sh "${env.MAVEN_HOME}mvn compile"
+                    } else {
+                        bat "${env.MAVEN_HOME}mvn compile"
+                    }
+                    }
+                }
+            }
+        }
+stage('Test') {
+
+    stages {
+        stage('Build tests'){
+            steps {
+                script {
+                    echo 'Building Docker image...'
+            // Construa a imagem Docker a partir do Dockerfile
+                    dir('P2/lms_readers_command'){
+                        if (isUnix()){
+                        sh 'docker build -f DockerfileUnitTests -t my-maven-tests .'
+                        }else{
+                        bat'docker build -f DockerfileUnitTests -t my-maven-tests .'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Unit Testing') {
+            steps {
+                script {
+                    echo 'Running Unit Tests...'
+                    // Executa o comando CMD configurado no Dockerfile (testes unitários)
+                    dir('P2/lms_readers_command'){
+                    if (isUnix()){
+                         sh 'docker run --rm my-maven-tests'
+                    }else{
+                        bat 'docker run --rm my-maven-tests'
+                    }
+                    }
+                }
+            }
+        }
+
+        stage('CDC Testing') {
+            steps {
+                script {
+                    echo 'Running Unit Tests...'
+                    // Executa o comando CMD configurado no Dockerfile (testes unitários)
+                    dir('P2/lms_readers_command'){
+                    if (isUnix()){
+                         sh 'docker run --rm -e TEST_TYPE=CDCTests my-maven-tests'
+                    }else{
+                        bat 'docker run --rm -e TEST_TYPE=CDCTests my-maven-tests'
+                    }
+                    }
+                }
+            }
+        }
+
+        stage('Mutation Testing') {
+            steps {
+                script {
+                    echo 'Running Mutation Tests...'
+                    dir('P2/lms_readers_command'){
+                    if (isUnix()){
+                         sh 'docker run --rm -e TEST_TYPE=mutation my-maven-tests'
+                    }else{
+                        bat 'docker run --rm -e TEST_TYPE=mutation my-maven-tests'
+                    }
+                    // Construir a imagem Docker e rodar os testes de mutação
+                    }
+                }
+            }
+        }
+
+    }
+}
+       stage('Install') {
+            steps {
+                script {
+                    echo 'Building the final package...'
+                    dir('P2/lms_readers_command'){
+                    if (isUnix()) {
+                        sh "${env.MAVEN_HOME}mvn package -DskipTests"
+                    } else {
+                        bat "${env.MAVEN_HOME}mvn package -DskipTests"
+                    }
+                    }
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    echo 'Building Docker image before deployment...'
+                    dir('P2/lms_readers_command'){
+                    if (isUnix()){
+                        sh """
+                    docker build -t lmsreaderscommand:latest .
+                    """
+                    } else{
+                        bat """
+                    docker build -f Dockerfile -t lmsreaderscommand:latest .
+                    """
+                    }
+                    }
+                }
+            }
+        }
+
+
+        stage('Deploy') {
+            steps {
+                script {
+
+                    echo 'Deploying using Docker Swarm...'
+                    dir('P2/lms_readers_command'){
+                    if (isUnix()) {
+                        // Nome do serviço Docker e da imagem
+                        def serviceName = 'lmsreaderscommand_lmsreaders'
+                        def newImageTag = 'lmsreaderscommand:latest'
+
+                        // Verifica se o serviço já existe
+                        def serviceExists = sh(
+                            script: "docker service ls --filter 'name=${serviceName}' --format '{{.Name}}' | grep -w ${serviceName}",
+                            returnStatus: true
+                        ) == 0
+
+                        if (serviceExists) {
+                            echo 'Existing service found. Updating the service...'
+
+                            // Tenta atualizar o serviço
+                            def updateStatus = sh(
+                                script: """
+                                docker service update --image ${newImageTag} --force ${serviceName}
+                                """,
+                                returnStatus: true
+                            )
+
+                            // Verifica se a atualização foi bem-sucedida
+                            if (updateStatus != 0) {
+                                echo 'Service update failed. Rolling back to previous version...'
+
+                                // Executa o rollback se a atualização falhar
+                                sh """
+                                docker service rollback ${serviceName}
+                                """
+
+                                echo 'Rollback completed successfully.'
+                            } else {
+                                echo 'Service updated successfully.'
+                            }
+                        } else {
+                            echo 'No existing service found. Creating a new service...'
+
+                            // Cria um novo serviço
+                            sh """
+                            docker stack deploy -c docker-compose-swarm.yml lmsreaderscommand
+                            """
+
+                            echo 'New service created successfully.'
+                        }
+                    } else {
+                            echo 'Deploying using Docker Swarm (Windows)...'
+
+                        // Nome do serviço Docker e da imagem
+                            def serviceName = 'lmsreaderscommand_lmsreaders'
+                            def newImageTag = 'lmsreaderscommand:latest'
+
+                        // Verifica se o serviço já existe
+                            def serviceExists = bat(
+                            script: """
+                            docker service ls --filter "name=${serviceName}" --format "{{.Name}}" | findstr /B /R "${serviceName}"
+                            """,
+                            returnStatus: true
+                            ) == 0
+
+                            if (serviceExists) {
+                            echo 'Existing service found. Updating the service...'
+
+                            // Tenta atualizar o serviço
+                            def updateStatus = bat(
+                                script: """
+                                docker service update --image ${newImageTag} --force ${serviceName}
+                                """,
+                                returnStatus: true
+                            )
+
+                            // Verifica se a atualização foi bem-sucedida
+                            if (updateStatus != 0) {
+                                echo 'Service update failed. Rolling back to previous version...'
+
+                                // Executa o rollback se a atualização falhar
+                                bat """
+                                docker service rollback ${serviceName}
+                                """
+
+                                echo 'Rollback completed successfully.'
+                            } else {
+                                echo 'Service updated successfully.'
+                            }
+                            } else {
+                            echo 'No existing service found. Creating a new service...'
+
+                            // Cria um novo serviço usando Docker Stack
+                            bat """
+                            docker stack deploy -c docker-compose-swarm.yml lmsreaderscommand
+                            """
+
+                            echo 'New service created successfully.'
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+
+stage('Notify User') {
+    steps {
+        script {
+            // Enviar e-mail de notificação
+            mail(
+                to: 'DarkSceth@gmail.com',
+                subject: "Review Reader Command Deployment #${env.BUILD_NUMBER}",
+                body: """
+                    <p>Dear User,</p>
+                    <p>The deployment is ready for review at: <a href="${env.JENKINS_URL}job/${env.JOB_NAME}/${env.BUILD_NUMBER}/">this link</a>.</p>
+                    <p>Please review and click one of the following:</p>
+                    <ul>
+                        <li><a href="${env.JENKINS_URL}job/${env.JOB_NAME}/${env.BUILD_NUMBER}/input">Approve or Reject</a></li>
+                    </ul>
+                """,
+                mimeType: 'text/html' // Define que o corpo do e-mail será em HTML
+            )
+        }
+    }
+}
+
+stage('User Approval') {
+    steps {
+        script {
+            // Exibir entrada para aprovação ou rejeição
+            def userInput = input(
+                message: 'Approve or Reject the Deployment',
+                parameters: [
+                    choice(name: 'Action', choices: ['Approve', 'Reject'], description: 'Select an action')
+                ]
+            )
+
+            // Log para aprovação ou rejeição
+            if (userInput == 'Approve') {
+                echo 'Deployment approved!'
+            } else {
+                echo 'Deployment rejected!'
+                error('Deployment was rejected.')
+            }
+        }
+    }
+}
+
+
+    }
+
+    post {
+        always {
+            script{
+            echo 'Cleaning up the workspace...'
+
+            }
+        }
+        success {
+            echo 'Pipeline completed successfully.'
+        }
+        failure {
+            echo 'Pipeline failed.'
+        }
+    }
+}
