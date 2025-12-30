@@ -160,7 +160,6 @@ public class LendingServiceImpl implements LendingService{
         if (saved != null) {
             //lendingEventPublisher.sendLendingCreated(saved);
             lendingEventPublisher.sendBookCreatedInLending(resource, saved.getLendingNumber());
-            lendingEventPublisher.sendReaderCreatedInLending(resource, saved.getLendingNumber());
         }
 
 

@@ -310,6 +310,11 @@ import org.springframework.amqp.core.Message;
     
                 System.out.println("Book created successfully with FINALIZED author and genre: " + savedBook.getIsbn() + " - " + savedBook.getTitle());
     
+                // Publish BOOK_CREATED event to update the query model (books_query database)
+                System.out.println("Publishing BOOK_CREATED event to update read model...");
+                bookEventsPublisher.sendBookCreated(savedBook);
+                System.out.println("BOOK_CREATED event published for: " + savedBook.getIsbn());
+    
                 // IMPORTANT: Reload the pending request to avoid stale data, then update status
                 int maxRetries = 3;
                 for (int attempt = 0; attempt < maxRetries; attempt++) {

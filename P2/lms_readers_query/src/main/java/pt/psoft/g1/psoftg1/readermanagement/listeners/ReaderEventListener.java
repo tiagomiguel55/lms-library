@@ -40,8 +40,8 @@ public class ReaderEventListener {
                 readerService.create(readerViewAMQP);
                 System.out.println(" [x] New reader inserted from AMQP: " + msg + ".");
             } catch (Exception e) {
-
-                System.out.println(" [x] Reader already exists. No need to store it.");
+                System.out.println(" [x] Exception creating reader from AMQP: " + e.getMessage());
+                e.printStackTrace();
             }
         }
         catch(Exception ex) {
@@ -116,11 +116,13 @@ public class ReaderEventListener {
                 readerDetails=readerService.create(readerViewAMQP);
                 System.out.println(" [x] New reader inserted from AMQP: " + msg + ".");
             } catch (Exception e) {
-                System.out.println(" [x] Reader already exists. No need to store it.");
+                System.out.println(" [x] Exception while processing reader lending request: " + e.getMessage());
+                e.printStackTrace();
                 response.setStatus("ERROR");
                 response.setLendingNumber(readerSagaViewAMQP.getLendingNumber());
                 response.setError(e.getMessage());
                 readerEventPublisher.sendReaderLendingResponse(response);
+                return; // Exit early since we've sent an error response
             }
 
             response.setLendingNumber(readerSagaViewAMQP.getLendingNumber());

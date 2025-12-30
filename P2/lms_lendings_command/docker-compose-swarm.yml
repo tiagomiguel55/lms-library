@@ -15,7 +15,7 @@ services:
       - spring.rabbitmq.port=5672
       - spring.rabbitmq.username=guest
       - spring.rabbitmq.password=guest
-      - books.service.url=http://10.0.1.200:8080
+      - books.service.url=http://books_query_stack_lmsbooks_query:8080
       - WAIT_FOR_HOSTS=postgres_lendings_command:5432,shared_stack_rabbitmq:5672
     deploy:
       replicas: 2

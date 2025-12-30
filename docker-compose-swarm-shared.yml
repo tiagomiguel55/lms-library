@@ -3,7 +3,6 @@ version: '3.8'
 services:
   rabbitmq:
     image: rabbitmq:3-management
-    restart: unless-stopped
     ports:
       - "5672:5672"
       - "15672:15672"
@@ -17,7 +16,8 @@ services:
     deploy:
       replicas: 1
       restart_policy:
-        condition: on-failure
+        condition: any
+        max_attempts: 3
     healthcheck:
       test: ["CMD", "rabbitmqctl", "status"]
       interval: 10s

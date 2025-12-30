@@ -10,6 +10,7 @@ services:
       - spring.datasource.password=password
       - spring.datasource.driver-class-name=org.postgresql.Driver
       - spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
+      - spring.jpa.hibernate.ddl-auto=update
       - spring.rabbitmq.host=shared_stack_rabbitmq
       - spring.rabbitmq.port=5672
       - spring.rabbitmq.username=guest

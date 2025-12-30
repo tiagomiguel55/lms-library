@@ -150,6 +150,17 @@ public class BookController {
         return ResponseEntity.ok().eTag(Long.toString(book.getVersion())).body(bookView);
     }
 
+    @Operation(summary = "Checks if a book exists by ISBN")
+    @GetMapping(value = "/exists/{isbn}")
+    public ResponseEntity<java.util.Map<String, Boolean>> checkBookExists(@PathVariable final String isbn) {
+        try {
+            bookService.findByIsbn(isbn);
+            return ResponseEntity.ok(java.util.Map.of("exists", true));
+        } catch (NotFoundException e) {
+            return ResponseEntity.ok(java.util.Map.of("exists", false));
+        }
+    }
+
     @Operation(summary = "Gets a book photo")
     @GetMapping("/{isbn}/photo")
     @ResponseStatus(HttpStatus.OK)

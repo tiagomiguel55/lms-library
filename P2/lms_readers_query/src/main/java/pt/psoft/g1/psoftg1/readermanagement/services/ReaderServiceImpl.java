@@ -89,18 +89,34 @@ public class ReaderServiceImpl implements ReaderService {
 
     @Override
     public ReaderDetails create(ReaderViewAMQP readerViewAMQP) {
+        // Check if ReaderDetails already exists (idempotent)
+        Optional<ReaderDetails> existingReader = readerRepo.findByReaderNumber(readerViewAMQP.getReaderNumber());
+        if (existingReader.isPresent()) {
+            System.out.println(" [x] Reader with number " + readerViewAMQP.getReaderNumber() + " already exists. Skipping creation.");
+            return existingReader.get();
+        }
 
+        // Check if user already exists by username - if so, skip creation (idempotent)
         if (userRepo.findByUsername(readerViewAMQP.getUsername()).isPresent()) {
-            throw new ConflictException("Username already exists!");
+            System.out.println(" [x] Reader with username " + readerViewAMQP.getUsername() + " already exists. Skipping creation.");
+            // Try to find and return existing reader
+            Optional<ReaderDetails> existingByUsername = readerRepo.findByUsername(readerViewAMQP.getUsername());
+            if (existingByUsername.isPresent()) {
+                return existingByUsername.get();
+            }
+            // If not found in ReaderDetails but exists in User, this is an inconsistency
+            // We'll proceed with creation to fix the inconsistency
+            System.out.println(" [x] Warning: User exists but ReaderDetails not found. Proceeding with creation.");
         }
 
         Iterable<String> words = List.of(readerViewAMQP.getFullName().split("\\s+"));
 
-        for (String word : words){
-            if(!forbiddenNameRepository.findByForbiddenNameIsContained(word).isEmpty()) {
-                throw new IllegalArgumentException("Name contains a forbidden word");
-            }
-        }
+        // Skip forbidden name check for AMQP messages since it was already validated in command service
+        // for (String word : words){
+        //     if(!forbiddenNameRepository.findByForbiddenNameIsContained(word).isEmpty()) {
+        //         throw new IllegalArgumentException("Name contains a forbidden word");
+        //     }
+        // }
 
         List<String> stringInterestList = readerViewAMQP.getInterestList();
 
@@ -244,10 +260,14 @@ public class ReaderServiceImpl implements ReaderService {
             Optional<Genre> optGenre = genreRepo.findByName(interest);
             System.out.println(optGenre);
             if(optGenre.isEmpty()) {
-                throw new NotFoundException("Could not find genre with name " + interest);
+                // If genre doesn't exist, create it on the fly
+                System.out.println("Genre '" + interest + "' not found. Creating it.");
+                Genre newGenre = new Genre(interest);
+                Genre savedGenre = genreRepo.save(newGenre);
+                genreList.add(savedGenre);
+            } else {
+                genreList.add(optGenre.get());
             }
-
-            genreList.add(optGenre.get());
         }
 
         return genreList;

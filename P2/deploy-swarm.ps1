@@ -21,7 +21,112 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "Network 'lms_network' already exists" -ForegroundColor Gray
 }
 
+# Build Docker images for all microservices
+Write-Host "`n============================================" -ForegroundColor Cyan
+Write-Host "Building Docker Images" -ForegroundColor Cyan
+Write-Host "============================================" -ForegroundColor Cyan
+
+Write-Host "`n[1/6] Building Books Command image..." -ForegroundColor Yellow
+Set-Location -Path $PSScriptRoot\lms_books_command
+docker build -t lmsbooks:command .
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "Books Command image built successfully" -ForegroundColor Green
+} else {
+    Write-Host "Failed to build Books Command image" -ForegroundColor Red
+    exit 1
+}
+
+Write-Host "`n[2/6] Building Books Query image..." -ForegroundColor Yellow
+Set-Location -Path $PSScriptRoot\lms_books_query
+docker build -t lmsbooks:query .
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "Books Query image built successfully" -ForegroundColor Green
+} else {
+    Write-Host "Failed to build Books Query image" -ForegroundColor Red
+    exit 1
+}
+
+Write-Host "`n[3/6] Building Readers Command image..." -ForegroundColor Yellow
+Set-Location -Path $PSScriptRoot\lms_readers_command
+docker build -t lmsreaders:command .
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "Readers Command image built successfully" -ForegroundColor Green
+} else {
+    Write-Host "Failed to build Readers Command image" -ForegroundColor Red
+    exit 1
+}
+
+Write-Host "`n[4/6] Building Readers Query image..." -ForegroundColor Yellow
+Set-Location -Path $PSScriptRoot\lms_readers_query
+docker build -t lmsreaders:query .
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "Readers Query image built successfully" -ForegroundColor Green
+} else {
+    Write-Host "Failed to build Readers Query image" -ForegroundColor Red
+    exit 1
+}
+
+Write-Host "`n[5/6] Building Lendings Command image..." -ForegroundColor Yellow
+Set-Location -Path $PSScriptRoot\lms_lendings_command
+docker build -t lmslendings:command .
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "Lendings Command image built successfully" -ForegroundColor Green
+} else {
+    Write-Host "Failed to build Lendings Command image" -ForegroundColor Red
+    exit 1
+}
+
+Write-Host "`n[6/6] Building Lendings Query image..." -ForegroundColor Yellow
+Set-Location -Path $PSScriptRoot\lms_lendings_query
+docker build -t lmslendings:query .
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "Lendings Query image built successfully" -ForegroundColor Green
+} else {
+    Write-Host "Failed to build Lendings Query image" -ForegroundColor Red
+    exit 1
+}
+
+Write-Host "`n============================================" -ForegroundColor Cyan
+Write-Host "All Images Built Successfully" -ForegroundColor Green
+Write-Host "============================================" -ForegroundColor Cyan
+
+# Ask user if they want to clean volumes and databases
+Write-Host "`n" -NoNewline
+$cleanVolumes = Read-Host "Do you want to clean database volumes and delete all databases? This will delete all existing data (y/N)"
+if ($cleanVolumes -eq 'y' -or $cleanVolumes -eq 'Y') {
+    Write-Host "`nCleaning Docker stacks and databases..." -ForegroundColor Yellow
+    
+    # Remove all existing stacks to stop database containers
+    Write-Host "Removing existing stacks..." -ForegroundColor Gray
+    docker stack rm shared_stack 2>$null
+    docker stack rm books_command_stack 2>$null
+    docker stack rm books_query_stack 2>$null
+    docker stack rm readers_command_stack 2>$null
+    docker stack rm readers_query_stack 2>$null
+    docker stack rm lendings_command_stack 2>$null
+    docker stack rm lendings_query_stack 2>$null
+    
+    # Wait for services to be removed
+    Start-Sleep -Seconds 5
+    
+    # Remove all Docker volumes
+    Write-Host "Removing all volumes..." -ForegroundColor Gray
+    docker volume prune -f
+    
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "Stacks and volumes cleaned successfully" -ForegroundColor Green
+    } else {
+        Write-Host "Warning: Cleanup encountered issues" -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "Skipping cleanup - existing data will be preserved" -ForegroundColor Gray
+}
+
 # Deploy shared infrastructure (RabbitMQ)
+Write-Host "`n============================================" -ForegroundColor Cyan
+Write-Host "Deploying Microservices" -ForegroundColor Cyan
+Write-Host "============================================" -ForegroundColor Cyan
+
 Write-Host "`n[1/7] Deploying shared infrastructure (RabbitMQ)..." -ForegroundColor Yellow
 Set-Location -Path $PSScriptRoot\..
 docker stack deploy -c docker-compose-swarm-shared.yml shared_stack
