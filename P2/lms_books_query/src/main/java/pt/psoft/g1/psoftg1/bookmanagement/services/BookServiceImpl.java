@@ -496,7 +496,7 @@ public class BookServiceImpl implements BookService {
 
                     System.out.println(" [QUERY] ✅ Pending book finalized and created: " + pending.getBookId() +
                                      " with author: " + pending.getAuthorName() +
-                                     " and genre: " + genreName);
+                                     " and genre: " + pending.getGenreName());
 
                     // Remove from pending only after successful creation
                     pendingBookEventRepository.delete(pending);
@@ -579,7 +579,15 @@ public class BookServiceImpl implements BookService {
                 );
 
                 try {
-                    bookRepository.save(newBook);
+                    System.out.println(" [QUERY] 🔧 DEBUG: About to save book with ISBN: " + pending.getBookId());
+                    System.out.println(" [QUERY] 🔧 DEBUG: BookRepository class: " + bookRepository.getClass().getName());
+                    Book savedBook = bookRepository.save(newBook);
+                    System.out.println(" [QUERY] 🔧 DEBUG: Book saved, returned ID: " + (savedBook != null ? savedBook.getId() : "null"));
+
+                    // Verify the book was actually persisted
+                    Optional<Book> verifyBook = bookRepository.findByIsbn(pending.getBookId());
+                    System.out.println(" [QUERY] 🔧 DEBUG: Verification lookup: " + (verifyBook.isPresent() ? "FOUND" : "NOT FOUND"));
+
                     System.out.println(" [QUERY] ✅ Pending book finalized and created: " + pending.getBookId() +
                                      " with author: " + pending.getAuthorName() +
                                      " and genre: " + pending.getGenreName());
