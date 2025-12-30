@@ -7,7 +7,6 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 import pt.psoft.g1.psoftg1.authormanagement.model.Author;
 import pt.psoft.g1.psoftg1.authormanagement.repositories.AuthorRepository;
 import pt.psoft.g1.psoftg1.bookmanagement.model.Book;
@@ -43,7 +42,6 @@ public class Bootstrapper implements CommandLineRunner {
     private final ForbiddenNameService forbiddenNameService;
 
     @Override
-    @Transactional
     public void run(final String... args) {
         createAuthors();
         createGenres();
