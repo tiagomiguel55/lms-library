@@ -556,11 +556,43 @@ public class BookServiceImpl implements BookService {
                     continue;
                 }
 
-                // Author exists (we know it does since this method was called for this author)
-                // Book will be created when processPendingBooksForGenre is called
-                // No need to create here - avoid duplicate creation
-                System.out.println(" [QUERY] ℹ️ Author now available for pending book: " + pending.getBookId() +
-                                 " - will be created when genre is processed");
+                // Get the author (we know it exists since this method was called for this author)
+                Optional<Author> authorOpt = authorRepository.findByAuthorId(authorId);
+                if (authorOpt.isEmpty()) {
+                    System.out.println(" [QUERY] ⏳ Author not found by ID: " + authorId + " for pending book: " + pending.getBookId());
+                    continue;
+                }
+
+                // Both genre and author exist - create the book now!
+                Genre genre = genreOpt.get();
+                Author author = authorOpt.get();
+
+                Book newBook = new Book(
+                    pending.getBookId(),
+                    pending.getTitle(),
+                    pending.getDescription(),
+                    genre,
+                    List.of(author),
+                    null
+                );
+
+                try {
+                    Book savedBook = bookRepository.save(newBook);
+                    System.out.println(" [QUERY] ✅ Pending book finalized and created: " + pending.getBookId() +
+                                     " with author: " + pending.getAuthorName() +
+                                     " and genre: " + pending.getGenreName());
+
+                    // Remove from pending only after successful creation
+                    pendingBookEventRepository.delete(pending);
+                } catch (DuplicateKeyException duplicateEx) {
+                    // Another replica created the book first - this is expected in distributed systems
+                    System.out.println(" [QUERY] ℹ️ Pending book already created by another replica: " + pending.getBookId());
+                    // Clean up the pending event since book now exists
+                    pendingBookEventRepository.delete(pending);
+                } catch (Exception e) {
+                    System.out.println(" [QUERY] ⚠️ ERROR saving book: " + e.getClass().getName() + " - " + e.getMessage());
+                    e.printStackTrace();
+                }
 
             } catch (Exception e) {
                 System.out.println(" [QUERY] ⚠️ Could not process pending book event: " + e.getMessage());
