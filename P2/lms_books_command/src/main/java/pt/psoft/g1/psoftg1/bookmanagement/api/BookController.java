@@ -89,6 +89,7 @@ public class BookController {
                     .body(Map.of(
                             "message", "Book creation request accepted",
                             "status", "PROCESSING",
+                            "title", resource.getTitle(),
                             "bookId", resource.getBookId(),
                             "details", "The book will be created asynchronously. Author '" + resource.getAuthorName() +
                                       "' is being processed by the Author microservice. Please check back later."

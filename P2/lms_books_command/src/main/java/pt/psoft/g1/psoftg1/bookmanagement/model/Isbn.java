@@ -71,4 +71,32 @@ public class Isbn implements Serializable {
     public String toString() {
         return this.isbn;
     }
+
+    /**
+     * Generates a valid ISBN-13 from a title by creating a hash-based identifier
+     */
+    public static String generate(String title) {
+        if (title == null || title.trim().isEmpty()) {
+            throw new IllegalArgumentException("Title cannot be null or empty");
+        }
+
+        // Use title hash to generate a unique ISBN-13
+        // ISBN-13 format: 978-XXXXXXXXX-C where C is check digit
+        int hash = Math.abs(title.hashCode());
+        String base = String.format("978%09d", hash % 1000000000);
+
+        // Calculate ISBN-13 check digit
+        int sum = 0;
+        for (int i = 0; i < 12; i++) {
+            int digit = Integer.parseInt(base.substring(i, i + 1));
+            sum += (i % 2 == 0) ? digit : digit * 3;
+        }
+
+        int checkDigit = 10 - (sum % 10);
+        if (checkDigit == 10) {
+            checkDigit = 0;
+        }
+
+        return base + checkDigit;
+    }
 }
