@@ -94,7 +94,6 @@ public class SecurityConfig {
                 // Our public endpoints
                 .requestMatchers("/api/public/**").permitAll() // public assets & end-points
                 .requestMatchers(HttpMethod.POST, "/api/readers").permitAll() // unregistered should be able to register
-                .requestMatchers(HttpMethod.POST, "/api/books/create-complete").permitAll() // for testing BookRequestedEvent
                 // Our private endpoints
                 // authors
                 .requestMatchers(HttpMethod.POST, "/api/authors").hasRole(Role.LIBRARIAN)
@@ -108,6 +107,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/authors/{authorNumber}/coauthors").hasRole(Role.READER)
                 // end authors
                 // books
+                .requestMatchers(HttpMethod.POST, "/api/books/create-complete").hasRole(Role.LIBRARIAN)
                 .requestMatchers(HttpMethod.PUT, "/api/books/{isbn}").hasRole(Role.LIBRARIAN)
                 .requestMatchers(HttpMethod.PATCH, "/api/books/{isbn}").hasRole(Role.LIBRARIAN)
                 //.requestMatchers(HttpMethod.GET, "/api/books/{isbn}/avgDuration").hasRole(Role.LIBRARIAN)
