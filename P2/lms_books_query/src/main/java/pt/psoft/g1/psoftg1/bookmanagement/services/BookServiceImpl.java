@@ -373,6 +373,11 @@ public class BookServiceImpl implements BookService {
             // Quick check: if book already exists, skip processing
             if (bookRepository.findByIsbn(event.getBookId()).isPresent()) {
                 System.out.println(" [QUERY] 📚 Book already exists in read model: " + event.getBookId());
+                // Clean up any pending event for this book
+                pendingBookEventRepository.findByBookId(event.getBookId()).ifPresent(pending -> {
+                    pendingBookEventRepository.delete(pending);
+                    System.out.println(" [QUERY] 🧹 Cleaned up pending event for: " + event.getBookId());
+                });
                 return;
             }
 
@@ -425,6 +430,10 @@ public class BookServiceImpl implements BookService {
             } catch (DuplicateKeyException duplicateEx) {
                 // Another thread/replica created the book first - this is normal and expected
                 System.out.println(" [QUERY] ℹ️ Book already created (duplicate event handled by unique index): " + event.getBookId());
+                // Clean up pending event since book now exists
+                pendingBookEventRepository.findByBookId(event.getBookId()).ifPresent(pending -> {
+                    pendingBookEventRepository.delete(pending);
+                });
             }
 
         } catch (Exception e) {
