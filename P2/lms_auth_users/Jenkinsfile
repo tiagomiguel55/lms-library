@@ -30,7 +30,7 @@ pipeline {
         EMAIL_RECIPIENT = 'migueltiago255@gmail.com'
 
         // Working directory
-        WORK_DIR = 'lms-authnusers'
+        WORK_DIR = 'P2/lms_auth_users'
     }
 
     parameters {
