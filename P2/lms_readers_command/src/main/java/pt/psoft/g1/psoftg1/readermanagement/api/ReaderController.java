@@ -27,8 +27,10 @@ import pt.psoft.g1.psoftg1.bookmanagement.api.BookViewMapper;
 import pt.psoft.g1.psoftg1.bookmanagement.services.BookService;
 import pt.psoft.g1.psoftg1.exceptions.NotFoundException;
 import pt.psoft.g1.psoftg1.external.service.ApiNinjasService;
+import pt.psoft.g1.psoftg1.readermanagement.api.ReaderUserRequestedEvent;
 import pt.psoft.g1.psoftg1.readermanagement.model.ReaderDetails;
 import pt.psoft.g1.psoftg1.readermanagement.services.CreateReaderRequest;
+import pt.psoft.g1.psoftg1.readermanagement.services.CreateReaderWithUserRequest;
 import pt.psoft.g1.psoftg1.readermanagement.services.ReaderService;
 import pt.psoft.g1.psoftg1.readermanagement.services.SearchReadersQuery;
 import pt.psoft.g1.psoftg1.readermanagement.services.UpdateReaderRequest;
@@ -40,10 +42,12 @@ import pt.psoft.g1.psoftg1.usermanagement.model.Librarian;
 import pt.psoft.g1.psoftg1.usermanagement.model.Role;
 import pt.psoft.g1.psoftg1.usermanagement.model.User;
 import pt.psoft.g1.psoftg1.usermanagement.services.UserService;
+import pt.psoft.g1.psoftg1.exceptions.ConflictException;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -81,6 +85,54 @@ public class ReaderController {
 
         return ResponseEntity.created(newReaderUri)
                 .eTag(Long.toString(readerDetails.getVersion()))
+                .body(readerViewMapper.toReaderView(readerDetails));
+    }
+
+    @Operation(summary = "Register a new Reader with new User in one process")
+    @PostMapping(value = "/create-complete")
+    public ResponseEntity<?> createWithUser(@Valid @RequestBody CreateReaderWithUserRequest resource) {
+
+        MultipartFile file = resource.getPhoto();
+        String fileName = fileStorageService.getRequestPhoto(file);
+
+        // Create ReaderUserRequestedEvent
+        ReaderUserRequestedEvent event = new ReaderUserRequestedEvent(
+                null, // readerNumber will be generated
+                resource.getUsername(),
+                resource.getPassword(),
+                resource.getFullName(),
+                resource.getBirthDate(),
+                resource.getPhoneNumber(),
+                fileName,
+                resource.isGdpr(),
+                resource.isMarketing(),
+                resource.isThirdParty()
+        );
+
+        ReaderDetails readerDetails;
+        try {
+            readerDetails = readerService.createWithUser(event);
+        } catch (Exception e) {
+            throw new ConflictException("Could not create reader with user: " + e.getMessage());
+        }
+
+        // If readerDetails is null, it means the request was accepted and will be processed asynchronously
+        if (readerDetails == null) {
+            return ResponseEntity.accepted()
+                    .body(Map.of(
+                            "message", "Reader and User creation request accepted",
+                            "status", "PROCESSING",
+                            "username", resource.getUsername(),
+                            "details", "The reader and user will be created asynchronously. Please check back later."
+                    ));
+        }
+
+        final var newReaderUri = ServletUriComponentsBuilder.fromCurrentRequest()
+                .path("/{readerNumber}")
+                .buildAndExpand(readerDetails.getReaderNumber())
+                .toUri();
+
+        return ResponseEntity.created(newReaderUri).eTag(Long.toString(readerDetails.getVersion()))
                 .body(readerViewMapper.toReaderView(readerDetails));
     }
 

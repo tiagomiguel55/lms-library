@@ -7,6 +7,8 @@ import org.springframework.amqp.core.DirectExchange;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import pt.psoft.g1.psoftg1.readermanagement.api.ReaderPendingCreated;
+import pt.psoft.g1.psoftg1.readermanagement.api.ReaderUserRequestedEvent;
 import pt.psoft.g1.psoftg1.readermanagement.api.ReaderViewAMQP;
 import pt.psoft.g1.psoftg1.readermanagement.api.ReaderViewAMQPMapper;
 import pt.psoft.g1.psoftg1.readermanagement.api.SagaCreationResponse;
@@ -70,6 +72,38 @@ public class ReaderEventPublisher {
         }
         catch( Exception ex ) {
             System.out.println(" [x] Exception sending reader lending response: '" + ex.getMessage() + "'");
+        }
+    }
+
+    public void sendReaderUserRequestedEvent(ReaderUserRequestedEvent request) {
+        try {
+            ObjectMapper objectMapper = new ObjectMapper();
+
+            String jsonString = objectMapper.writeValueAsString(request);
+
+            // Send to both user and reader queues
+            this.template.convertAndSend(direct.getName(), "reader.user.requested.user", jsonString);
+            this.template.convertAndSend(direct.getName(), "reader.user.requested.reader", jsonString);
+
+            System.out.println(" [x] Sent Reader-User Requested event to both queues: '" + jsonString + "'");
+        }
+        catch( Exception ex ) {
+            System.out.println(" [x] Exception sending reader-user requested event: '" + ex.getMessage() + "'");
+        }
+    }
+
+    public void sendReaderPendingCreated(ReaderPendingCreated event) {
+        try {
+            ObjectMapper objectMapper = new ObjectMapper();
+
+            String jsonString = objectMapper.writeValueAsString(event);
+
+            this.template.convertAndSend(direct.getName(), "reader.pending.created", jsonString);
+
+            System.out.println(" [x] Sent Reader Pending Created event: '" + jsonString + "'");
+        }
+        catch( Exception ex ) {
+            System.out.println(" [x] Exception sending reader pending created event: '" + ex.getMessage() + "'");
         }
     }
 }

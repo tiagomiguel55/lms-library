@@ -1,6 +1,7 @@
 package pt.psoft.g1.psoftg1.readermanagement.services;
 
 import pt.psoft.g1.psoftg1.readermanagement.api.ReaderViewAMQP;
+import pt.psoft.g1.psoftg1.readermanagement.api.ReaderUserRequestedEvent;
 import pt.psoft.g1.psoftg1.readermanagement.model.ReaderDetails;
 import pt.psoft.g1.psoftg1.shared.services.Page;
 
@@ -13,6 +14,7 @@ import java.util.Optional;
 public interface ReaderService {
     ReaderDetails create(CreateReaderRequest request, String photoURI);
     ReaderDetails create(ReaderViewAMQP readerViewAMQP);
+    ReaderDetails createWithUser(ReaderUserRequestedEvent request);
     ReaderDetails update(String id, UpdateReaderRequest request, long desireVersion, String photoURI);
     ReaderDetails update(ReaderViewAMQP readerViewAMQP);
     void delete(String id);
