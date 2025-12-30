@@ -485,27 +485,10 @@ public class BookServiceImpl implements BookService {
                 );
 
                 try {
-                    System.out.println(" [QUERY] 🔧 DEBUG: About to save book with ISBN: " + pending.getBookId());
-                    System.out.println(" [QUERY] 🔧 DEBUG: BookRepository class: " + bookRepository.getClass().getName());
-                    System.out.println(" [QUERY] 🔧 DEBUG: Genre has MongoDB ID: " + genre.getId());
-                    System.out.println(" [QUERY] 🔧 DEBUG: Author has MongoDB ID: " + author.getId());
-                    System.out.println(" [QUERY] 🔧 DEBUG: Book ISBN: " + newBook.getIsbn());
-                    System.out.println(" [QUERY] 🔧 DEBUG: Book Title: " + newBook.getTitle());
-
                     Book savedBook = bookRepository.save(newBook);
-                    System.out.println(" [QUERY] 🔧 DEBUG: Book saved, returned ID: " + (savedBook != null ? savedBook.getId() : "null"));
-
-                    // Verify the book was actually persisted
-                    Optional<Book> verifyBook = bookRepository.findByIsbn(pending.getBookId());
-                    System.out.println(" [QUERY] 🔧 DEBUG: Verification lookup: " + (verifyBook.isPresent() ? "FOUND" : "NOT FOUND"));
-
-                    if (verifyBook.isPresent()) {
-                        System.out.println(" [QUERY] 🔧 DEBUG: Verified book has MongoDB ID: " + verifyBook.get().getId());
-                    }
-
                     System.out.println(" [QUERY] ✅ Pending book finalized and created: " + pending.getBookId() +
                                      " with author: " + pending.getAuthorName() +
-                                     " and genre: " + pending.getGenreName());
+                                     " and genre: " + genreName);
 
                     // Remove from pending only after successful creation
                     pendingBookEventRepository.delete(pending);
@@ -531,21 +514,16 @@ public class BookServiceImpl implements BookService {
      */
     public void processPendingBooksForAuthor(Long authorId) {
         List<PendingBookEvent> pendingEvents = pendingBookEventRepository.findAll();
-        System.out.println(" [QUERY] 🔍 Found " + pendingEvents.size() + " total pending events in database");
 
         List<PendingBookEvent> relevantPending = new ArrayList<>();
 
         for (PendingBookEvent pending : pendingEvents) {
-            System.out.println(" [QUERY] 🔍 Pending event: bookId=" + pending.getBookId() +
-                             ", authorId=" + pending.getAuthorId() +
-                             ", genreName=" + pending.getGenreName());
             if (pending.getAuthorId().equals(authorId)) {
                 relevantPending.add(pending);
             }
         }
 
         if (relevantPending.isEmpty()) {
-            System.out.println(" [QUERY] ℹ️ No pending book events found for author ID: " + authorId);
             return;
         }
 
@@ -588,23 +566,7 @@ public class BookServiceImpl implements BookService {
                 );
 
                 try {
-                    System.out.println(" [QUERY] 🔧 DEBUG: About to save book with ISBN: " + pending.getBookId());
-                    System.out.println(" [QUERY] 🔧 DEBUG: BookRepository class: " + bookRepository.getClass().getName());
-                    System.out.println(" [QUERY] 🔧 DEBUG: Genre has MongoDB ID: " + genre.getId());
-                    System.out.println(" [QUERY] 🔧 DEBUG: Author has MongoDB ID: " + author.getId());
-                    System.out.println(" [QUERY] 🔧 DEBUG: Book ISBN: " + newBook.getIsbn());
-                    System.out.println(" [QUERY] 🔧 DEBUG: Book Title: " + newBook.getTitle());
-
                     Book savedBook = bookRepository.save(newBook);
-                    System.out.println(" [QUERY] 🔧 DEBUG: Book saved, returned ID: " + (savedBook != null ? savedBook.getId() : "null"));
-
-                    // Verify the book was actually persisted
-                    Optional<Book> verifyBook = bookRepository.findByIsbn(pending.getBookId());
-                    System.out.println(" [QUERY] 🔧 DEBUG: Verification lookup: " + (verifyBook.isPresent() ? "FOUND" : "NOT FOUND"));
-
-                    if (verifyBook.isPresent()) {
-                        System.out.println(" [QUERY] 🔧 DEBUG: Verified book has MongoDB ID: " + verifyBook.get().getId());
-                    }
 
                     System.out.println(" [QUERY] ✅ Pending book finalized and created: " + pending.getBookId() +
                                      " with author: " + pending.getAuthorName() +

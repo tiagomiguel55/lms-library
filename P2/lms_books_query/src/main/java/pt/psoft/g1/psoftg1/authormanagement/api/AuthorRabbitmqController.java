@@ -47,29 +47,11 @@ public class AuthorRabbitmqController {
                     "Author biography",
                     null
                 );
-                System.out.println(" [QUERY] 🔧 DEBUG: About to save author: " + authorViewAMQP.getName());
-                System.out.println(" [QUERY] 🔧 DEBUG: AuthorRepository class: " + authorRepository.getClass().getName());
 
-                // Force save and flush to MongoDB
                 Author savedAuthor = authorRepository.save(newAuthor);
-
-                System.out.println(" [QUERY] 🔧 DEBUG: Author saved, returned ID: " + (savedAuthor != null ? savedAuthor.getId() : "null"));
-                System.out.println(" [QUERY] 🔧 DEBUG: Author authorNumber: " + (savedAuthor != null ? savedAuthor.getAuthorNumber() : "null"));
-
-                // Force a second verification by querying MongoDB directly
-                Optional<Author> verifyAuthor = authorRepository.findByAuthorNumber(authorViewAMQP.getAuthorNumber());
-                System.out.println(" [QUERY] 🔧 DEBUG: Verification lookup: " + (verifyAuthor.isPresent() ? "FOUND" : "NOT FOUND"));
-
-                if (verifyAuthor.isPresent()) {
-                    Author verified = verifyAuthor.get();
-                    System.out.println(" [QUERY] 🔧 DEBUG: Verified author has MongoDB ID: " + verified.getId());
-                }
-
                 System.out.println(" [QUERY] ✅ Author created in query model: " + savedAuthor.getName() + " (ID: " + savedAuthor.getAuthorNumber() + ")");
 
                 // Process any pending books waiting for this author
-                // Call this AFTER the author is saved and transaction is committed
-                System.out.println(" [QUERY] 🔍 Checking for pending books for author ID: " + authorViewAMQP.getAuthorNumber());
                 bookService.processPendingBooksForAuthor(authorViewAMQP.getAuthorNumber());
             } catch (Exception e) {
                 System.out.println(" [QUERY] ❌ Error creating author: " + e.getMessage());
