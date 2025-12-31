@@ -17,6 +17,7 @@ import pt.psoft.g1.psoftg1.shared.model.BookEvents;
 import pt.psoft.g1.psoftg1.shared.model.GenreEvents;
 import pt.psoft.g1.psoftg1.shared.model.LendingEvents;
 import pt.psoft.g1.psoftg1.shared.model.ReaderEvents;
+import pt.psoft.g1.psoftg1.shared.model.UserEvents;
 import pt.psoft.g1.psoftg1.shared.publishers.RpcBootstrapPublisher;
 
 @Configuration
@@ -100,17 +101,17 @@ public class RabbitMQConfig {
 
         @Bean
         public Queue readerCreatedQueue() {
-            return new Queue("readers.reader.created", true);  // Named durable queue
+            return new AnonymousQueue();
         }
 
         @Bean
         public Queue readerUpdatedQueue() {
-            return new Queue("readers.reader.updated", true);  // Named durable queue
+            return new AnonymousQueue();
         }
 
         @Bean
         public Queue readerDeletedQueue() {
-            return new Queue("readers.reader.deleted", true);  // Named durable queue
+            return new AnonymousQueue();
         }
 
         // SAGA queues for Reader-User creation (DURABLE NAMED QUEUES)
@@ -132,6 +133,22 @@ public class RabbitMQConfig {
         @Bean
         public Queue readerPendingCreatedQueue() {
             return new Queue("reader.pending.created", true);
+        }
+
+        // User event queues for receiving events from lms_auth_users
+        @Bean
+        public Queue userCreatedQueue() {
+            return new AnonymousQueue();
+        }
+
+        @Bean
+        public Queue userUpdatedQueue() {
+            return new AnonymousQueue();
+        }
+
+        @Bean
+        public Queue userDeletedQueue() {
+            return new AnonymousQueue();
         }
 
 
@@ -292,12 +309,38 @@ public class RabbitMQConfig {
                     .with("user.pending.created");
         }
 
+
         @Bean
         public Binding readerPendingCreatedBinding(DirectExchange direct,
                                                    @Qualifier("readerPendingCreatedQueue") Queue queue) {
             return BindingBuilder.bind(queue)
                     .to(direct)
                     .with("reader.pending.created");
+        }
+
+        // User event bindings for receiving events from lms_auth_users
+        @Bean
+        public Binding userCreatedBinding(DirectExchange direct,
+                                         @Qualifier("userCreatedQueue") Queue queue) {
+            return BindingBuilder.bind(queue)
+                    .to(direct)
+                    .with(UserEvents.USER_CREATED);
+        }
+
+        @Bean
+        public Binding userUpdatedBinding(DirectExchange direct,
+                                         @Qualifier("userUpdatedQueue") Queue queue) {
+            return BindingBuilder.bind(queue)
+                    .to(direct)
+                    .with(UserEvents.USER_UPDATED);
+        }
+
+        @Bean
+        public Binding userDeletedBinding(DirectExchange direct,
+                                         @Qualifier("userDeletedQueue") Queue queue) {
+            return BindingBuilder.bind(queue)
+                    .to(direct)
+                    .with(UserEvents.USER_DELETED);
         }
 
         @Bean

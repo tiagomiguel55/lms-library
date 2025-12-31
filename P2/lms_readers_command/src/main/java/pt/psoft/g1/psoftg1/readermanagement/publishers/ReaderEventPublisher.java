@@ -14,6 +14,7 @@ import pt.psoft.g1.psoftg1.readermanagement.api.ReaderViewAMQPMapper;
 import pt.psoft.g1.psoftg1.readermanagement.api.SagaCreationResponse;
 import pt.psoft.g1.psoftg1.readermanagement.model.ReaderDetails;
 import pt.psoft.g1.psoftg1.shared.model.ReaderEvents;
+import pt.psoft.g1.psoftg1.shared.model.UserEvents;
 
 @Component
 @RequiredArgsConstructor
@@ -82,7 +83,7 @@ public class ReaderEventPublisher {
             String jsonString = objectMapper.writeValueAsString(request);
 
             // Send to both user and reader queues
-            this.template.convertAndSend(direct.getName(), "reader.user.requested.user", jsonString);
+            this.template.convertAndSend(direct.getName(), UserEvents.USER_REQUESTED, jsonString);
             this.template.convertAndSend(direct.getName(), "reader.user.requested.reader", jsonString);
 
             System.out.println(" [x] Sent Reader-User Requested event to both queues: '" + jsonString + "'");
