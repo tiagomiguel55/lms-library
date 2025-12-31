@@ -151,17 +151,21 @@ public class LendingController {
                 final Integer seq,
             @Valid @RequestBody final SetLendingReturnedRequest resource) {
         String ln = year + "/" + seq;
-        final var maybeLending = lendingService.findByLendingNumber(ln)
-                .orElseThrow(() -> new NotFoundException(Lending.class, ln));
-        
+
         final String ifMatchValue = request.getHeader(ConcurrencyService.IF_MATCH);
         long desiredVersion;
         
         if (ifMatchValue != null && !ifMatchValue.isEmpty() && !ifMatchValue.equals("null")) {
             desiredVersion = concurrencyService.getVersionFromIfMatchHeader(ifMatchValue);
+            // Validate lending exists when using explicit version
+            lendingService.findByLendingNumber(ln)
+                    .orElseThrow(() -> new NotFoundException(Lending.class, ln));
         } else {
-            // If If-Match header is not provided (e.g., from Swagger), use current version from database
+            // If If-Match header is not provided (e.g., from Swagger), fetch and use current version from database
+            final var maybeLending = lendingService.findByLendingNumber(ln)
+                    .orElseThrow(() -> new NotFoundException(Lending.class, ln));
             desiredVersion = maybeLending.getVersion();
+            System.out.println("No If-Match header provided, using current version from DB: " + desiredVersion);
         }
 
         // Authorization temporarily disabled while auth microservice is unavailable
