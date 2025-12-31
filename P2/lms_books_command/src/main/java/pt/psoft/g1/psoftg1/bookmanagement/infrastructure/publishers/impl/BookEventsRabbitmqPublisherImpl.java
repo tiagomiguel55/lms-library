@@ -6,6 +6,7 @@ import pt.psoft.g1.psoftg1.bookmanagement.api.BookFinalizedEvent;
 import pt.psoft.g1.psoftg1.bookmanagement.api.BookRequestedEvent;
 import pt.psoft.g1.psoftg1.bookmanagement.api.BookViewAMQP;
 import pt.psoft.g1.psoftg1.bookmanagement.api.BookViewAMQPMapper;
+import pt.psoft.g1.psoftg1.bookmanagement.api.LendingValidationResponse;
 import pt.psoft.g1.psoftg1.bookmanagement.model.Book;
 import pt.psoft.g1.psoftg1.bookmanagement.publishers.BookEventsPublisher;
 import pt.psoft.g1.psoftg1.shared.model.BookEvents;
@@ -85,6 +86,30 @@ public class BookEventsRabbitmqPublisherImpl implements BookEventsPublisher {
         }
         catch( Exception ex ) {
             System.out.println(" [x] Exception saving book finalized event to outbox: '" + ex.getMessage() + "'");
+            return null;
+        }
+    }
+
+    @Override
+    public LendingValidationResponse sendBookValidationResponse(LendingValidationResponse response) {
+        System.out.println(" [BOOKS] 📤 Saving book validation response to Outbox for lending: " + response.getLendingNumber());
+
+        try {
+            // Save to outbox with routing key for lending validation response
+            outboxService.saveEvent(
+                "Book",
+                response.getIsbn(),
+                "lending.validation.response",
+                response
+            );
+
+            System.out.println(" [BOOKS] ✅ Validation response saved to Outbox | RequestId: " + response.getRequestId() +
+                             " | Book exists: " + response.isBookExists());
+
+            return response;
+        }
+        catch( Exception ex ) {
+            System.out.println(" [BOOKS] ❌ Exception saving validation response to outbox: '" + ex.getMessage() + "'");
             return null;
         }
     }

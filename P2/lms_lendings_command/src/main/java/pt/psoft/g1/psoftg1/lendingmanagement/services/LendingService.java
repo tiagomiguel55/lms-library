@@ -41,4 +41,7 @@ public interface LendingService {
     void readerValidated(String lendingNumber);
 
     void bookValidated(String lendingNumber);
+
+    // Novo método para processar respostas de validação via RabbitMQ
+    void processBookValidationResponse(pt.psoft.g1.psoftg1.lendingmanagement.api.LendingValidationResponse response);
 }

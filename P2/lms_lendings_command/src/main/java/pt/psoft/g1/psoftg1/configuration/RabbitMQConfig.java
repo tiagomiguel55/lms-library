@@ -7,8 +7,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import pt.psoft.g1.psoftg1.bookmanagement.listeners.BookEventListener;
 import pt.psoft.g1.psoftg1.bookmanagement.services.BookService;
-import pt.psoft.g1.psoftg1.lendingmanagement.listeners.LendingEventListener;
-import pt.psoft.g1.psoftg1.lendingmanagement.services.LendingService;
 import pt.psoft.g1.psoftg1.readermanagement.listeners.ReaderEventListener;
 import pt.psoft.g1.psoftg1.readermanagement.services.ReaderService;
 import pt.psoft.g1.psoftg1.shared.model.BookEvents;
@@ -22,6 +20,12 @@ public class RabbitMQConfig {
     @Bean
     public DirectExchange directExchange() {
         return new DirectExchange("LMS.direct");
+    }
+
+    // ========== BOOKS EXCHANGE (to receive events from Books Command service) ==========
+    @Bean
+    public DirectExchange booksExchange() {
+        return new DirectExchange("books.exchange");
     }
 
     @Bean
@@ -46,17 +50,17 @@ public class RabbitMQConfig {
 
     @Bean
     public Queue bookCreatedQueue() {
-        return new AnonymousQueue();
+        return new Queue("lending.book.created", true);  // Named durable queue
     }
 
     @Bean
     public Queue bookUpdatedQueue() {
-        return new AnonymousQueue();
+        return new Queue("lending.book.updated", true);  // Named durable queue
     }
 
     @Bean
     public Queue bookDeletedQueue() {
-        return new AnonymousQueue();
+        return new Queue("lending.book.deleted", true);  // Named durable queue
     }
 
     @Bean
@@ -114,8 +118,19 @@ public class RabbitMQConfig {
         return new AnonymousQueue();
     }
 
+    // ========== LENDING VALIDATION QUEUES (Durable Named Queues) ==========
     @Bean
-    public Binding bookLendingRequestBinding(DirectExchange direct,
+    public Queue lendingValidationRequestQueue() {
+        return new Queue("lending.validation.request", true);
+    }
+
+    @Bean
+    public Queue lendingValidationResponseQueue() {
+        return new Queue("lending.validation.response", true);
+    }
+
+    @Bean
+    public Binding bookLendingRequestBinding(@Qualifier("directExchange") DirectExchange direct,
                                              @Qualifier("bookLendingRequestQueue") Queue queue) {
         return BindingBuilder.bind(queue)
                 .to(direct)
@@ -123,7 +138,7 @@ public class RabbitMQConfig {
     }
 
     @Bean
-    public Binding bookLendingResponseBinding(DirectExchange direct,
+    public Binding bookLendingResponseBinding(@Qualifier("directExchange") DirectExchange direct,
                                              @Qualifier("bookLendingResponseQueue") Queue queue) {
         return BindingBuilder.bind(queue)
                 .to(direct)
@@ -131,7 +146,7 @@ public class RabbitMQConfig {
     }
 
     @Bean
-    public Binding readerLendingRequestBinding(DirectExchange direct,
+    public Binding readerLendingRequestBinding(@Qualifier("directExchange") DirectExchange direct,
                                              @Qualifier("readerLendingRequestQueue") Queue queue) {
         return BindingBuilder.bind(queue)
                 .to(direct)
@@ -139,38 +154,39 @@ public class RabbitMQConfig {
     }
 
     @Bean
-    public Binding readerLendingResponseBinding(DirectExchange direct,
+    public Binding readerLendingResponseBinding(@Qualifier("directExchange") DirectExchange direct,
                                              @Qualifier("readerLendingResponseQueue") Queue queue) {
         return BindingBuilder.bind(queue)
                 .to(direct)
                 .with("reader.lending.responses");
     }
+
     @Bean
-    public Binding bookCreatedBinding(DirectExchange direct,
+    public Binding bookCreatedBinding(@Qualifier("booksExchange") DirectExchange booksExchange,
                                       @Qualifier("bookCreatedQueue") Queue bookCreatedQueue) {
         return BindingBuilder.bind(bookCreatedQueue)
-                .to(direct)
+                .to(booksExchange)
                 .with(BookEvents.BOOK_CREATED);
     }
 
     @Bean
-    public Binding bookUpdatedBinding(DirectExchange direct,
+    public Binding bookUpdatedBinding(@Qualifier("booksExchange") DirectExchange booksExchange,
                                       @Qualifier("bookUpdatedQueue") Queue bookUpdatedQueue) {
         return BindingBuilder.bind(bookUpdatedQueue)
-                .to(direct)
+                .to(booksExchange)
                 .with(BookEvents.BOOK_UPDATED);
     }
 
     @Bean
-    public Binding bookDeletedBinding(DirectExchange direct,
+    public Binding bookDeletedBinding(@Qualifier("booksExchange") DirectExchange booksExchange,
                                       @Qualifier("bookDeletedQueue") Queue bookDeletedQueue) {
         return BindingBuilder.bind(bookDeletedQueue)
-                .to(direct)
+                .to(booksExchange)
                 .with(BookEvents.BOOK_DELETED);
     }
 
     @Bean
-    public Binding lendingCreatedBinding(DirectExchange direct,
+    public Binding lendingCreatedBinding(@Qualifier("directExchange") DirectExchange direct,
                                          @Qualifier("lendingCreatedQueue") Queue queue) {
         return BindingBuilder.bind(queue)
                 .to(direct)
@@ -178,7 +194,7 @@ public class RabbitMQConfig {
     }
 
     @Bean
-    public Binding lendingUpdatedBinding(DirectExchange direct,
+    public Binding lendingUpdatedBinding(@Qualifier("directExchange") DirectExchange direct,
                                          @Qualifier("lendingUpdatedQueue") Queue queue) {
         return BindingBuilder.bind(queue)
                 .to(direct)
@@ -186,7 +202,7 @@ public class RabbitMQConfig {
     }
 
     @Bean
-    public Binding lendingDeletedBinding(DirectExchange direct,
+    public Binding lendingDeletedBinding(@Qualifier("directExchange") DirectExchange direct,
                                          @Qualifier("lendingDeletedQueue") Queue queue) {
         return BindingBuilder.bind(queue)
                 .to(direct)
@@ -194,7 +210,7 @@ public class RabbitMQConfig {
     }
 
     @Bean
-    public Binding lendingReturnedBinding(DirectExchange direct,
+    public Binding lendingReturnedBinding(@Qualifier("directExchange") DirectExchange direct,
                                           @Qualifier("lendingReturnedQueue") Queue queue) {
         return BindingBuilder.bind(queue)
                 .to(direct)
@@ -202,7 +218,7 @@ public class RabbitMQConfig {
     }
 
     @Bean
-    public Binding readerCreatedBinding(DirectExchange direct,
+    public Binding readerCreatedBinding(@Qualifier("directExchange") DirectExchange direct,
                                         @Qualifier("readerCreatedQueue") Queue queue) {
         return BindingBuilder.bind(queue)
                 .to(direct)
@@ -210,7 +226,7 @@ public class RabbitMQConfig {
     }
 
     @Bean
-    public Binding readerUpdatedBinding(DirectExchange direct,
+    public Binding readerUpdatedBinding(@Qualifier("directExchange") DirectExchange direct,
                                         @Qualifier("readerUpdatedQueue") Queue queue) {
         return BindingBuilder.bind(queue)
                 .to(direct)
@@ -218,7 +234,7 @@ public class RabbitMQConfig {
     }
 
     @Bean
-    public Binding readerDeletedBinding(DirectExchange direct,
+    public Binding readerDeletedBinding(@Qualifier("directExchange") DirectExchange direct,
                                         @Qualifier("readerDeletedQueue") Queue queue) {
         return BindingBuilder.bind(queue)
                 .to(direct)
@@ -226,7 +242,7 @@ public class RabbitMQConfig {
     }
 
     @Bean
-    public Binding validateBookBinding(DirectExchange direct,
+    public Binding validateBookBinding(@Qualifier("directExchange") DirectExchange direct,
                                         @Qualifier("validateBookQueue") Queue queue) {
         return BindingBuilder.bind(queue)
                 .to(direct)
@@ -234,7 +250,7 @@ public class RabbitMQConfig {
     }
 
     @Bean
-    public Binding bookValidatedBinding(DirectExchange direct,
+    public Binding bookValidatedBinding(@Qualifier("directExchange") DirectExchange direct,
                                         @Qualifier("bookValidatedQueue") Queue queue) {
         return BindingBuilder.bind(queue)
                 .to(direct)
@@ -242,7 +258,7 @@ public class RabbitMQConfig {
     }
 
     @Bean
-    public Binding validateReaderBinding(DirectExchange direct,
+    public Binding validateReaderBinding(@Qualifier("directExchange") DirectExchange direct,
                                          @Qualifier("validateReaderQueue") Queue queue) {
         return BindingBuilder.bind(queue)
                 .to(direct)
@@ -250,21 +266,33 @@ public class RabbitMQConfig {
     }
 
     @Bean
-    public Binding readerValidatedBinding(DirectExchange direct,
+    public Binding readerValidatedBinding(@Qualifier("directExchange") DirectExchange direct,
                                           @Qualifier("readerValidatedQueue") Queue queue) {
         return BindingBuilder.bind(queue)
                 .to(direct)
                 .with("reader.validated");
     }
 
+    // ========== LENDING VALIDATION BINDINGS ==========
     @Bean
-    public BookEventListener bookReceiver(BookService bookService) {
-        return new BookEventListener(bookService);
+    public Binding lendingValidationRequestBinding(@Qualifier("directExchange") DirectExchange direct,
+                                                     @Qualifier("lendingValidationRequestQueue") Queue queue) {
+        return BindingBuilder.bind(queue)
+                .to(direct)
+                .with("lending.validation.request");
     }
 
     @Bean
-    public LendingEventListener lendingReceiver(LendingService lendingService) {
-        return new LendingEventListener(lendingService);
+    public Binding lendingValidationResponseBinding(@Qualifier("directExchange") DirectExchange direct,
+                                                      @Qualifier("lendingValidationResponseQueue") Queue queue) {
+        return BindingBuilder.bind(queue)
+                .to(direct)
+                .with("lending.validation.response");
+    }
+
+    @Bean
+    public BookEventListener bookReceiver(BookService bookService) {
+        return new BookEventListener(bookService);
     }
 
     @Bean

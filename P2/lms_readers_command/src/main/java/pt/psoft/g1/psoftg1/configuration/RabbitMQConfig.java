@@ -116,25 +116,25 @@ public class RabbitMQConfig {
             return new AnonymousQueue();
         }
 
-        // SAGA queues for Reader-User creation
+        // SAGA queues for Reader-User creation (DURABLE NAMED QUEUES)
         @Bean
         public Queue readerUserRequestedUserQueue() {
-            return new AnonymousQueue();
+            return new Queue("reader.user.requested.user", true);
         }
 
         @Bean
         public Queue readerUserRequestedReaderQueue() {
-            return new AnonymousQueue();
+            return new Queue("reader.user.requested.reader", true);
         }
 
         @Bean
         public Queue userPendingCreatedQueue() {
-            return new AnonymousQueue();
+            return new Queue("user.pending.created", true);
         }
 
         @Bean
         public Queue readerPendingCreatedQueue() {
-            return new AnonymousQueue();
+            return new Queue("reader.pending.created", true);
         }
 
 

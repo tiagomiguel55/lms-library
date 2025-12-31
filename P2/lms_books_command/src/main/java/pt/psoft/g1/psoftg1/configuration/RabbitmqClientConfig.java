@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import pt.psoft.g1.psoftg1.authormanagement.repositories.AuthorRepository;
 import pt.psoft.g1.psoftg1.bookmanagement.api.BookRabbitmqController;
+import pt.psoft.g1.psoftg1.bookmanagement.publishers.BookEventsPublisher;
 import pt.psoft.g1.psoftg1.bookmanagement.repositories.BookRepository;
 import pt.psoft.g1.psoftg1.bookmanagement.repositories.PendingBookRequestRepository;
 import pt.psoft.g1.psoftg1.bookmanagement.services.BookService;
@@ -111,6 +112,17 @@ public class RabbitmqClientConfig {
     @Bean
     public Queue autoDeleteQueue_Book_Finalized_Genre() {
         return new Queue("book.finalized.genre", true);
+    }
+
+    // ========== LENDING VALIDATION QUEUES ==========
+    @Bean
+    public Queue lendingValidationRequestQueue() {
+        return new Queue("lending.validation.request", true);
+    }
+
+    @Bean
+    public Queue lendingValidationResponseQueue() {
+        return new Queue("lending.validation.response", true);
     }
 
     // Bindings permanecem iguais
@@ -242,6 +254,23 @@ public class RabbitmqClientConfig {
                 .with(BookEvents.BOOK_FINALIZED);
     }
 
+    // ========== LENDING VALIDATION BINDINGS ==========
+    @Bean
+    public Binding lendingValidationRequestBinding(DirectExchange direct,
+                                                     Queue lendingValidationRequestQueue){
+        return BindingBuilder.bind(lendingValidationRequestQueue)
+                .to(direct)
+                .with("lending.validation.request");
+    }
+
+    @Bean
+    public Binding lendingValidationResponseBinding(DirectExchange direct,
+                                                      Queue lendingValidationResponseQueue){
+        return BindingBuilder.bind(lendingValidationResponseQueue)
+                .to(direct)
+                .with("lending.validation.response");
+    }
+
     @Bean
     public BookRabbitmqController receiver(
             BookService bookService,
@@ -249,7 +278,8 @@ public class RabbitmqClientConfig {
             AuthorRepository authorRepository,
             GenreRepository genreRepository,
             PendingBookRequestRepository pendingBookRequestRepository,
+            BookEventsPublisher bookEventsPublisher,
             @Qualifier("autoDeleteQueue_Book_Created") Queue autoDeleteQueue_Book_Created){
-        return new BookRabbitmqController(bookService, bookRepository, authorRepository, genreRepository, pendingBookRequestRepository);
+        return new BookRabbitmqController(bookService, bookRepository, authorRepository, genreRepository, pendingBookRequestRepository, bookEventsPublisher);
     }
 }
