@@ -92,18 +92,20 @@ public class LendingServiceImpl implements LendingService{
             }
         }
 
-        System.out.println(" [LENDING] Creating pending book placeholder for ISBN: " + resource.getIsbn());
-        // Create a temporary book placeholder - will be validated asynchronously
-        // If the book doesn't exist in Books Command, the lending will be rejected
-        final Book tempBook = new Book(resource.getIsbn(), "Pending Validation", "Book under validation", null);
+        // Check if book already exists locally (from previous book creation events)
+        Book bookToUse = bookRepository.findByIsbn(resource.getIsbn()).orElseGet(() -> {
+            System.out.println(" [LENDING] Creating pending book placeholder for ISBN: " + resource.getIsbn());
+            // Create and persist a temporary book placeholder - will be validated asynchronously
+            Book tempBook = new Book(resource.getIsbn(), "Pending Validation", "Book under validation", null);
+            return bookRepository.save(tempBook);
+        });
 
-        final var r = readerDetails;
-        System.out.println(" [LENDING] Reader details: " + r.getReaderNumber());
+        System.out.println(" [LENDING] Reader details: " + readerDetails.getReaderNumber());
 
         int seq = lendingRepository.getCountFromCurrentYear()+1;
         System.out.println(" [LENDING] Creating Lending object with seq: " + seq);
 
-        final Lending l = new Lending(tempBook, r, seq, lendingDurationInDays, fineValuePerDayInCents);
+        final Lending l = new Lending(bookToUse, readerDetails, seq, lendingDurationInDays, fineValuePerDayInCents);
 
         // Set initial status as PENDING_VALIDATION (will be validated asynchronously)
         l.setBookValid(false);
@@ -382,6 +384,18 @@ public class LendingServiceImpl implements LendingService{
             if (response.isBookExists()) {
                 // Book exists - validate and finalize the lending
                 System.out.println(" [LENDING] ✅ Book validated successfully: " + response.getIsbn());
+
+                // Try to get the real book from local repository (synchronized from Books Command events)
+                Optional<Book> realBook = bookRepository.findByIsbn(response.getIsbn());
+
+                if (realBook.isPresent() && !realBook.get().getTitle().toString().equals("Pending Validation")) {
+                    // Real book data is available, update the lending with it
+                    System.out.println(" [LENDING] 📚 Updating lending with real book data: " + realBook.get().getTitle());
+                    lending.setBook(realBook.get());
+                } else {
+                    System.out.println(" [LENDING] ⚠️ Real book data not yet synchronized, keeping placeholder");
+                }
+
                 lending.setBookValid(true);
                 lending.setLendingStatus("VALIDATED");
 
