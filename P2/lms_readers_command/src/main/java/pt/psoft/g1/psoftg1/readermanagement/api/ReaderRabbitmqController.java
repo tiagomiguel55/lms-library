@@ -281,7 +281,7 @@ public class ReaderRabbitmqController {
                     return;
                 }
 
-                // Mark what was received
+                // Mark what was received (using OR to preserve existing values)
                 if (isUserPending) {
                     pendingRequest.setUserPendingReceived(true);
                     System.out.println(" [x] User pending ✓");
@@ -291,8 +291,11 @@ public class ReaderRabbitmqController {
                     System.out.println(" [x] Reader pending ✓");
                 }
 
-                // Check if BOTH are now received
-                if (pendingRequest.isUserPendingReceived() && pendingRequest.isReaderPendingReceived()) {
+                // CRITICAL: Only transition to BOTH_PENDING_CREATED if BOTH flags are actually true
+                // Re-fetch current state to ensure we have latest values from DB
+                boolean bothReceived = pendingRequest.isUserPendingReceived() && pendingRequest.isReaderPendingReceived();
+
+                if (bothReceived) {
                     pendingRequest.setStatus(PendingReaderUserRequest.RequestStatus.BOTH_PENDING_CREATED);
                     System.out.println(" [x] ✅ Both User and Reader confirmed → BOTH_PENDING_CREATED");
                 } else {
@@ -302,15 +305,17 @@ public class ReaderRabbitmqController {
 
                 pendingReaderUserRequestRepository.save(pendingRequest);
 
-                // Try to finalize if ready
-                tryCreateReaderAndUser(readerNumber);
+                // Try to finalize ONLY if both are received
+                if (bothReceived) {
+                    tryCreateReaderAndUser(readerNumber);
+                }
                 break; // Success
 
             } catch (OptimisticLockingFailureException e) {
                 if (attempt < maxRetries - 1) {
                     System.out.println(" [x] ⚠️ Optimistic lock conflict (attempt " + (attempt + 1) + "), retrying...");
                     try {
-                        // Exponential backoff: 50ms, 100ms, 200ms, 400ms
+                        // Exponential backoff: 50ms, 100ms, 200ms, 400ms, 800ms
                         Thread.sleep(50 * (1L << attempt));
                     } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();
