@@ -48,7 +48,7 @@ public class ReaderRabbitmqController {
     // SAGA: Reader + User Creation
     // ========================================
 
-    @RabbitListener(queues = "reader.user.requested.reader")
+    @RabbitListener(queues = "reader.user.requested.reader", concurrency = "1")
     public void receiveReaderUserRequested(String jsonReceived) {
         try {
             System.out.println(" [x] [SAGA-Step1] Received Reader-User creation request");
@@ -113,7 +113,7 @@ public class ReaderRabbitmqController {
         }
     }
 
-    @RabbitListener(queues = "user.pending.created")
+    @RabbitListener(queues = "user.pending.created", concurrency = "1")
     public void receiveUserPendingCreated(String jsonReceived) {
         try {
             System.out.println(" [x] [SAGA-Step2] Received User creation confirmation");
@@ -132,7 +132,7 @@ public class ReaderRabbitmqController {
         }
     }
 
-    @RabbitListener(queues = "reader.pending.created")
+    @RabbitListener(queues = "reader.pending.created", concurrency = "1")
     public void receiveReaderPendingCreated(String jsonReceived) {
         try {
             System.out.println(" [x] [SAGA-Step3] Received Reader creation confirmation");

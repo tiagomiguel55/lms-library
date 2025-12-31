@@ -27,7 +27,7 @@ public class UserRabbitmqController {
      * Listens to reader.user.requested.user queue
      * Creates a User (Reader) when a Reader+User creation is requested
      */
-    @RabbitListener(queues = "reader.user.requested.user")
+    @RabbitListener(queues = "reader.user.requested.user", concurrency = "1")
     public void receiveReaderUserRequested(String jsonReceived) {
         try {
             System.out.println(" [x] [AUTH-USERS] Received Reader-User creation request");
@@ -93,5 +93,3 @@ public class UserRabbitmqController {
         }
     }
 }
-
-

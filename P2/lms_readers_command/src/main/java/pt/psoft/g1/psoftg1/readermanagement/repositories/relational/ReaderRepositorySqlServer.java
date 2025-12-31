@@ -21,8 +21,9 @@ public interface ReaderRepositorySqlServer  extends JpaRepository<ReaderDetailsE
     @Query("SELECT r FROM ReaderDetailsEntity r")
     List<ReaderDetailsEntity> findAll();
 
-    @Query("SELECT r " +
+    @Query("SELECT DISTINCT r " +
             "FROM ReaderDetailsEntity r " +
+            "LEFT JOIN FETCH r.interestList " +
             "WHERE r.readerNumber.readerNumber = :readerNumber")
     Optional<ReaderDetailsEntity> findByReaderNumber(@Param("readerNumber") @NotNull String readerNumber);
 
