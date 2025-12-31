@@ -92,11 +92,10 @@ public class LendingServiceImpl implements LendingService{
             }
         }
 
-        System.out.println(" [LENDING] Fetching book locally with ISBN: " + resource.getIsbn());
-        // Try to find the book locally - it should be synchronized via events from Books Command
-        final Book b = bookRepository.findByIsbn(resource.getIsbn())
-            .orElseThrow(() -> new NotFoundException("Book with ISBN " + resource.getIsbn() + 
-                " not found locally. Please ensure book exists in Books service and is synchronized."));
+        System.out.println(" [LENDING] Creating pending book placeholder for ISBN: " + resource.getIsbn());
+        // Create a temporary book placeholder - will be validated asynchronously
+        // If the book doesn't exist in Books Command, the lending will be rejected
+        final Book tempBook = new Book(resource.getIsbn(), "Pending Validation", "Book under validation", null);
 
         final var r = readerDetails;
         System.out.println(" [LENDING] Reader details: " + r.getReaderNumber());
@@ -104,7 +103,7 @@ public class LendingServiceImpl implements LendingService{
         int seq = lendingRepository.getCountFromCurrentYear()+1;
         System.out.println(" [LENDING] Creating Lending object with seq: " + seq);
 
-        final Lending l = new Lending(b,r,seq, lendingDurationInDays, fineValuePerDayInCents);
+        final Lending l = new Lending(tempBook, r, seq, lendingDurationInDays, fineValuePerDayInCents);
 
         // Set initial status as PENDING_VALIDATION (will be validated asynchronously)
         l.setBookValid(false);
