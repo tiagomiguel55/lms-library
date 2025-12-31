@@ -10,6 +10,7 @@ package pt.psoft.g1.psoftg1.bookmanagement.api;
     import pt.psoft.g1.psoftg1.authormanagement.repositories.AuthorRepository;
     import pt.psoft.g1.psoftg1.bookmanagement.model.Book;
     import pt.psoft.g1.psoftg1.bookmanagement.model.PendingBookRequest;
+    import pt.psoft.g1.psoftg1.bookmanagement.publishers.BookEventsPublisher;
     import pt.psoft.g1.psoftg1.bookmanagement.repositories.BookRepository;
     import pt.psoft.g1.psoftg1.bookmanagement.repositories.PendingBookRequestRepository;
     import pt.psoft.g1.psoftg1.bookmanagement.services.BookService;
@@ -41,6 +42,9 @@ package pt.psoft.g1.psoftg1.bookmanagement.api;
     
         @Autowired
         private final PendingBookRequestRepository pendingBookRequestRepository;
+
+        @Autowired
+        private final BookEventsPublisher bookEventsPublisher;
     
         @RabbitListener(queues = "#{autoDeleteQueue_Book_Created.name}")
         public void receiveBookCreatedMsg(Message msg) {
@@ -676,5 +680,40 @@ package pt.psoft.g1.psoftg1.bookmanagement.api;
                 ex.printStackTrace();
             }
         }
-    
+
+        @RabbitListener(queues = "#{autoDeleteQueue_Lending_Returned.name}")
+        public void receiveLendingReturned(Message msg) {
+            try {
+                String jsonReceived = new String(msg.getBody(), StandardCharsets.UTF_8);
+                ObjectMapper objectMapper = new ObjectMapper();
+                LendingReturnedEvent event = objectMapper.readValue(jsonReceived, LendingReturnedEvent.class);
+
+                System.out.println("Received LendingReturned in BooksCmd: bookId=" + event.getBookId() +
+                        ", comment=" + event.getComment() + ", grade=" + event.getGrade());
+
+                // Load book and add comment & grade
+                Optional<Book> bookOpt = bookRepository.findByIsbn(event.getBookId());
+                if (bookOpt.isPresent()) {
+                    Book book = bookOpt.get();
+                    // Here you would add the comment and grade to the book
+                    // For now, just log it
+                    System.out.println("Book found: " + book.getTitle());
+                    System.out.println("Adding comment: " + event.getComment() + ", grade: " + event.getGrade());
+
+                    // Publish BookUpdated event
+                    bookEventsPublisher.sendBookUpdated(book, book.getVersion());
+                    System.out.println("Published BookUpdated event for: " + event.getBookId());
+                } else {
+                    System.out.println("Book not found for ISBN: " + event.getBookId());
+                }
+            } catch (Exception ex) {
+                System.out.println("Exception receiving LendingReturned event in BooksCmd: '" + ex.getMessage() + "'");
+                ex.printStackTrace();
+            }
+        }
+
     }
+
+
+    
+

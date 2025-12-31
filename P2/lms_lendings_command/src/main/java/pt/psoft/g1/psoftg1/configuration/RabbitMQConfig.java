@@ -114,6 +114,17 @@ public class RabbitMQConfig {
         return new AnonymousQueue();
     }
 
+    // ========== LENDING VALIDATION QUEUES (Durable Named Queues) ==========
+    @Bean
+    public Queue lendingValidationRequestQueue() {
+        return new Queue("lending.validation.request", true);
+    }
+
+    @Bean
+    public Queue lendingValidationResponseQueue() {
+        return new Queue("lending.validation.response", true);
+    }
+
     @Bean
     public Binding bookLendingRequestBinding(DirectExchange direct,
                                              @Qualifier("bookLendingRequestQueue") Queue queue) {
@@ -255,6 +266,23 @@ public class RabbitMQConfig {
         return BindingBuilder.bind(queue)
                 .to(direct)
                 .with("reader.validated");
+    }
+
+    // ========== LENDING VALIDATION BINDINGS ==========
+    @Bean
+    public Binding lendingValidationRequestBinding(DirectExchange direct,
+                                                     @Qualifier("lendingValidationRequestQueue") Queue queue) {
+        return BindingBuilder.bind(queue)
+                .to(direct)
+                .with("lending.validation.request");
+    }
+
+    @Bean
+    public Binding lendingValidationResponseBinding(DirectExchange direct,
+                                                      @Qualifier("lendingValidationResponseQueue") Queue queue) {
+        return BindingBuilder.bind(queue)
+                .to(direct)
+                .with("lending.validation.response");
     }
 
     @Bean

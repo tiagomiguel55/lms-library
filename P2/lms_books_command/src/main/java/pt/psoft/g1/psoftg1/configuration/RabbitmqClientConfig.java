@@ -113,6 +113,17 @@ public class RabbitmqClientConfig {
         return new Queue("book.finalized.genre", true);
     }
 
+    // ========== LENDING VALIDATION QUEUES ==========
+    @Bean
+    public Queue lendingValidationRequestQueue() {
+        return new Queue("lending.validation.request", true);
+    }
+
+    @Bean
+    public Queue lendingValidationResponseQueue() {
+        return new Queue("lending.validation.response", true);
+    }
+
     // Bindings permanecem iguais
     @Bean
     public Binding binding1(DirectExchange direct,
@@ -240,6 +251,23 @@ public class RabbitmqClientConfig {
         return BindingBuilder.bind(autoDeleteQueue_Book_Finalized_Genre)
                 .to(direct)
                 .with(BookEvents.BOOK_FINALIZED);
+    }
+
+    // ========== LENDING VALIDATION BINDINGS ==========
+    @Bean
+    public Binding lendingValidationRequestBinding(DirectExchange direct,
+                                                     Queue lendingValidationRequestQueue){
+        return BindingBuilder.bind(lendingValidationRequestQueue)
+                .to(direct)
+                .with("lending.validation.request");
+    }
+
+    @Bean
+    public Binding lendingValidationResponseBinding(DirectExchange direct,
+                                                      Queue lendingValidationResponseQueue){
+        return BindingBuilder.bind(lendingValidationResponseQueue)
+                .to(direct)
+                .with("lending.validation.response");
     }
 
     @Bean
