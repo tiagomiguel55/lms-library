@@ -2,6 +2,7 @@ package pt.psoft.g1.psoftg1.readermanagement.services;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import pt.psoft.g1.psoftg1.exceptions.ConflictException;
 import pt.psoft.g1.psoftg1.exceptions.NotFoundException;
@@ -9,8 +10,11 @@ import pt.psoft.g1.psoftg1.genremanagement.model.Genre;
 import pt.psoft.g1.psoftg1.genremanagement.repositories.GenreRepository;
 import pt.psoft.g1.psoftg1.readermanagement.api.ReaderViewAMQP;
 import pt.psoft.g1.psoftg1.readermanagement.api.ReaderViewAMQPMapper;
+import pt.psoft.g1.psoftg1.readermanagement.api.ReaderUserRequestedEvent;
+import pt.psoft.g1.psoftg1.readermanagement.model.PendingReaderUserRequest;
 import pt.psoft.g1.psoftg1.readermanagement.model.ReaderDetails;
 import pt.psoft.g1.psoftg1.readermanagement.publishers.ReaderEventPublisher;
+import pt.psoft.g1.psoftg1.readermanagement.repositories.PendingReaderUserRequestRepository;
 import pt.psoft.g1.psoftg1.readermanagement.repositories.ReaderRepository;
 import pt.psoft.g1.psoftg1.shared.repositories.ForbiddenNameRepository;
 import pt.psoft.g1.psoftg1.shared.repositories.PhotoRepository;
@@ -32,6 +36,7 @@ public class ReaderServiceImpl implements ReaderService {
     private final PhotoRepository photoRepository;
     private final ReaderEventPublisher readerEventPublisher;
     private final ReaderViewAMQPMapper readerViewAMQPMapper;
+    private final PendingReaderUserRequestRepository pendingReaderUserRequestRepository;
 
 
     @Override
@@ -122,6 +127,70 @@ public class ReaderServiceImpl implements ReaderService {
         ReaderDetails saved = readerRepo.save(rd);
         System.out.println("Saved: " + saved);
         return saved;
+    }
+
+    @Override
+    @Transactional
+    public ReaderDetails createWithUser(ReaderUserRequestedEvent request) {
+        // Generate reader number if not provided
+        String readerNumber = request.getReaderNumber();
+        if (readerNumber == null || readerNumber.isEmpty()) {
+            int count = readerRepo.getCountFromCurrentYear();
+            readerNumber = String.format("%d/%d", java.time.LocalDate.now().getYear(), count + 1);
+            request.setReaderNumber(readerNumber);
+        }
+
+        final String username = request.getUsername();
+
+        // Check if user/reader already exists - if so, return it
+        Optional<ReaderDetails> existingReader = readerRepo.findByReaderNumber(readerNumber);
+        if (existingReader.isPresent()) {
+            System.out.println(" [x] Reader already exists with number: " + readerNumber);
+            return existingReader.get();
+        }
+
+        if (userRepo.findByUsername(username).isPresent()) {
+            System.out.println(" [x] User already exists with username: " + username);
+            throw new ConflictException("Username already exists!");
+        }
+
+        // Check if request is already pending
+        Optional<PendingReaderUserRequest> pendingRequest = pendingReaderUserRequestRepository.findByReaderNumber(readerNumber);
+        if (pendingRequest.isPresent()) {
+            PendingReaderUserRequest pending = pendingRequest.get();
+            System.out.println(" [x] Reader and User creation request already pending for reader number: " + readerNumber +
+                             " (Status: " + pending.getStatus() + ")");
+
+            // Check status and provide appropriate response
+            if (pending.getStatus() == PendingReaderUserRequest.RequestStatus.READER_USER_CREATED) {
+                // Reader and User were already created, try to find it
+                existingReader = readerRepo.findByReaderNumber(readerNumber);
+                if (existingReader.isPresent()) {
+                    return existingReader.get();
+                }
+            }
+
+            // Request is still pending, return null to indicate async processing
+            return null;
+        }
+
+        // Save pending request - we need to wait for both UserCmd and ReaderCmd
+        PendingReaderUserRequest newPendingRequest = new PendingReaderUserRequest(
+                readerNumber, username, request.getPassword(), request.getFullName(),
+                request.getBirthDate(), request.getPhoneNumber(), request.getPhotoURI(),
+                request.isGdpr(), request.isMarketing(), request.isThirdParty()
+        );
+        pendingReaderUserRequestRepository.save(newPendingRequest);
+
+        System.out.println(" [x] Saved pending reader-user request for reader number: " + readerNumber);
+
+        // Publish ReaderUserRequestedEvent - BOTH UserCmd and ReaderCmd will listen to this event
+        System.out.println(" [x] Publishing Reader-User Requested event for reader number: " + readerNumber);
+        readerEventPublisher.sendReaderUserRequestedEvent(request);
+
+        // Return null - the controller will handle this by returning HTTP 202 Accepted
+        // The actual reader and user will be created asynchronously when both UserPendingCreated and ReaderPendingCreated events arrive
+        return null;
     }
 
 

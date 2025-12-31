@@ -116,6 +116,27 @@ public class RabbitMQConfig {
             return new AnonymousQueue();
         }
 
+        // SAGA queues for Reader-User creation
+        @Bean
+        public Queue readerUserRequestedUserQueue() {
+            return new AnonymousQueue();
+        }
+
+        @Bean
+        public Queue readerUserRequestedReaderQueue() {
+            return new AnonymousQueue();
+        }
+
+        @Bean
+        public Queue userPendingCreatedQueue() {
+            return new AnonymousQueue();
+        }
+
+        @Bean
+        public Queue readerPendingCreatedQueue() {
+            return new AnonymousQueue();
+        }
+
 
         // Definindo bindings para as filas
 
@@ -247,6 +268,39 @@ public class RabbitMQConfig {
             return BindingBuilder.bind(queue)
                     .to(direct)
                     .with(ReaderEvents.READER_DELETED);
+        }
+
+        // SAGA bindings for Reader-User creation
+        @Bean
+        public Binding readerUserRequestedUserBinding(DirectExchange direct,
+                                                      @Qualifier("readerUserRequestedUserQueue") Queue queue) {
+            return BindingBuilder.bind(queue)
+                    .to(direct)
+                    .with("reader.user.requested.user");
+        }
+
+        @Bean
+        public Binding readerUserRequestedReaderBinding(DirectExchange direct,
+                                                        @Qualifier("readerUserRequestedReaderQueue") Queue queue) {
+            return BindingBuilder.bind(queue)
+                    .to(direct)
+                    .with("reader.user.requested.reader");
+        }
+
+        @Bean
+        public Binding userPendingCreatedBinding(DirectExchange direct,
+                                                 @Qualifier("userPendingCreatedQueue") Queue queue) {
+            return BindingBuilder.bind(queue)
+                    .to(direct)
+                    .with("user.pending.created");
+        }
+
+        @Bean
+        public Binding readerPendingCreatedBinding(DirectExchange direct,
+                                                   @Qualifier("readerPendingCreatedQueue") Queue queue) {
+            return BindingBuilder.bind(queue)
+                    .to(direct)
+                    .with("reader.pending.created");
         }
 
         @Bean
