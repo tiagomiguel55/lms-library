@@ -74,6 +74,12 @@
 			<optional>true</optional>
 		</dependency>
 
+		<!-- RabbitMQ for SAGA participation -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-amqp</artifactId>
+		</dependency>
+
 		<!-- OpenAPI & Swagger UI-->
 		<dependency>
 			<groupId>org.springdoc</groupId>
