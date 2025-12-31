@@ -30,6 +30,7 @@ public interface ReaderEntityMapper {
     @Mapping(target="thirdParty", source="thirdPartySharingConsent")
     @Mapping(target="version", source="version")
     @Mapping(target="reader.version", source="reader.version")
+    @Mapping(target="reader.name", source="reader.name", qualifiedByName = "nameEntityToString")
     ReaderDetails toModel(ReaderDetailsEntity readerDetails);
     @Mapping(target = "readerNumber", source = "readerNumber", qualifiedByName = "map1")
     @Mapping(target="birthDate", source="birthDate", qualifiedByName = "mapbd")
@@ -38,6 +39,7 @@ public interface ReaderEntityMapper {
     @Mapping(target="thirdParty", source="thirdPartySharingConsent")
     @Mapping(target="version", source="version")
     @Mapping(target="reader.version", source="reader.version")
+    @Mapping(target="reader.name", source="reader.name", qualifiedByName = "nameToNameEntity")
     ReaderDetailsEntity toEntity(ReaderDetails readerDetails);
 
     @Named("map1")
@@ -108,6 +110,22 @@ public interface ReaderEntityMapper {
             return null;
         }
         return value.getName(); // Exemplo para BioEntity
+    }
+
+    @Named("nameToNameEntity")
+    default NameEntity nameToNameEntity(Name name) {
+        if (name == null) {
+            return null;
+        }
+        return new NameEntity(name.getName());
+    }
+
+    @Named("nameEntityToString")
+    default String nameEntityToString(NameEntity nameEntity) {
+        if (nameEntity == null) {
+            return null;
+        }
+        return nameEntity.getName();
     }
 
 

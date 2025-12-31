@@ -74,8 +74,12 @@ public class ReaderRabbitmqController {
                 }
             }
 
-            // Create temporary Reader user for authentication
-            Reader user = new Reader(event.getUsername(), event.getPassword());
+            // Create temporary Reader user for authentication with name
+            Reader user = Reader.newReader(
+                    event.getUsername(),
+                    event.getPassword(),
+                    event.getFullName()
+            );
 
             // Create temporary ReaderDetails entity
             String[] readerNumberParts = event.getReaderNumber().split("/");
