@@ -113,26 +113,27 @@ public class RabbitMQConfig {
             return new Queue("readers.reader.deleted", true);  // Named durable queue
         }
 
-        // SAGA queues for Reader-User creation (NAMED DURABLE QUEUES for load balancing)
-        // Multiple replicas will compete for messages (competing consumers pattern)
+        // SAGA queues for Reader-User creation
+        // COORDINATION queues use ANONYMOUS pattern - each replica receives ALL coordination messages
+        // This ensures all replicas stay in sync, optimistic locking handles concurrency
         @Bean
         public Queue readerUserRequestedUserQueue() {
-            return new Queue("reader.user.requested.user", true);
+            return new Queue("reader.user.requested.user", true);  // Named - only auth_users listens
         }
 
         @Bean
         public Queue readerUserRequestedReaderQueue() {
-            return new Queue("reader.user.requested.reader", true);
+            return new Queue("reader.user.requested.reader", true);  // Named - load balance initial request
         }
 
         @Bean
         public Queue userPendingCreatedQueue() {
-            return new Queue("user.pending.created", true);
+            return new AnonymousQueue();  // ANONYMOUS - fanout to all replicas for coordination
         }
 
         @Bean
         public Queue readerPendingCreatedQueue() {
-            return new Queue("reader.pending.created", true);
+            return new AnonymousQueue();  // ANONYMOUS - fanout to all replicas for coordination
         }
 
 
