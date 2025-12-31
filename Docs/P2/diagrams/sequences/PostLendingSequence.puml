@@ -1,0 +1,48 @@
+@startuml
+Title Post Lending — Microservices Flow
+
+participant HttpClient
+participant LendingsCmd
+participant MessageBroker
+participant BooksQuery
+participant ReadersQuery
+participant LendingsQuery
+
+BooksQuery -> MessageBroker: subscribe ValidateBook
+ReadersQuery -> MessageBroker: subscribe ValidateReader
+LendingsQuery -> MessageBroker: subscribe LendingCreated
+LendingsCmd -> MessageBroker: subscribe BookValidated, ReaderValidated
+
+HttpClient -> LendingsCmd: POST /lendings\n(bookId, readerId, dueDate)
+activate LendingsCmd
+
+LendingsCmd -> MessageBroker: ValidateBook(bookId)
+MessageBroker -> BooksQuery: ValidateBook(bookId)
+activate BooksQuery
+BooksQuery -> BooksQuery: Check Book\n(PENDING)
+BooksQuery -> MessageBroker: BookValidated(bookId, exists)
+deactivate BooksQuery
+
+MessageBroker -> LendingsCmd: BookValidated(exists)
+
+LendingsCmd -> MessageBroker: ValidateReader(readerId)
+MessageBroker -> ReadersQuery: ValidateReader(readerId)
+activate ReadersQuery
+ReadersQuery -> ReadersQuery: Check Reader\n(PENDING)
+ReadersQuery -> MessageBroker: ReaderValidated(readerId, exists)
+deactivate ReadersQuery
+
+MessageBroker -> LendingsCmd: ReaderValidated(exists)
+
+
+LendingsCmd -> LendingsCmd: Create Lending\n(PENDING)
+LendingsCmd -> MessageBroker: LendingCreated(bookId, readerId, dueDate)
+MessageBroker -> LendingsQuery: LendingCreated
+activate LendingsQuery
+LendingsQuery -> LendingsQuery: Create Lending
+deactivate LendingsQuery
+LendingsCmd --> HttpClient: 201 Created
+
+deactivate LendingsCmd
+
+@enduml

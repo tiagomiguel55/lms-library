@@ -1,0 +1,45 @@
+@startuml
+Title Return Lending — Microservices Flow
+
+participant HttpClient
+participant LendingsCmd
+participant MessageBroker
+participant LendingsQuery
+participant BooksCmd
+participant BooksQuery
+
+LendingsQuery -> MessageBroker: subscribe LendingReturned
+BooksCmd -> MessageBroker: subscribe LendingReturned
+BooksQuery -> MessageBroker: subscribe LendingReturned
+
+HttpClient -> LendingsCmd: PATCH /lendings/{lendingId}/return\n(comment, grade)
+activate LendingsCmd
+
+LendingsCmd -> LendingsCmd: Load Lending\nChange status to DELIVERED
+
+LendingsCmd -> MessageBroker: LendingReturned(lendingId, bookId, readerId, comment, grade)
+activate MessageBroker
+
+MessageBroker -> LendingsQuery: LendingReturned(lendingId, bookId, readerId, comment, grade)
+activate LendingsQuery
+LendingsQuery -> LendingsQuery: Update Lending\nstatus = DELIVERED
+deactivate LendingsQuery
+
+MessageBroker -> BooksCmd: LendingReturned(lendingId, bookId, readerId, comment, grade)
+activate BooksCmd
+BooksCmd -> BooksCmd: Load Book\nAdd comment & grade
+BooksCmd -> MessageBroker: BookUpdated(bookId, comment, grade)
+deactivate BooksCmd
+
+MessageBroker -> BooksQuery: LendingReturned(lendingId, bookId, readerId, comment, grade)
+activate BooksQuery
+BooksQuery -> BooksQuery: Update Book\nAdd comment & grade
+deactivate BooksQuery
+
+deactivate MessageBroker
+
+LendingsCmd --> HttpClient: 200 OK
+
+deactivate LendingsCmd
+
+@enduml
