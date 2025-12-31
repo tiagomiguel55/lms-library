@@ -16,6 +16,9 @@ public class ReaderPendingCreated {
     private String readerNumber;
 
     @NotNull
+    private String readerId;
+
+    @NotNull
     private String username;
 
     private boolean finalized = false;

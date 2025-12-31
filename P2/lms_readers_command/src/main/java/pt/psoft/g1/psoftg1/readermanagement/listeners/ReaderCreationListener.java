@@ -79,6 +79,7 @@ public class ReaderCreationListener {
             // Send ReaderPendingCreated event
             ReaderPendingCreated readerPendingEvent = new ReaderPendingCreated(
                     event.getReaderNumber(),
+                    savedReader.getReader().getId(), // readerId
                     event.getUsername(),
                     false // Not finalized yet
             );
