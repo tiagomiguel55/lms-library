@@ -50,17 +50,17 @@ public class RabbitMQConfig {
 
     @Bean
     public Queue bookCreatedQueue() {
-        return new AnonymousQueue();
+        return new Queue("lending.book.created", true);  // Named durable queue
     }
 
     @Bean
     public Queue bookUpdatedQueue() {
-        return new AnonymousQueue();
+        return new Queue("lending.book.updated", true);  // Named durable queue
     }
 
     @Bean
     public Queue bookDeletedQueue() {
-        return new AnonymousQueue();
+        return new Queue("lending.book.deleted", true);  // Named durable queue
     }
 
     @Bean
