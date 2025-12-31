@@ -62,6 +62,7 @@ public class User implements UserDetails {
 
     // optimistic lock concurrency control
     @Version
+    @Getter
     private Long version;
 
     // auditing info
