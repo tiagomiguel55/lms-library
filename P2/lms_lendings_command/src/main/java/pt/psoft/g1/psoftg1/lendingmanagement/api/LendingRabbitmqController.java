@@ -3,7 +3,6 @@ package pt.psoft.g1.psoftg1.lendingmanagement.api;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import pt.psoft.g1.psoftg1.lendingmanagement.services.LendingService;
 
@@ -11,7 +10,6 @@ import pt.psoft.g1.psoftg1.lendingmanagement.services.LendingService;
 @RequiredArgsConstructor
 public class LendingRabbitmqController {
 
-    @Autowired
     private final LendingService lendingService;
 
     /**

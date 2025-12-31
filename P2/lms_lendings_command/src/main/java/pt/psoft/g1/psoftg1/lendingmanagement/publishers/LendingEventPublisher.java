@@ -1,10 +1,8 @@
 package pt.psoft.g1.psoftg1.lendingmanagement.publishers;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
 import org.springframework.amqp.core.DirectExchange;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import pt.psoft.g1.psoftg1.bookmanagement.api.BookSagaViewAMQP;
@@ -20,16 +18,20 @@ import pt.psoft.g1.psoftg1.shared.model.LendingEvents;
 import java.util.UUID;
 
 @Component
-@RequiredArgsConstructor
 public class LendingEventPublisher {
 
-    @Autowired
-    private RabbitTemplate template;
-    @Autowired
-    @Qualifier("directExchange")
-    private DirectExchange direct;
-
+    private final RabbitTemplate template;
+    private final DirectExchange direct;
     private final LendingViewAMQPMapper lendingViewAMQPMapper;
+
+    public LendingEventPublisher(
+            RabbitTemplate template,
+            @Qualifier("directExchange") DirectExchange direct,
+            LendingViewAMQPMapper lendingViewAMQPMapper) {
+        this.template = template;
+        this.direct = direct;
+        this.lendingViewAMQPMapper = lendingViewAMQPMapper;
+    }
 
     // ========== LENDING VALIDATION (Async Book Validation via RabbitMQ) ==========
 

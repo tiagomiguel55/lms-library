@@ -7,8 +7,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import pt.psoft.g1.psoftg1.bookmanagement.listeners.BookEventListener;
 import pt.psoft.g1.psoftg1.bookmanagement.services.BookService;
-import pt.psoft.g1.psoftg1.lendingmanagement.listeners.LendingEventListener;
-import pt.psoft.g1.psoftg1.lendingmanagement.services.LendingService;
 import pt.psoft.g1.psoftg1.readermanagement.listeners.ReaderEventListener;
 import pt.psoft.g1.psoftg1.readermanagement.services.ReaderService;
 import pt.psoft.g1.psoftg1.shared.model.BookEvents;
@@ -288,11 +286,6 @@ public class RabbitMQConfig {
     @Bean
     public BookEventListener bookReceiver(BookService bookService) {
         return new BookEventListener(bookService);
-    }
-
-    @Bean
-    public LendingEventListener lendingReceiver(LendingService lendingService) {
-        return new LendingEventListener(lendingService);
     }
 
     @Bean

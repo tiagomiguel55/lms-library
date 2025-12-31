@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import pt.psoft.g1.psoftg1.authormanagement.repositories.AuthorRepository;
 import pt.psoft.g1.psoftg1.bookmanagement.api.BookRabbitmqController;
+import pt.psoft.g1.psoftg1.bookmanagement.publishers.BookEventsPublisher;
 import pt.psoft.g1.psoftg1.bookmanagement.repositories.BookRepository;
 import pt.psoft.g1.psoftg1.bookmanagement.repositories.PendingBookRequestRepository;
 import pt.psoft.g1.psoftg1.bookmanagement.services.BookService;
@@ -277,7 +278,8 @@ public class RabbitmqClientConfig {
             AuthorRepository authorRepository,
             GenreRepository genreRepository,
             PendingBookRequestRepository pendingBookRequestRepository,
+            BookEventsPublisher bookEventsPublisher,
             @Qualifier("autoDeleteQueue_Book_Created") Queue autoDeleteQueue_Book_Created){
-        return new BookRabbitmqController(bookService, bookRepository, authorRepository, genreRepository, pendingBookRequestRepository);
+        return new BookRabbitmqController(bookService, bookRepository, authorRepository, genreRepository, pendingBookRequestRepository, bookEventsPublisher);
     }
 }
