@@ -11,9 +11,6 @@ import pt.psoft.g1.psoftg1.genremanagement.listeners.GenreEventListener;
 import pt.psoft.g1.psoftg1.genremanagement.services.GenreService;
 import pt.psoft.g1.psoftg1.lendingmanagement.listeners.LendingEventListener;
 import pt.psoft.g1.psoftg1.lendingmanagement.services.LendingService;
-import pt.psoft.g1.psoftg1.readermanagement.api.ReaderViewAMQPMapper;
-import pt.psoft.g1.psoftg1.readermanagement.listeners.ReaderEventListener;
-import pt.psoft.g1.psoftg1.readermanagement.publishers.ReaderEventPublisher;
 import pt.psoft.g1.psoftg1.readermanagement.services.ReaderService;
 import pt.psoft.g1.psoftg1.shared.listeners.RpcBootstrapListener;
 import pt.psoft.g1.psoftg1.shared.model.BookEvents;
@@ -324,11 +321,6 @@ public class RabbitMQConfig {
         @Bean
         public LendingEventListener lendingReceiver(LendingService lendingService) {
             return new LendingEventListener(lendingService);
-        }
-
-        @Bean
-        public ReaderEventListener readerReceiver(ReaderService readerService, ReaderEventPublisher readerEventPublisher , ReaderViewAMQPMapper readerViewAMQPMapper) {
-            return new ReaderEventListener(readerService, readerEventPublisher, readerViewAMQPMapper);
         }
     }
 
