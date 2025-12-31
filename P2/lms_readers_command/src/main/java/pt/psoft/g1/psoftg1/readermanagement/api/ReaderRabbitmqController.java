@@ -327,24 +327,39 @@ public class ReaderRabbitmqController {
 
             PendingReaderUserRequest pendingRequest = pendingRequestOpt.get();
 
+            // Skip if already completed or failed
+            if (pendingRequest.getStatus() == PendingReaderUserRequest.RequestStatus.READER_USER_CREATED) {
+                System.out.println(" [x] [SAGA-Skip] Already completed for: " + readerNumber);
+                return;
+            }
+
+            if (pendingRequest.getStatus() == PendingReaderUserRequest.RequestStatus.FAILED) {
+                System.out.println(" [x] [SAGA-Skip] Already failed for: " + readerNumber);
+                return;
+            }
+
             if (pendingRequest.getStatus() == PendingReaderUserRequest.RequestStatus.BOTH_PENDING_CREATED) {
                 System.out.println(" [x] [SAGA-Step4] Finalizing Reader+User creation for: " + readerNumber);
 
                 Optional<ReaderDetails> existingReader = readerRepository.findByReaderNumber(readerNumber);
                 if (existingReader.isPresent()) {
-                    // Mark SAGA as completed
+                    // Mark SAGA as completed FIRST
                     pendingRequest.setStatus(PendingReaderUserRequest.RequestStatus.READER_USER_CREATED);
                     pendingReaderUserRequestRepository.save(pendingRequest);
+                    System.out.println(" [x] ✅ [SAGA-Step4] Marked as completed");
 
                     // Notify other services
                     ReaderDetails reader = existingReader.get();
                     readerEventPublisher.sendReaderCreated(reader);
-
                     System.out.println(" [x] ✅ [SAGA-Complete] Reader and User successfully created: " + readerNumber);
 
-                    // Cleanup
-                    pendingReaderUserRequestRepository.delete(pendingRequest);
-                    System.out.println(" [x] ✅ [SAGA-Cleanup] Removed pending request");
+                    // Cleanup in a separate try-catch to prevent cleanup errors from affecting the SAGA
+                    try {
+                        pendingReaderUserRequestRepository.delete(pendingRequest);
+                        System.out.println(" [x] ✅ [SAGA-Cleanup] Removed pending request");
+                    } catch (Exception cleanupEx) {
+                        System.out.println(" [x] ⚠️ [SAGA-Cleanup] Could not delete pending request (may have been deleted already): " + cleanupEx.getMessage());
+                    }
                 } else {
                     System.out.println(" [x] ❌ [SAGA-Error] Reader entity not found: " + readerNumber);
                     pendingRequest.setStatus(PendingReaderUserRequest.RequestStatus.FAILED);
@@ -356,17 +371,24 @@ public class ReaderRabbitmqController {
             System.out.println(" [x] ❌ [SAGA-Error] Finalization failed: " + e.getMessage());
             e.printStackTrace();
 
-            try {
-                Optional<PendingReaderUserRequest> pendingRequestOpt =
-                    pendingReaderUserRequestRepository.findByReaderNumber(readerNumber);
-                if (pendingRequestOpt.isPresent()) {
-                    PendingReaderUserRequest pendingRequest = pendingRequestOpt.get();
-                    pendingRequest.setStatus(PendingReaderUserRequest.RequestStatus.FAILED);
-                    pendingRequest.setErrorMessage("Error during finalization: " + e.getMessage());
-                    pendingReaderUserRequestRepository.save(pendingRequest);
+            // Only try to update status if it's not an optimistic locking error on cleanup
+            if (!(e instanceof org.springframework.orm.ObjectOptimisticLockingFailureException)) {
+                try {
+                    Optional<PendingReaderUserRequest> pendingRequestOpt =
+                        pendingReaderUserRequestRepository.findByReaderNumber(readerNumber);
+                    if (pendingRequestOpt.isPresent()) {
+                        PendingReaderUserRequest pendingRequest = pendingRequestOpt.get();
+                        if (pendingRequest.getStatus() != PendingReaderUserRequest.RequestStatus.READER_USER_CREATED) {
+                            pendingRequest.setStatus(PendingReaderUserRequest.RequestStatus.FAILED);
+                            pendingRequest.setErrorMessage("Error during finalization: " + e.getMessage());
+                            pendingReaderUserRequestRepository.save(pendingRequest);
+                        }
+                    }
+                } catch (Exception cleanupEx) {
+                    System.out.println(" [x] ⚠️ Error during error handling: " + cleanupEx.getMessage());
                 }
-            } catch (Exception cleanupEx) {
-                System.out.println(" [x] ❌ Error during cleanup: " + cleanupEx.getMessage());
+            } else {
+                System.out.println(" [x] ⚠️ Optimistic locking conflict (likely cleanup race condition), ignoring");
             }
         }
     }
