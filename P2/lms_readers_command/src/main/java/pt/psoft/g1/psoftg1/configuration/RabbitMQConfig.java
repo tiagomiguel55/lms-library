@@ -113,7 +113,8 @@ public class RabbitMQConfig {
             return new Queue("readers.reader.deleted", true);  // Named durable queue
         }
 
-        // SAGA queues for Reader-User creation (DURABLE NAMED QUEUES)
+        // SAGA queues for Reader-User creation (NAMED DURABLE QUEUES for load balancing)
+        // Multiple replicas will compete for messages (competing consumers pattern)
         @Bean
         public Queue readerUserRequestedUserQueue() {
             return new Queue("reader.user.requested.user", true);

@@ -262,7 +262,7 @@ public class ReaderRabbitmqController {
     // ========================================
 
     private void updatePendingRequestAndTryFinalize(String readerNumber, boolean isUserPending, boolean isReaderPending) {
-        int maxRetries = 3;
+        int maxRetries = 5;  // Increased retries for better reliability
         for (int attempt = 0; attempt < maxRetries; attempt++) {
             try {
                 Optional<PendingReaderUserRequest> pendingRequestOpt =
@@ -274,6 +274,12 @@ public class ReaderRabbitmqController {
                 }
 
                 PendingReaderUserRequest pendingRequest = pendingRequestOpt.get();
+
+                // Skip if already completed
+                if (pendingRequest.getStatus() == PendingReaderUserRequest.RequestStatus.READER_USER_CREATED) {
+                    System.out.println(" [x] ✅ [SAGA-Skip] Already completed for: " + readerNumber);
+                    return;
+                }
 
                 // Mark what was received
                 if (isUserPending) {
@@ -304,13 +310,15 @@ public class ReaderRabbitmqController {
                 if (attempt < maxRetries - 1) {
                     System.out.println(" [x] ⚠️ Optimistic lock conflict (attempt " + (attempt + 1) + "), retrying...");
                     try {
-                        Thread.sleep(50);
+                        // Exponential backoff: 50ms, 100ms, 200ms, 400ms
+                        Thread.sleep(50 * (1L << attempt));
                     } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();
                     }
                 } else {
                     System.out.println(" [x] ❌ Failed after " + maxRetries + " attempts due to optimistic locking");
-                    throw e;
+                    // Don't throw - another replica might succeed
+                    return;
                 }
             }
         }
