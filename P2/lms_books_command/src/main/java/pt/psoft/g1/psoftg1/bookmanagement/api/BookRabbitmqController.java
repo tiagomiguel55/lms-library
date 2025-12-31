@@ -310,6 +310,10 @@ public class BookRabbitmqController {
 
             System.out.println(" [x] ✅ Book created successfully with FINALIZED author and genre: " + savedBook.getIsbn() + " - " + savedBook.getTitle());
 
+            // IMPORTANT: Publish the book created event so other services can synchronize the book data
+            bookEventsPublisher.sendBookCreated(savedBook);
+            System.out.println(" [x] 📤 Book created event published for ISBN: " + savedBook.getIsbn());
+
             // IMPORTANT: Reload the pending request to avoid stale data, then update status
             int maxRetries = 3;
             for (int attempt = 0; attempt < maxRetries; attempt++) {
