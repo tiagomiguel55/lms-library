@@ -2,6 +2,7 @@ package pt.psoft.g1.psoftg1.readermanagement.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Component;
@@ -10,78 +11,119 @@ import pt.psoft.g1.psoftg1.readermanagement.model.ReaderDetails;
 import pt.psoft.g1.psoftg1.readermanagement.publishers.ReaderEventPublisher;
 import pt.psoft.g1.psoftg1.readermanagement.repositories.PendingReaderUserRequestRepository;
 import pt.psoft.g1.psoftg1.readermanagement.repositories.ReaderRepository;
+import pt.psoft.g1.psoftg1.readermanagement.services.ReaderMapper;
 import pt.psoft.g1.psoftg1.readermanagement.services.ReaderService;
+import pt.psoft.g1.psoftg1.shared.repositories.ForbiddenNameRepository;
 import pt.psoft.g1.psoftg1.usermanagement.api.UserPendingCreated;
+import pt.psoft.g1.psoftg1.usermanagement.model.Reader;
+import pt.psoft.g1.psoftg1.usermanagement.repositories.UserRepository;
 
+import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Optional;
 
+/**
+ * Centralized RabbitMQ Listener for all Reader-related events
+ *
+ * Handles:
+ * 1. SAGA: Reader + User creation (reader.user.requested.reader)
+ * 2. SAGA Coordination: User and Reader pending confirmations
+ * 3. Synchronization: Reader created/updated/deleted events
+ * 4. Lending SAGA: Reader validation for lending operations
+ */
 @Component
 @RequiredArgsConstructor
 public class ReaderRabbitmqController {
 
     private final PendingReaderUserRequestRepository pendingReaderUserRequestRepository;
     private final ReaderRepository readerRepository;
-    private final ReaderService readerService;
+    private final UserRepository userRepository;
     private final ReaderEventPublisher readerEventPublisher;
+    private final ReaderMapper readerMapper;
+    private final ForbiddenNameRepository forbiddenNameRepository;
+    private final ReaderService readerService;
+    private final ReaderViewAMQPMapper readerViewAMQPMapper;
+
+    // ========================================
+    // SAGA: Reader + User Creation
+    // ========================================
+
+    @RabbitListener(queues = "reader.user.requested.reader")
+    public void receiveReaderUserRequested(String jsonReceived) {
+        try {
+            System.out.println(" [x] [SAGA-Step1] Received Reader-User creation request");
+
+            ObjectMapper objectMapper = new ObjectMapper();
+            ReaderUserRequestedEvent event = objectMapper.readValue(jsonReceived, ReaderUserRequestedEvent.class);
+
+            System.out.println("     - Reader Number: " + event.getReaderNumber());
+            System.out.println("     - Username: " + event.getUsername());
+
+            // Check if reader already exists
+            if (readerRepository.findByReaderNumber(event.getReaderNumber()).isPresent()) {
+                System.out.println(" [x] ❌ Reader already exists with reader number: " + event.getReaderNumber());
+                return;
+            }
+
+            // Validate full name for forbidden words
+            Iterable<String> words = List.of(event.getFullName().split("\\s+"));
+            for (String word : words) {
+                if (!forbiddenNameRepository.findByForbiddenNameIsContained(word).isEmpty()) {
+                    System.out.println(" [x] ❌ Name contains forbidden word: " + word);
+                    return;
+                }
+            }
+
+            // Create temporary Reader user for authentication
+            Reader user = new Reader(event.getUsername(), event.getPassword());
+
+            // Create temporary ReaderDetails entity
+            String[] readerNumberParts = event.getReaderNumber().split("/");
+            int readerSequence = Integer.parseInt(readerNumberParts[1]);
+
+            ReaderDetails readerDetails = readerMapper.createReaderDetails(
+                    readerSequence,
+                    user,
+                    createTempCreateReaderRequest(event),
+                    event.getPhotoURI(),
+                    List.of() // Empty interest list for now
+            );
+
+            ReaderDetails savedReader = readerRepository.save(readerDetails);
+            System.out.println(" [x] ✅ [SAGA-Step1] Created temporary Reader with number: " + savedReader.getReaderNumber());
+
+            // Send ReaderPendingCreated event
+            ReaderPendingCreated readerPendingEvent = new ReaderPendingCreated(
+                    event.getReaderNumber(),
+                    savedReader.getReader().getId(),
+                    event.getUsername(),
+                    false
+            );
+
+            readerEventPublisher.sendReaderPendingCreated(readerPendingEvent);
+            System.out.println(" [x] ✅ [SAGA-Step1] Notified coordination layer");
+
+        } catch (Exception e) {
+            System.out.println(" [x] ❌ [SAGA-Step1] Error creating Reader: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
 
     @RabbitListener(queues = "user.pending.created")
     public void receiveUserPendingCreated(String jsonReceived) {
         try {
-            System.out.println(" [x] Received message from user.pending.created: " + jsonReceived);
+            System.out.println(" [x] [SAGA-Step2] Received User creation confirmation");
 
             ObjectMapper objectMapper = new ObjectMapper();
             UserPendingCreated event = objectMapper.readValue(jsonReceived, UserPendingCreated.class);
 
-            System.out.println(" [x] Received User Pending Created by AMQP:");
             System.out.println("     - Reader Number: " + event.getReaderNumber());
-            System.out.println("     - User ID: " + event.getUserId());
             System.out.println("     - Username: " + event.getUsername());
 
-            // Retry logic to handle race conditions
-            int maxRetries = 3;
-            for (int attempt = 0; attempt < maxRetries; attempt++) {
-                try {
-                    // Update pending request status
-                    Optional<PendingReaderUserRequest> pendingRequestOpt = pendingReaderUserRequestRepository.findByReaderNumber(event.getReaderNumber());
-                    if (pendingRequestOpt.isPresent()) {
-                        PendingReaderUserRequest pendingRequest = pendingRequestOpt.get();
-
-                        // Mark user as received (order-independent)
-                        pendingRequest.setUserPendingReceived(true);
-
-                        // Check if BOTH are now received
-                        if (pendingRequest.isUserPendingReceived() && pendingRequest.isReaderPendingReceived()) {
-                            pendingRequest.setStatus(PendingReaderUserRequest.RequestStatus.BOTH_PENDING_CREATED);
-                            System.out.println("Both User and Reader pending received → BOTH_PENDING_CREATED");
-                        } else {
-                            System.out.println("User pending received, waiting for Reader pending...");
-                        }
-
-                        pendingReaderUserRequestRepository.save(pendingRequest);
-                        System.out.println(" [x] Updated pending request status to " + pendingRequest.getStatus() + " for reader number: " + event.getReaderNumber());
-
-                        // Try to create reader and user if both are ready
-                        tryCreateReaderAndUser(event.getReaderNumber());
-                    } else {
-                        System.out.println("No pending request found for reader number: " + event.getReaderNumber());
-                    }
-
-                    // Success, break out of retry loop
-                    break;
-
-                } catch (OptimisticLockingFailureException e) {
-                    if (attempt < maxRetries - 1) {
-                        System.out.println("⚠️ Optimistic lock conflict (attempt " + (attempt + 1) + "), retrying...");
-                        Thread.sleep(50); // Small delay before retry
-                    } else {
-                        System.out.println(" [x] ❌ Failed after " + maxRetries + " attempts due to optimistic locking");
-                        throw e;
-                    }
-                }
-            }
+            updatePendingRequestAndTryFinalize(event.getReaderNumber(), true, false);
 
         } catch (Exception e) {
-            System.out.println(" [x] ❌ Error processing user pending created event: " + e.getMessage());
+            System.out.println(" [x] ❌ [SAGA-Step2] Error processing User confirmation: " + e.getMessage());
             e.printStackTrace();
         }
     }
@@ -89,107 +131,230 @@ public class ReaderRabbitmqController {
     @RabbitListener(queues = "reader.pending.created")
     public void receiveReaderPendingCreated(String jsonReceived) {
         try {
-            System.out.println(" [x] Received message from reader.pending.created: " + jsonReceived);
+            System.out.println(" [x] [SAGA-Step3] Received Reader creation confirmation");
 
             ObjectMapper objectMapper = new ObjectMapper();
             ReaderPendingCreated event = objectMapper.readValue(jsonReceived, ReaderPendingCreated.class);
 
-            System.out.println(" [x] Received Reader Pending Created by AMQP:");
             System.out.println("     - Reader Number: " + event.getReaderNumber());
             System.out.println("     - Username: " + event.getUsername());
 
-            // Retry logic to handle race conditions
-            int maxRetries = 3;
-            for (int attempt = 0; attempt < maxRetries; attempt++) {
-                try {
-                    // Update pending request status
-                    Optional<PendingReaderUserRequest> pendingRequestOpt = pendingReaderUserRequestRepository.findByReaderNumber(event.getReaderNumber());
-                    if (pendingRequestOpt.isPresent()) {
-                        PendingReaderUserRequest pendingRequest = pendingRequestOpt.get();
-
-                        // Mark reader as received (order-independent)
-                        pendingRequest.setReaderPendingReceived(true);
-
-                        // Check if BOTH are now received
-                        if (pendingRequest.isUserPendingReceived() && pendingRequest.isReaderPendingReceived()) {
-                            pendingRequest.setStatus(PendingReaderUserRequest.RequestStatus.BOTH_PENDING_CREATED);
-                            System.out.println("Both User and Reader pending received → BOTH_PENDING_CREATED");
-                        } else {
-                            System.out.println("Reader pending received, waiting for User pending...");
-                        }
-
-                        pendingReaderUserRequestRepository.save(pendingRequest);
-                        System.out.println(" [x] Updated pending request status to " + pendingRequest.getStatus() + " for reader number: " + event.getReaderNumber());
-
-                        // Try to create reader and user if both are ready
-                        tryCreateReaderAndUser(event.getReaderNumber());
-                    } else {
-                        System.out.println("No pending request found for reader number: " + event.getReaderNumber());
-                    }
-
-                    // Success, break out of retry loop
-                    break;
-
-                } catch (OptimisticLockingFailureException e) {
-                    if (attempt < maxRetries - 1) {
-                        System.out.println("⚠️ Optimistic lock conflict (attempt " + (attempt + 1) + "), retrying...");
-                        Thread.sleep(50); // Small delay before retry
-                    } else {
-                        System.out.println(" [x] ❌ Failed after " + maxRetries + " attempts due to optimistic locking");
-                        throw e;
-                    }
-                }
-            }
+            updatePendingRequestAndTryFinalize(event.getReaderNumber(), false, true);
 
         } catch (Exception e) {
-            System.out.println(" [x] ❌ Error processing reader pending created event: " + e.getMessage());
+            System.out.println(" [x] ❌ [SAGA-Step3] Error processing Reader confirmation: " + e.getMessage());
             e.printStackTrace();
+        }
+    }
+
+    // ========================================
+    // Synchronization: Reader Events
+    // ========================================
+
+    @RabbitListener(queues = "#{readerCreatedQueue.name}")
+    public void receiveReaderCreated(Message msg) {
+        try {
+            ObjectMapper objectMapper = new ObjectMapper();
+            String jsonReceived = new String(msg.getBody(), StandardCharsets.UTF_8);
+            ReaderViewAMQP readerViewAMQP = objectMapper.readValue(jsonReceived, ReaderViewAMQP.class);
+
+            System.out.println(" [x] [Sync] Received Reader Created - Reader Number: " + readerViewAMQP.getReaderNumber());
+
+            try {
+                readerService.create(readerViewAMQP);
+                System.out.println(" [x] [Sync] Reader synchronized successfully");
+            } catch (Exception e) {
+                System.out.println(" [x] [Sync] Reader already exists, no sync needed");
+            }
+        } catch (Exception ex) {
+            System.out.println(" [x] [Sync] Error receiving Reader created event: " + ex.getMessage());
+        }
+    }
+
+    @RabbitListener(queues = "#{readerUpdatedQueue.name}")
+    public void receiveReaderUpdated(Message msg) {
+        try {
+            ObjectMapper objectMapper = new ObjectMapper();
+            String jsonReceived = new String(msg.getBody(), StandardCharsets.UTF_8);
+            ReaderViewAMQP readerViewAMQP = objectMapper.readValue(jsonReceived, ReaderViewAMQP.class);
+
+            System.out.println(" [x] [Sync] Received Reader Updated - Reader Number: " + readerViewAMQP.getReaderNumber());
+
+            try {
+                readerService.update(readerViewAMQP);
+                System.out.println(" [x] [Sync] Reader update synchronized successfully");
+            } catch (Exception e) {
+                System.out.println(" [x] [Sync] Reader does not exist or version mismatch");
+            }
+        } catch (Exception ex) {
+            System.out.println(" [x] [Sync] Error receiving Reader updated event: " + ex.getMessage());
+        }
+    }
+
+    @RabbitListener(queues = "#{readerDeletedQueue.name}")
+    public void receiveReaderDeleted(String in) {
+        try {
+            ObjectMapper objectMapper = new ObjectMapper();
+            String jsonReceived = new String(in.getBytes(), StandardCharsets.UTF_8);
+            ReaderViewAMQP readerViewAMQP = objectMapper.readValue(jsonReceived, ReaderViewAMQP.class);
+
+            System.out.println(" [x] [Sync] Received Reader Deleted - Reader Number: " + readerViewAMQP.getReaderNumber());
+
+            try {
+                readerService.delete(readerViewAMQP);
+                System.out.println(" [x] [Sync] Reader deletion synchronized successfully");
+            } catch (Exception e) {
+                System.out.println(" [x] [Sync] Reader does not exist, no deletion needed");
+            }
+        } catch (Exception ex) {
+            System.out.println(" [x] [Sync] Error receiving Reader deleted event: " + ex.getMessage());
+        }
+    }
+
+    // ========================================
+    // Lending SAGA: Reader Validation
+    // ========================================
+
+    @RabbitListener(queues = "#{readerLendingRequestQueue.name}")
+    public void receiveReaderLendingRequest(Message msg) {
+        SagaCreationResponse response = new SagaCreationResponse();
+
+        try {
+            ObjectMapper objectMapper = new ObjectMapper();
+            String jsonReceived = new String(msg.getBody(), StandardCharsets.UTF_8);
+            ReaderSagaViewAMQP readerSagaViewAMQP = objectMapper.readValue(jsonReceived, ReaderSagaViewAMQP.class);
+
+            System.out.println(" [x] [Lending-SAGA] Received Reader validation request for lending: " + readerSagaViewAMQP.getLendingNumber());
+
+            ReaderViewAMQP readerViewAMQP = readerViewAMQPMapper.toReaderViewAMQP(readerSagaViewAMQP);
+            ReaderDetails readerDetails = null;
+
+            try {
+                readerDetails = readerService.create(readerViewAMQP);
+                System.out.println(" [x] [Lending-SAGA] Reader created/validated for lending");
+
+                response.setLendingNumber(readerSagaViewAMQP.getLendingNumber());
+                response.setStatus("SUCCESS");
+                readerEventPublisher.sendReaderLendingResponse(response);
+
+                if (readerDetails != null) {
+                    readerEventPublisher.sendReaderCreated(readerDetails);
+                }
+            } catch (Exception e) {
+                System.out.println(" [x] [Lending-SAGA] Error validating Reader: " + e.getMessage());
+                response.setStatus("ERROR");
+                response.setLendingNumber(readerSagaViewAMQP.getLendingNumber());
+                response.setError(e.getMessage());
+                readerEventPublisher.sendReaderLendingResponse(response);
+            }
+
+        } catch (Exception ex) {
+            System.out.println(" [x] [Lending-SAGA] Error processing lending request: " + ex.getMessage());
+        }
+    }
+
+    // ========================================
+    // Private Helper Methods
+    // ========================================
+
+    private void updatePendingRequestAndTryFinalize(String readerNumber, boolean isUserPending, boolean isReaderPending) {
+        int maxRetries = 3;
+        for (int attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+                Optional<PendingReaderUserRequest> pendingRequestOpt =
+                    pendingReaderUserRequestRepository.findByReaderNumber(readerNumber);
+
+                if (pendingRequestOpt.isEmpty()) {
+                    System.out.println(" [x] ⚠️ No pending request found for reader number: " + readerNumber);
+                    return;
+                }
+
+                PendingReaderUserRequest pendingRequest = pendingRequestOpt.get();
+
+                // Mark what was received
+                if (isUserPending) {
+                    pendingRequest.setUserPendingReceived(true);
+                    System.out.println(" [x] User pending ✓");
+                }
+                if (isReaderPending) {
+                    pendingRequest.setReaderPendingReceived(true);
+                    System.out.println(" [x] Reader pending ✓");
+                }
+
+                // Check if BOTH are now received
+                if (pendingRequest.isUserPendingReceived() && pendingRequest.isReaderPendingReceived()) {
+                    pendingRequest.setStatus(PendingReaderUserRequest.RequestStatus.BOTH_PENDING_CREATED);
+                    System.out.println(" [x] ✅ Both User and Reader confirmed → BOTH_PENDING_CREATED");
+                } else {
+                    System.out.println(" [x] ⏳ Waiting for " +
+                        (!pendingRequest.isUserPendingReceived() ? "User" : "Reader") + " confirmation...");
+                }
+
+                pendingReaderUserRequestRepository.save(pendingRequest);
+
+                // Try to finalize if ready
+                tryCreateReaderAndUser(readerNumber);
+                break; // Success
+
+            } catch (OptimisticLockingFailureException e) {
+                if (attempt < maxRetries - 1) {
+                    System.out.println(" [x] ⚠️ Optimistic lock conflict (attempt " + (attempt + 1) + "), retrying...");
+                    try {
+                        Thread.sleep(50);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                    }
+                } else {
+                    System.out.println(" [x] ❌ Failed after " + maxRetries + " attempts due to optimistic locking");
+                    throw e;
+                }
+            }
         }
     }
 
     private void tryCreateReaderAndUser(String readerNumber) {
         try {
-            Optional<PendingReaderUserRequest> pendingRequestOpt = pendingReaderUserRequestRepository.findByReaderNumber(readerNumber);
-            if (pendingRequestOpt.isPresent()) {
-                PendingReaderUserRequest pendingRequest = pendingRequestOpt.get();
+            Optional<PendingReaderUserRequest> pendingRequestOpt =
+                pendingReaderUserRequestRepository.findByReaderNumber(readerNumber);
 
-                // Check if both temporary entities are created and ready for finalization
-                if (pendingRequest.getStatus() == PendingReaderUserRequest.RequestStatus.BOTH_PENDING_CREATED) {
-                    System.out.println(" [x] ✅ Both User and Reader pending created for reader number: " + readerNumber + " - Ready to proceed to finalization");
+            if (pendingRequestOpt.isEmpty()) {
+                return;
+            }
 
-                    // Since we already have the temporary entities created, we just need to mark them as finalized
-                    // and update the status to completed
-                    Optional<ReaderDetails> existingReader = readerRepository.findByReaderNumber(readerNumber);
-                    if (existingReader.isPresent()) {
-                        // Mark the SAGA as completed
-                        pendingRequest.setStatus(PendingReaderUserRequest.RequestStatus.READER_USER_CREATED);
-                        pendingReaderUserRequestRepository.save(pendingRequest);
+            PendingReaderUserRequest pendingRequest = pendingRequestOpt.get();
 
-                        // Send final events to notify other services
-                        ReaderDetails reader = existingReader.get();
-                        readerEventPublisher.sendReaderCreated(reader);
+            if (pendingRequest.getStatus() == PendingReaderUserRequest.RequestStatus.BOTH_PENDING_CREATED) {
+                System.out.println(" [x] [SAGA-Step4] Finalizing Reader+User creation for: " + readerNumber);
 
-                        System.out.println(" [x] ✅ SAGA completed successfully - Reader and User created with reader number: " + readerNumber);
+                Optional<ReaderDetails> existingReader = readerRepository.findByReaderNumber(readerNumber);
+                if (existingReader.isPresent()) {
+                    // Mark SAGA as completed
+                    pendingRequest.setStatus(PendingReaderUserRequest.RequestStatus.READER_USER_CREATED);
+                    pendingReaderUserRequestRepository.save(pendingRequest);
 
-                        // Cleanup - remove the pending request after successful completion
-                        pendingReaderUserRequestRepository.delete(pendingRequest);
-                        System.out.println(" [x] ✅ Cleaned up pending request for reader number: " + readerNumber);
-                    } else {
-                        System.out.println(" [x] ❌ Reader entity not found for reader number: " + readerNumber);
-                        // Mark as failed
-                        pendingRequest.setStatus(PendingReaderUserRequest.RequestStatus.FAILED);
-                        pendingRequest.setErrorMessage("Reader entity not found after both pending created");
-                        pendingReaderUserRequestRepository.save(pendingRequest);
-                    }
+                    // Notify other services
+                    ReaderDetails reader = existingReader.get();
+                    readerEventPublisher.sendReaderCreated(reader);
+
+                    System.out.println(" [x] ✅ [SAGA-Complete] Reader and User successfully created: " + readerNumber);
+
+                    // Cleanup
+                    pendingReaderUserRequestRepository.delete(pendingRequest);
+                    System.out.println(" [x] ✅ [SAGA-Cleanup] Removed pending request");
+                } else {
+                    System.out.println(" [x] ❌ [SAGA-Error] Reader entity not found: " + readerNumber);
+                    pendingRequest.setStatus(PendingReaderUserRequest.RequestStatus.FAILED);
+                    pendingRequest.setErrorMessage("Reader entity not found after both pending created");
+                    pendingReaderUserRequestRepository.save(pendingRequest);
                 }
             }
         } catch (Exception e) {
-            System.out.println(" [x] ❌ Error in tryCreateReaderAndUser: " + e.getMessage());
+            System.out.println(" [x] ❌ [SAGA-Error] Finalization failed: " + e.getMessage());
             e.printStackTrace();
 
-            // Try to mark as failed if we can find the pending request
             try {
-                Optional<PendingReaderUserRequest> pendingRequestOpt = pendingReaderUserRequestRepository.findByReaderNumber(readerNumber);
+                Optional<PendingReaderUserRequest> pendingRequestOpt =
+                    pendingReaderUserRequestRepository.findByReaderNumber(readerNumber);
                 if (pendingRequestOpt.isPresent()) {
                     PendingReaderUserRequest pendingRequest = pendingRequestOpt.get();
                     pendingRequest.setStatus(PendingReaderUserRequest.RequestStatus.FAILED);
@@ -200,5 +365,20 @@ public class ReaderRabbitmqController {
                 System.out.println(" [x] ❌ Error during cleanup: " + cleanupEx.getMessage());
             }
         }
+    }
+
+    private pt.psoft.g1.psoftg1.readermanagement.services.CreateReaderRequest createTempCreateReaderRequest(
+            ReaderUserRequestedEvent event) {
+        pt.psoft.g1.psoftg1.readermanagement.services.CreateReaderRequest request =
+            new pt.psoft.g1.psoftg1.readermanagement.services.CreateReaderRequest();
+        request.setUsername(event.getUsername());
+        request.setPassword(event.getPassword());
+        request.setFullName(event.getFullName());
+        request.setBirthDate(event.getBirthDate());
+        request.setPhoneNumber(event.getPhoneNumber());
+        request.setGdpr(event.isGdpr());
+        request.setMarketing(event.isMarketing());
+        request.setThirdParty(event.isThirdParty());
+        return request;
     }
 }

@@ -103,17 +103,17 @@ public class RabbitMQConfig {
 
         @Bean
         public Queue readerCreatedQueue() {
-            return new AnonymousQueue();
+            return new Queue("readers.reader.created", true);  // Named durable queue
         }
 
         @Bean
         public Queue readerUpdatedQueue() {
-            return new AnonymousQueue();
+            return new Queue("readers.reader.updated", true);  // Named durable queue
         }
 
         @Bean
         public Queue readerDeletedQueue() {
-            return new AnonymousQueue();
+            return new Queue("readers.reader.deleted", true);  // Named durable queue
         }
 
         // SAGA queues for Reader-User creation (DURABLE NAMED QUEUES)

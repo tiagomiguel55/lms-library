@@ -18,3 +18,4 @@ public interface BookService {
 
     void delete(String isbn);
 }
+

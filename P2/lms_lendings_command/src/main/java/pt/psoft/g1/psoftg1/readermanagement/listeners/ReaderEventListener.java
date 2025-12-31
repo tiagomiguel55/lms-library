@@ -25,18 +25,17 @@ public class ReaderEventListener {
             String jsonReceived = new String(msg.getBody(), StandardCharsets.UTF_8);
             ReaderViewAMQP readerViewAMQP = objectMapper.readValue(jsonReceived, ReaderViewAMQP.class);
 
-            System.out.println(" [x] Received Reader Created by AMQP: " + msg + ".");
+            System.out.println(" [x] Received Reader Created event via AMQP - Reader Number: " + readerViewAMQP.getReaderNumber());
             try {
                 readerService.create(readerViewAMQP);
-                System.out.println(" [x] New reader inserted from AMQP: " + msg + ".");
+                System.out.println(" [x] Reader successfully stored in lendings_command service");
             } catch (Exception e) {
-
-                e.printStackTrace();
-                System.out.println(" [x] Reader already exists. No need to store it.");
+                System.out.println(" [x] Error creating reader in lendings_command: " + e.getMessage());
             }
         }
         catch(Exception ex) {
-            System.out.println(" [x] Exception receiving reader event from AMQP: '" + ex.getMessage() + "'");
+            System.out.println(" [x] Exception receiving reader created event from AMQP: " + ex.getMessage());
+            ex.printStackTrace();
         }
     }
 
@@ -48,22 +47,22 @@ public class ReaderEventListener {
             String jsonReceived = new String(msg.getBody(), StandardCharsets.UTF_8);
             ReaderViewAMQP readerViewAMQP = objectMapper.readValue(jsonReceived, ReaderViewAMQP.class);
 
-            System.out.println(" [x] Received reader Updated by AMQP: " + msg + ".");
+            System.out.println(" [x] Received Reader Updated event via AMQP - Reader Number: " + readerViewAMQP.getReaderNumber());
             try {
                 readerService.update(readerViewAMQP);
-                System.out.println(" [x] reader updated from AMQP: " + msg + ".");
+                System.out.println(" [x] Reader successfully updated in lendings_command service");
             } catch (Exception e) {
-                System.out.println(" [x] reader does not exists or wrong version. Nothing stored.");
+                System.out.println(" [x] Error updating reader in lendings_command: " + e.getMessage());
             }
         }
         catch(Exception ex) {
-            System.out.println(" [x] Exception receiving reader event from AMQP: '" + ex.getMessage() + "'");
+            System.out.println(" [x] Exception receiving reader updated event from AMQP: " + ex.getMessage());
         }
     }
 
     @RabbitListener(queues = "#{readerDeletedQueue.name}")
     public void receiveReaderDeleted(String in) {
-        System.out.println(" [x] Received reader Deleted '" + in + "'");
+        System.out.println(" [x] Received Reader Deleted event via AMQP");
 
         try {
             ObjectMapper objectMapper = new ObjectMapper();
@@ -71,16 +70,16 @@ public class ReaderEventListener {
             String jsonReceived = new String(in.getBytes(), StandardCharsets.UTF_8);
             ReaderViewAMQP readerViewAMQP = objectMapper.readValue(jsonReceived, ReaderViewAMQP.class);
 
-            System.out.println(" [x] Received reader Deleted by AMQP: " + in + ".");
+            System.out.println(" [x] Processing Reader Deleted - Reader Number: " + readerViewAMQP.getReaderNumber());
             try {
                 readerService.delete(readerViewAMQP);
-                System.out.println(" [x] reader deleted from AMQP: " + in + ".");
+                System.out.println(" [x] Reader successfully deleted in lendings_command service");
             } catch (Exception e) {
-                System.out.println(" [x] reader does not exists. Nothing stored.");
+                System.out.println(" [x] Error deleting reader in lendings_command: " + e.getMessage());
             }
         }
         catch(Exception ex) {
-            System.out.println(" [x] Exception receiving reader event from AMQP: '" + ex.getMessage() + "'");
+            System.out.println(" [x] Exception receiving reader deleted event from AMQP: " + ex.getMessage());
         }
     }
 }
