@@ -67,7 +67,7 @@ class LendingTest {
 
     @Test
     void ensureReaderNotNullInBuilder() {
-        assertThrows(IllegalArgumentException.class, () -> new Lending(0l,bookdouble, null, mock(LendingNumber.class), LocalDate.now(), LocalDate.now(), null ,fineValuePerDayInCents,null, false,false,null,0l,""));
+        assertThrows(IllegalArgumentException.class, () -> new Lending(0l,bookdouble, null, mock(LendingNumber.class), LocalDate.now(), LocalDate.now(), null ,fineValuePerDayInCents,null, false,false,null,0l,"", null));
     }
 
     @Test
@@ -92,7 +92,7 @@ class LendingTest {
 
     @Test
     void testLendingBuilder(){
-        Lending lending = new Lending(0l,bookdouble, readerDetailsDouble, mock(LendingNumber.class), LocalDate.now(), LocalDate.now(), null ,fineValuePerDayInCents,null,true,true,"VALIDATED",0l,"");
+        Lending lending = new Lending(0l,bookdouble, readerDetailsDouble, mock(LendingNumber.class), LocalDate.now(), LocalDate.now(), null ,fineValuePerDayInCents,null,true,true,"VALIDATED",0l,"", null);
         assertNotNull(lending);
         assertEquals(bookdouble, lending.getBook());
         assertEquals(readerDetailsDouble, lending.getReaderDetails());

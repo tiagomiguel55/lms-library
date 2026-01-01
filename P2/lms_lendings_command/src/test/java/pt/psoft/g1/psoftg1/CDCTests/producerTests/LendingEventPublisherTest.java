@@ -1,4 +1,4 @@
-package pt.psoft.g1.psoftg1.producerTests;
+package pt.psoft.g1.psoftg1.CDCTests.producerTests;
 
 import au.com.dius.pact.core.model.Interaction;
 import au.com.dius.pact.core.model.Pact;
@@ -97,7 +97,7 @@ public class LendingEventPublisherTest {
 
         LendingNumber lendingNumber = new LendingNumber(1);
 
-        Lending lending = new Lending(1,book,readerDetails,lendingNumber,s,r,r,200,"gen-11",true,true,"VAlIDATED",1L,"");
+        Lending lending = new Lending(1,book,readerDetails,lendingNumber,s,r,r,200,"gen-11",true,true,"VAlIDATED",1L,"", null);
 
         lendingEventPublisher.sendLendingCreated(lending);
 
@@ -138,7 +138,7 @@ public class LendingEventPublisherTest {
 
         LendingNumber lendingNumber = new LendingNumber(1);
 
-        Lending lending = new Lending(1,book,readerDetails,lendingNumber,s,r,r,200,"gen-11",true,true,"VAlIDATED",1L,"");
+        Lending lending = new Lending(1,book,readerDetails,lendingNumber,s,r,r,200,"gen-11",true,true,"VAlIDATED",1L,"", null);
 
         lendingEventPublisher.sendLendingUpdated(lending, lending.getVersion());
 
@@ -177,7 +177,7 @@ public class LendingEventPublisherTest {
 
         LendingNumber lendingNumber = new LendingNumber(1);
 
-        Lending lending = new Lending(1,book,readerDetails,lendingNumber,s,r,r,200,"gen-11",true,true,"VAlIDATED",1L,"");
+        Lending lending = new Lending(1,book,readerDetails,lendingNumber,s,r,r,200,"gen-11",true,true,"VAlIDATED",1L,"", null);
 
         lendingEventPublisher.sendLendingDeleted(lending, lending.getVersion());
 

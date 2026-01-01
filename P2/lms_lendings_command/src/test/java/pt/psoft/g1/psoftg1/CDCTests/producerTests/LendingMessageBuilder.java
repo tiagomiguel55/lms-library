@@ -1,4 +1,4 @@
-package pt.psoft.g1.psoftg1.producerTests;
+package pt.psoft.g1.psoftg1.CDCTests.producerTests;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
