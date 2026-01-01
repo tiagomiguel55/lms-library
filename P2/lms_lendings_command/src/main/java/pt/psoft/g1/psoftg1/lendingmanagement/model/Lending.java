@@ -66,6 +66,8 @@ public class Lending {
 
     private String commentary = null;
 
+    private Integer grade = null;
+
     private int fineValuePerDayInCents;
 
     private Integer daysUntilReturn;
@@ -147,7 +149,7 @@ public class Lending {
         this.pk = pk;
     }
 
-    public void setReturned(final long desiredVersion, final String comment) {
+    public void setReturned(final long desiredVersion, final String comment, final Integer grade) {
         if (this.returnedDate != null) {
             throw new IllegalArgumentException("Book has already been returned!");
         }
@@ -159,6 +161,13 @@ public class Lending {
 
         if (comment != null) {
             this.commentary = comment;
+        }
+
+        if (grade != null) {
+            if (grade < 0 || grade > 10) {
+                throw new IllegalArgumentException("Grade must be between 0 and 10");
+            }
+            this.grade = grade;
         }
 
         this.returnedDate = LocalDate.now();

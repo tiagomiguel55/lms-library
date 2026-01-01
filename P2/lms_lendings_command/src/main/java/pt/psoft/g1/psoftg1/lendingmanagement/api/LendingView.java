@@ -32,6 +32,12 @@ public class LendingView {
 
     private Integer fineValueInCents;
 
+    @Schema(description = "Reader's comment about the book (submitted on return)")
+    private String commentary;
+
+    @Schema(description = "Reader's grade for the book (0-10)")
+    private Integer grade;
+
     @Setter
     @Getter
     private LendingLinksView _links;

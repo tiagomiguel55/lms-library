@@ -66,6 +66,11 @@ public class LendingEntity {
     @Column(length = 1024)
     private String commentary = null;
 
+    @Column
+    @jakarta.validation.constraints.Min(0)
+    @jakarta.validation.constraints.Max(10)
+    private Integer grade = null;
+
     @Transient
     private int fineValuePerDayInCents;
     @Transient
@@ -118,7 +123,7 @@ public class LendingEntity {
         this.pk = pk;
     }
 
-    public void setReturned(final long desiredVersion, final String commentary) {
+    public void setReturned(final long desiredVersion, final String commentary, final Integer grade) {
         if (this.returnedDate != null) {
             throw new IllegalArgumentException("Book has already been returned!");
         }
@@ -132,7 +137,15 @@ public class LendingEntity {
             this.commentary = commentary;
         }
 
+        if (grade != null) {
+            if (grade < 0 || grade > 10) {
+                throw new IllegalArgumentException("Grade must be between 0 and 10");
+            }
+            this.grade = grade;
+        }
+
         this.returnedDate = LocalDate.now();
+        this.lendingStatus = "DELIVERED";
     }
 
     public int getDaysDelayed() {

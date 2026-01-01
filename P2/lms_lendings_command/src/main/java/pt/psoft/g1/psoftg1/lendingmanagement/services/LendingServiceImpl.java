@@ -193,7 +193,7 @@ public class LendingServiceImpl implements LendingService{
 
         // Use the current version from the fetched entity to avoid race conditions
         // The optimistic locking will be handled by Hibernate on save
-        lending.setReturned(lending.getVersion(), resource.getComment());
+        lending.setReturned(lending.getVersion(), resource.getComment(), resource.getGrade());
 
         if(lending.getDaysDelayed() > 0){
             final var fine = new Fine(lending);
