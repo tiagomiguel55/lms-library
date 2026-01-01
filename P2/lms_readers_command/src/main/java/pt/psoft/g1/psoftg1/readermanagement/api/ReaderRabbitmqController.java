@@ -271,6 +271,11 @@ public class ReaderRabbitmqController {
                 // Verify reader exists in database
                 Optional<ReaderDetails> existingReader = readerRepository.findByReaderNumber(readerNumber);
                 if (existingReader.isPresent()) {
+                    // Send reader.created event to notify other services (e.g., lms_lendings_command)
+                    ReaderDetails reader = existingReader.get();
+                    readerEventPublisher.sendReaderCreated(reader);
+                    System.out.println(" [x] ✅ [SAGA-Sync] Sent reader.created event for: " + readerNumber);
+
                     // Cleanup pending request
                     try {
                         pendingReaderUserRequestRepository.delete(pendingRequest);
