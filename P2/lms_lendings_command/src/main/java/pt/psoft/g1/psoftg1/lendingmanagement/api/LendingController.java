@@ -152,31 +152,36 @@ public class LendingController {
             @Valid @RequestBody final SetLendingReturnedRequest resource) {
         String ln = year + "/" + seq;
 
+        // Fetch the lending first
+        final var maybeLending = lendingService.findByLendingNumber(ln)
+                .orElseThrow(() -> new NotFoundException(Lending.class, ln));
+
         final String ifMatchValue = request.getHeader(ConcurrencyService.IF_MATCH);
         long desiredVersion;
         
         if (ifMatchValue != null && !ifMatchValue.isEmpty() && !ifMatchValue.equals("null")) {
             desiredVersion = concurrencyService.getVersionFromIfMatchHeader(ifMatchValue);
-            // Validate lending exists when using explicit version
-            lendingService.findByLendingNumber(ln)
-                    .orElseThrow(() -> new NotFoundException(Lending.class, ln));
         } else {
-            // If If-Match header is not provided (e.g., from Swagger), fetch and use current version from database
-            final var maybeLending = lendingService.findByLendingNumber(ln)
-                    .orElseThrow(() -> new NotFoundException(Lending.class, ln));
+            // If If-Match header is not provided (e.g., from Swagger), use current version from database
             desiredVersion = maybeLending.getVersion();
             System.out.println("No If-Match header provided, using current version from DB: " + desiredVersion);
         }
 
-        // Authorization temporarily disabled while auth microservice is unavailable
-        // User loggedUser = userService.getAuthenticatedUser(authentication);
-        // final var loggedReaderDetails = readerService.findByUsername(loggedUser.getUsername())
-        //         .orElseThrow(() -> new NotFoundException(ReaderDetails.class, loggedUser.getUsername()));
-        // //if logged Reader matches the one associated with the lending, skip ahead
-        // if (!Objects.equals(loggedReaderDetails.getReaderNumber(), maybeLending.getReaderDetails().getReaderNumber())) {
-        //     throw new AccessDeniedException("Reader does not have permission to edit this lending");
-        // }
-        System.out.println("Authorization disabled - skipping permission checks (temporary)");
+        // Authorization: Only the Reader who made the lending can return the book
+        if (authentication != null && authentication.isAuthenticated()) {
+            User loggedUser = userService.getAuthenticatedUser(authentication);
+            final var loggedReaderDetails = readerService.findByUsername(loggedUser.getUsername())
+                    .orElseThrow(() -> new NotFoundException("Reader not found for user: " + loggedUser.getUsername()));
+
+            // Check if logged Reader matches the one associated with the lending
+            if (!loggedReaderDetails.getReaderNumber().equals(maybeLending.getReaderDetails().getReaderNumber())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Only the reader who borrowed the book can return it");
+            }
+            System.out.println("Authorization passed: Reader " + loggedReaderDetails.getReaderNumber() + " is returning their book");
+        } else {
+            System.out.println("Warning: No authentication provided - skipping authorization check");
+        }
 
         final var lending = lendingService.setReturned(ln, resource, desiredVersion);
 

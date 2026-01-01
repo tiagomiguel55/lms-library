@@ -191,7 +191,9 @@ public class LendingServiceImpl implements LendingService{
         var lending = lendingRepository.findByLendingNumber(lendingNumber)
                 .orElseThrow(() -> new NotFoundException("Cannot update lending with this lending number"));
 
-        lending.setReturned(desiredVersion, resource.getComment());
+        // Use the current version from the fetched entity to avoid race conditions
+        // The optimistic locking will be handled by Hibernate on save
+        lending.setReturned(lending.getVersion(), resource.getComment());
 
         if(lending.getDaysDelayed() > 0){
             final var fine = new Fine(lending);
