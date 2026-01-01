@@ -58,6 +58,7 @@ public class ReaderRabbitmqController {
 
             System.out.println("     - Reader Number: " + event.getReaderNumber());
             System.out.println("     - Username: " + event.getUsername());
+            System.out.println("     - Full Name: " + event.getFullName());
 
             // Check if reader already exists
             if (readerRepository.findByReaderNumber(event.getReaderNumber()).isPresent()) {
@@ -74,8 +75,8 @@ public class ReaderRabbitmqController {
                 }
             }
 
-            // Create temporary Reader user for authentication
-            Reader user = new Reader(event.getUsername(), event.getPassword());
+            // Create Reader user with name using factory method
+            Reader user = Reader.newReader(event.getUsername(), event.getPassword(), event.getFullName());
 
             // Create temporary ReaderDetails entity
             String[] readerNumberParts = event.getReaderNumber().split("/");
