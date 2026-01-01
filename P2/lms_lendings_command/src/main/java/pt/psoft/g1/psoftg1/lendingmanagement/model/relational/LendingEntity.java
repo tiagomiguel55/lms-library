@@ -62,10 +62,12 @@ public class LendingEntity {
     @Version
     private long version;
 
+    @Setter
     @Size(min = 0, max = 1024)
     @Column(length = 1024)
     private String commentary = null;
 
+    @Setter
     @Column
     @jakarta.validation.constraints.Min(0)
     @jakarta.validation.constraints.Max(10)

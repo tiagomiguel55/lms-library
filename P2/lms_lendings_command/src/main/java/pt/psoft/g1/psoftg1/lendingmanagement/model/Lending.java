@@ -63,9 +63,10 @@ public class Lending {
 
     private long version;
 
-
+    @Setter
     private String commentary = null;
 
+    @Setter
     private Integer grade = null;
 
     private int fineValuePerDayInCents;
