@@ -298,9 +298,9 @@ public class BookRabbitmqController {
             System.out.println("     - Author: " + author.getName() + " (ID: " + author.getAuthorNumber() + ", finalized: " + author.isFinalized() + ")");
             System.out.println("     - Genre: " + genre.getGenre() + " (finalized: " + genre.isFinalized() + ")");
 
-            // Create book with finalized author and genre - use title from pending request
+            // Create book with finalized author and genre - use title and description from pending request
             String title = pendingRequest.getTitle();
-            String description = "Requested book - ISBN: " + isbn;
+            String description = pendingRequest.getDescription();
 
             List<Author> authorList = new ArrayList<>();
             authorList.add(author);
