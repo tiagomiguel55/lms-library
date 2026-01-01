@@ -79,7 +79,7 @@ class LendingTest {
     @Test
     void testSetReturned() {
         Lending lending = new Lending(bookdouble, readerDetailsDouble, 1, lendingDurationInDays, fineValuePerDayInCents);
-        lending.setReturned(0, null);
+        lending.setReturned(0, null, null);
         assertEquals(LocalDate.now(), lending.getReturnedDate());
     }
 
@@ -121,14 +121,14 @@ class LendingTest {
     @Test
     void testSetReturnedWhenAlreadyReturnedThrowsException() {
         Lending lending = new Lending(bookdouble, readerDetailsDouble, 1, lendingDurationInDays, fineValuePerDayInCents);
-        lending.setReturned(0, null);
-        assertThrows(IllegalArgumentException.class, () -> lending.setReturned(1, "Another return attempt"));
+        lending.setReturned(0, null, null);
+        assertThrows(IllegalArgumentException.class, () -> lending.setReturned(1, "Another return attempt", null));
     }
 
     @Test
     void testSetReturnedWithStaleVersionThrowsException() {
         Lending lending = new Lending(bookdouble, readerDetailsDouble, 1, lendingDurationInDays, fineValuePerDayInCents);
-        assertThrows(StaleObjectStateException.class, () -> lending.setReturned(999, null));
+        assertThrows(StaleObjectStateException.class, () -> lending.setReturned(999, null, null));
     }
 
     @Test
@@ -146,7 +146,7 @@ class LendingTest {
     @Test
     void testGetFineValueInCentsAfterDueDate() {
         Lending lending = new Lending(bookdouble, readerDetailsDouble, 1, lendingDurationInDays, fineValuePerDayInCents);
-        lending.setReturned(0, null);
+        lending.setReturned(0, null, null);
         lending.getDaysUntilReturn();
         assertFalse(lending.getFineValueInCents().isPresent());
     }
@@ -208,7 +208,7 @@ class LendingTest {
     @Test
     void testGetReturnedDateAfterReturn() {
         Lending lending = new Lending(bookdouble, readerDetailsDouble, 1, lendingDurationInDays, fineValuePerDayInCents);
-        lending.setReturned(0, "Returned with commentary");
+        lending.setReturned(0, "Returned with commentary", 8);
         assertEquals(LocalDate.now(), lending.getReturnedDate());
     }
 
