@@ -409,8 +409,8 @@ public class BookServiceImpl implements BookService {
 
             // All dependencies available - try to create the book
             Genre genre = genreOpt.get();
-            String title = "Book by " + event.getAuthorName();
-            String description = "Finalized book from event";
+            String title = event.getTitle() != null ? event.getTitle() : "Book by " + event.getAuthorName();
+            String description = event.getDescription() != null ? event.getDescription() : "Finalized book from event";
 
             Book newBook = new Book(event.getBookId(), title, description, genre, List.of(author), null);
 
@@ -611,13 +611,16 @@ public class BookServiceImpl implements BookService {
                 return;
             }
 
+            String title = event.getTitle() != null ? event.getTitle() : "Book by " + event.getAuthorName();
+            String description = event.getDescription() != null ? event.getDescription() : "Finalized book from event";
+
             PendingBookEvent pending = new PendingBookEvent(
                 event.getBookId(),
                 event.getGenreName(),
                 event.getAuthorId(),
                 event.getAuthorName(),
-                "Book by " + event.getAuthorName(),
-                "Finalized book from event"
+                title,
+                description
             );
 
             pendingBookEventRepository.save(pending);

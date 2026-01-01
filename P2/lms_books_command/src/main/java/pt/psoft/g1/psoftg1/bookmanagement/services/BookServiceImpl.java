@@ -78,7 +78,8 @@ public class BookServiceImpl implements BookService {
         }
 
         // Save pending request - we need to wait for both AuthorCmd and GenreCmd
-        PendingBookRequest newPendingRequest = new PendingBookRequest(isbn, request.getTitle(), authorName, genreName);
+        String description = "Book requested via create-complete endpoint";
+        PendingBookRequest newPendingRequest = new PendingBookRequest(isbn, request.getTitle(), description, authorName, genreName);
         pendingBookRequestRepository.save(newPendingRequest);
 
         System.out.println(" [x] Saved pending book request for ISBN: " + isbn);
@@ -286,9 +287,9 @@ public class BookServiceImpl implements BookService {
 
     @Override
     @Transactional
-    public void publishBookFinalized(Long authorId, String authorName, String bookId, String genreName) {
-        System.out.println(" [x] Publishing BOOK_FINALIZED event for Author ID: " + authorId + " - Book ID: " + bookId + " - Genre: " + genreName);
-        bookEventsPublisher.sendBookFinalizedEvent(authorId, authorName, bookId, genreName);
+    public void publishBookFinalized(Long authorId, String authorName, String bookId, String genreName, String title, String description) {
+        System.out.println(" [x] Publishing BOOK_FINALIZED event for Author ID: " + authorId + " - Book ID: " + bookId + " - Genre: " + genreName + " - Title: " + title);
+        bookEventsPublisher.sendBookFinalizedEvent(authorId, authorName, bookId, genreName, title, description);
     }
 
     private List<Author> getAuthors(List<Long> authorNumbers) {

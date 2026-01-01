@@ -35,5 +35,5 @@ public interface BookService {
 
     Book createWithAuthorAndGenre(BookRequestedEvent request);
 
-    void publishBookFinalized(Long authorId, String authorName, String bookId, String genreName);
+    void publishBookFinalized(Long authorId, String authorName, String bookId, String genreName, String title, String description);
 }

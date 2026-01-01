@@ -251,7 +251,7 @@ public class BookRabbitmqController {
                 Author author = authors.get(0);
 
                 // Send BOOK_FINALIZED event to trigger finalization in AuthorCmd and GenreCmd
-                bookService.publishBookFinalized(author.getAuthorNumber(), author.getName(), isbn, pendingRequest.getGenreName());
+                bookService.publishBookFinalized(author.getAuthorNumber(), author.getName(), isbn, pendingRequest.getGenreName(), pendingRequest.getTitle(), pendingRequest.getDescription());
                 System.out.println(" [x] ✅ BOOK_FINALIZED event sent - waiting for author and genre finalization...");
 
                 return; // Don't create book yet, wait for finalization events
@@ -360,7 +360,7 @@ public class BookRabbitmqController {
                 System.out.println(" [x] Processed pending request for ISBN: " + isbn);
 
                 // Publish BOOK_FINALIZED event to notify that the book is finalized
-                bookService.publishBookFinalized(author.getAuthorNumber(), author.getName(), isbn, genre.getGenre());
+                bookService.publishBookFinalized(author.getAuthorNumber(), author.getName(), isbn, genre.getGenre(), pendingRequest.getTitle(), pendingRequest.getDescription());
 
                 // Optionally delete the pending request after successful completion
                 // pendingBookRequestRepository.delete(pendingRequest);

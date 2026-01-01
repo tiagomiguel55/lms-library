@@ -74,11 +74,11 @@ public class BookEventsRabbitmqPublisherImpl implements BookEventsPublisher {
     }
 
     @Override
-    public BookFinalizedEvent sendBookFinalizedEvent(Long authorId, String authorName, String bookId, String genreName) {
-        System.out.println("Save Book Finalized event to Outbox: Author ID " + authorId + " for book: " + bookId + " - Genre: " + genreName);
+    public BookFinalizedEvent sendBookFinalizedEvent(Long authorId, String authorName, String bookId, String genreName, String title, String description) {
+        System.out.println("Save Book Finalized event to Outbox: Author ID " + authorId + " for book: " + bookId + " - Genre: " + genreName + " - Title: " + title);
 
         try {
-            BookFinalizedEvent event = new BookFinalizedEvent(authorId, authorName, bookId, genreName);
+            BookFinalizedEvent event = new BookFinalizedEvent(authorId, authorName, bookId, genreName, title, description);
 
             outboxService.saveEvent("Book", bookId, BookEvents.BOOK_FINALIZED, event);
 

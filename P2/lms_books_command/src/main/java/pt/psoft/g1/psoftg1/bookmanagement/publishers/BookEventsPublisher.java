@@ -18,7 +18,7 @@ public interface BookEventsPublisher {
 
     BookRequestedEvent sendBookRequestedEvent(String bookId, String authorName, String genreName);
 
-    BookFinalizedEvent sendBookFinalizedEvent(Long authorId, String authorName, String bookId, String genreName);
+    BookFinalizedEvent sendBookFinalizedEvent(Long authorId, String authorName, String bookId, String genreName, String title, String description);
 
     LendingValidationResponse sendBookValidationResponse(LendingValidationResponse response);
 }

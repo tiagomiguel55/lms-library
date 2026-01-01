@@ -12,4 +12,6 @@ public class BookFinalizedEvent {
     private String authorName;
     private String bookId;
     private String genreName;
+    private String title;
+    private String description;
 }
