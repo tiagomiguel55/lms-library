@@ -51,18 +51,12 @@ public class PendingReaderUserRequest {
     @Column(nullable = false)
     private LocalDateTime requestedAt;
 
-    // Flags to track received events (order-independent)
+    // Flags to track received confirmations (order-independent)
     @Column(nullable = false)
-    private boolean userPendingReceived = false;
+    private boolean userCreatedReceived = false;
 
     @Column(nullable = false)
-    private boolean readerPendingReceived = false;
-
-    @Column(nullable = false)
-    private boolean userFinalizedReceived = false;
-
-    @Column(nullable = false)
-    private boolean readerFinalizedReceived = false;
+    private boolean readerCreatedReceived = false;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -75,14 +69,10 @@ public class PendingReaderUserRequest {
     private Long version;
 
     public enum RequestStatus {
-        PENDING_USER_CREATION,         // Initial state: waiting for user pending event
-        PENDING_READER_CREATION,       // User pending received, waiting for reader pending
-        USER_CREATED,                  // Only used if user comes before reader (edge case)
-        BOTH_PENDING_CREATED,          // Both temporary entities created (finalized=false) - READY TO TRIGGER FINALIZATION
-        USER_FINALIZED,                // User finalized, waiting for reader finalization
-        READER_FINALIZED,              // Reader finalized, waiting for user finalization
-        BOTH_FINALIZED,                // Both entities finalized (finalized=true) - READY TO COMPLETE CREATION
-        READER_USER_CREATED,           // Reader and User successfully created with finalized entities
+        WAITING_CONFIRMATIONS,         // Initial state: waiting for both confirmations
+        USER_CONFIRMED,                // User creation confirmed, waiting for reader
+        READER_CONFIRMED,              // Reader creation confirmed, waiting for user
+        READER_USER_CREATED,           // Both confirmed - Reader and User successfully created
         FAILED                         // Saga compensation - creation aborted
     }
 
@@ -100,6 +90,6 @@ public class PendingReaderUserRequest {
         this.marketing = marketing;
         this.thirdParty = thirdParty;
         this.requestedAt = LocalDateTime.now();
-        this.status = RequestStatus.PENDING_USER_CREATION;
+        this.status = RequestStatus.WAITING_CONFIRMATIONS;
     }
 }

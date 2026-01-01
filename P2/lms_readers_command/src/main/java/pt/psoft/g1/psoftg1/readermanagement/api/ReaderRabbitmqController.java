@@ -213,22 +213,22 @@ public class ReaderRabbitmqController {
 
                 // Mark what was received
                 if (isUserPending) {
-                    pendingRequest.setUserPendingReceived(true);
-                    System.out.println(" [x] User pending ✓");
+                    pendingRequest.setUserCreatedReceived(true);
+                    System.out.println(" [x] User confirmed ✓");
                 }
                 if (isReaderPending) {
-                    pendingRequest.setReaderPendingReceived(true);
-                    System.out.println(" [x] Reader pending ✓");
+                    pendingRequest.setReaderCreatedReceived(true);
+                    System.out.println(" [x] Reader confirmed ✓");
                 }
 
-                boolean bothReceived = pendingRequest.isUserPendingReceived() && pendingRequest.isReaderPendingReceived();
+                boolean bothReceived = pendingRequest.isUserCreatedReceived() && pendingRequest.isReaderCreatedReceived();
 
                 if (bothReceived) {
-                    pendingRequest.setStatus(PendingReaderUserRequest.RequestStatus.BOTH_PENDING_CREATED);
-                    System.out.println(" [x] ✅ Both User and Reader confirmed → BOTH_PENDING_CREATED");
+                    pendingRequest.setStatus(PendingReaderUserRequest.RequestStatus.READER_USER_CREATED);
+                    System.out.println(" [x] ✅ Both User and Reader confirmed → READER_USER_CREATED");
                 } else {
                     System.out.println(" [x] ⏳ Waiting for " +
-                        (!pendingRequest.isUserPendingReceived() ? "User" : "Reader") + " confirmation...");
+                        (!pendingRequest.isUserCreatedReceived() ? "User" : "Reader") + " confirmation...");
                 }
 
                 pendingReaderUserRequestRepository.save(pendingRequest);
@@ -266,26 +266,12 @@ public class ReaderRabbitmqController {
             PendingReaderUserRequest pendingRequest = pendingRequestOpt.get();
 
             if (pendingRequest.getStatus() == PendingReaderUserRequest.RequestStatus.READER_USER_CREATED) {
-                System.out.println(" [x] [SAGA-Skip] Already completed for: " + readerNumber);
-                return;
-            }
+                System.out.println(" [x] [SAGA-Complete] Reader and User successfully created: " + readerNumber);
 
-            if (pendingRequest.getStatus() == PendingReaderUserRequest.RequestStatus.FAILED) {
-                System.out.println(" [x] [SAGA-Skip] Already failed for: " + readerNumber);
-                return;
-            }
-
-            if (pendingRequest.getStatus() == PendingReaderUserRequest.RequestStatus.BOTH_PENDING_CREATED) {
-                System.out.println(" [x] [SAGA-Step4] Finalizing Reader+User creation for: " + readerNumber);
-
+                // Verify reader exists in database
                 Optional<ReaderDetails> existingReader = readerRepository.findByReaderNumber(readerNumber);
                 if (existingReader.isPresent()) {
-                    pendingRequest.setStatus(PendingReaderUserRequest.RequestStatus.READER_USER_CREATED);
-                    pendingReaderUserRequestRepository.save(pendingRequest);
-                    System.out.println(" [x] ✅ [SAGA-Step4] Marked as completed");
-
-                    System.out.println(" [x] ✅ [SAGA-Complete] Reader and User successfully created: " + readerNumber);
-
+                    // Cleanup pending request
                     try {
                         pendingReaderUserRequestRepository.delete(pendingRequest);
                         System.out.println(" [x] ✅ [SAGA-Cleanup] Removed pending request");
@@ -295,10 +281,15 @@ public class ReaderRabbitmqController {
                 } else {
                     System.out.println(" [x] ❌ [SAGA-Error] Reader entity not found: " + readerNumber);
                     pendingRequest.setStatus(PendingReaderUserRequest.RequestStatus.FAILED);
-                    pendingRequest.setErrorMessage("Reader entity not found after both pending created");
+                    pendingRequest.setErrorMessage("Reader entity not found after confirmations received");
                     pendingReaderUserRequestRepository.save(pendingRequest);
                 }
             }
+
+            if (pendingRequest.getStatus() == PendingReaderUserRequest.RequestStatus.FAILED) {
+                System.out.println(" [x] [SAGA-Skip] Already failed for: " + readerNumber);
+            }
+
         } catch (Exception e) {
             System.out.println(" [x] ❌ [SAGA-Error] Finalization failed: " + e.getMessage());
             e.printStackTrace();
