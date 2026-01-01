@@ -103,7 +103,7 @@ public class LendingEntity {
      */
 
     @Builder
-    public LendingEntity(long pk,BookEntity book, ReaderDetailsEntity readerDetails, LendingNumberEntity lendingNumber, LocalDate startDate, LocalDate limitDate, LocalDate returnedDate, int fineValuePerDayInCents, boolean readerValid, String lendingStatus, boolean bookValid, long version, String commentary) {
+    public LendingEntity(long pk,BookEntity book, ReaderDetailsEntity readerDetails, LendingNumberEntity lendingNumber, LocalDate startDate, LocalDate limitDate, LocalDate returnedDate, int fineValuePerDayInCents, boolean readerValid, String lendingStatus, boolean bookValid, long version, String commentary, Integer grade) {
         try {
             this.book = Objects.requireNonNull(book);
             this.readerDetails = Objects.requireNonNull(readerDetails);
@@ -122,6 +122,7 @@ public class LendingEntity {
         setBookValid(bookValid);
         this.version = version;
         this.commentary = commentary;
+        this.grade = grade;
         this.pk = pk;
     }
 
