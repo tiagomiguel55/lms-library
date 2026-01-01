@@ -16,8 +16,6 @@ import pt.psoft.g1.psoftg1.shared.listeners.RpcBootstrapListener;
 import pt.psoft.g1.psoftg1.shared.model.BookEvents;
 import pt.psoft.g1.psoftg1.shared.model.GenreEvents;
 import pt.psoft.g1.psoftg1.shared.model.LendingEvents;
-import pt.psoft.g1.psoftg1.shared.model.ReaderEvents;
-import pt.psoft.g1.psoftg1.shared.model.UserEvents;
 import pt.psoft.g1.psoftg1.shared.publishers.RpcBootstrapPublisher;
 
 @Configuration
@@ -30,9 +28,12 @@ public class RabbitMQConfig {
         return new DirectExchange("LMS.direct");
     }
 
-    // Definindo filas para eventos de livros, autores e gêneros
+    // Definindo filas para eventos
     private static class ReceiverConfig {
 
+        // ========================================
+        // Lending SAGA queues
+        // ========================================
         @Bean
         public Queue readerLendingRequestQueue() {
             return new AnonymousQueue();
@@ -43,7 +44,9 @@ public class RabbitMQConfig {
             return new AnonymousQueue();
         }
 
-
+        // ========================================
+        // RPC Bootstrap queues
+        // ========================================
         @Bean
         public Queue readerServiceInstanciatedQueue() {
             return new AnonymousQueue();
@@ -53,6 +56,10 @@ public class RabbitMQConfig {
         public Queue rpcReplyQueue() {
             return new AnonymousQueue();
         }
+
+        // ========================================
+        // Book sync queues (needed for local book cache)
+        // ========================================
         @Bean
         public Queue bookCreatedQueue() {
             return new AnonymousQueue();
@@ -68,7 +75,9 @@ public class RabbitMQConfig {
             return new AnonymousQueue();
         }
 
-
+        // ========================================
+        // Genre sync queues (needed for local genre cache)
+        // ========================================
         @Bean
         public Queue genreCreatedQueue() {
             return new AnonymousQueue();
@@ -84,6 +93,9 @@ public class RabbitMQConfig {
             return new AnonymousQueue();
         }
 
+        // ========================================
+        // Lending sync queues (needed for lending validation)
+        // ========================================
         @Bean
         public Queue lendingCreatedQueue() {
             return new AnonymousQueue();
@@ -99,62 +111,39 @@ public class RabbitMQConfig {
             return new AnonymousQueue();
         }
 
-        @Bean
-        public Queue readerCreatedQueue() {
-            return new AnonymousQueue();
-        }
-
-        @Bean
-        public Queue readerUpdatedQueue() {
-            return new AnonymousQueue();
-        }
-
-        @Bean
-        public Queue readerDeletedQueue() {
-            return new AnonymousQueue();
-        }
-
+        // ========================================
         // SAGA queues for Reader-User creation
         // Named queues with load balancing - only ONE replica processes each message
         // This avoids optimistic locking conflicts when replicas share the same database
+        // ========================================
         @Bean
         public Queue readerUserRequestedUserQueue() {
-            return new Queue("reader.user.requested.user", true);  // Named - only auth_users listens
+            return new Queue("reader.user.requested.user", true);
         }
 
         @Bean
         public Queue readerUserRequestedReaderQueue() {
-            return new Queue("reader.user.requested.reader", true);  // Named - load balance initial request
+            return new Queue("reader.user.requested.reader", true);
         }
 
         @Bean
         public Queue userPendingCreatedQueue() {
-            return new Queue("user.pending.created", true);  // Named + Durable - load balance coordination
+            return new Queue("user.pending.created", true);
         }
 
         @Bean
         public Queue readerPendingCreatedQueue() {
-            return new Queue("reader.pending.created", true);  // Named + Durable - load balance coordination
+            return new Queue("reader.pending.created", true);
         }
 
-        // User event queues for receiving events from lms_auth_users
-        @Bean
-        public Queue userCreatedQueue() {
-            return new AnonymousQueue();
-        }
+        // NOTE: Reader sync queues (reader.created, reader.updated, reader.deleted) are NOT needed
+        // because all replicas share the same database.
+        // NOTE: User sync queues (user.created, user.updated, user.deleted) are NOT needed
+        // because all replicas share the same database.
 
-        @Bean
-        public Queue userUpdatedQueue() {
-            return new AnonymousQueue();
-        }
-
-        @Bean
-        public Queue userDeletedQueue() {
-            return new AnonymousQueue();
-        }
-
-
-        // Definindo bindings para as filas
+        // ========================================
+        // Bindings
+        // ========================================
 
         @Bean
         public Binding readerLendingRequestBinding(DirectExchange direct,
@@ -174,7 +163,7 @@ public class RabbitMQConfig {
 
         @Bean
         public Binding requestBinding(DirectExchange direct,
-                                                         @Qualifier("readerServiceInstanciatedQueue") Queue readerServiceInstanciatedQueue) {
+                                      @Qualifier("readerServiceInstanciatedQueue") Queue readerServiceInstanciatedQueue) {
             return BindingBuilder.bind(readerServiceInstanciatedQueue)
                     .to(direct)
                     .with("rpc.bootstrap.request");
@@ -182,7 +171,7 @@ public class RabbitMQConfig {
 
         @Bean
         public Binding replyBinding(DirectExchange direct,
-                                     @Qualifier("rpcReplyQueue") Queue rpcReplyQueue) {
+                                    @Qualifier("rpcReplyQueue") Queue rpcReplyQueue) {
             return BindingBuilder.bind(rpcReplyQueue)
                     .to(direct)
                     .with("rpc.bootstrap.response");
@@ -212,7 +201,6 @@ public class RabbitMQConfig {
                     .with(BookEvents.BOOK_DELETED);
         }
 
-
         @Bean
         public Binding genreCreatedBinding(DirectExchange direct,
                                            @Qualifier("genreCreatedQueue") Queue queue) {
@@ -220,7 +208,6 @@ public class RabbitMQConfig {
                     .to(direct)
                     .with(GenreEvents.GENRE_CREATED);
         }
-
 
         @Bean
         public Binding genreDeletedBinding(DirectExchange direct,
@@ -262,30 +249,6 @@ public class RabbitMQConfig {
                     .with(LendingEvents.LENDING_DELETED);
         }
 
-        @Bean
-        public Binding readerCreatedBinding(DirectExchange direct,
-                                            @Qualifier("readerCreatedQueue") Queue queue) {
-            return BindingBuilder.bind(queue)
-                    .to(direct)
-                    .with(ReaderEvents.READER_CREATED);
-        }
-
-        @Bean
-        public Binding readerUpdatedBinding(DirectExchange direct,
-                                            @Qualifier("readerUpdatedQueue") Queue queue) {
-            return BindingBuilder.bind(queue)
-                    .to(direct)
-                    .with(ReaderEvents.READER_UPDATED);
-        }
-
-        @Bean
-        public Binding readerDeletedBinding(DirectExchange direct,
-                                            @Qualifier("readerDeletedQueue") Queue queue) {
-            return BindingBuilder.bind(queue)
-                    .to(direct)
-                    .with(ReaderEvents.READER_DELETED);
-        }
-
         // SAGA bindings for Reader-User creation
         @Bean
         public Binding readerUserRequestedUserBinding(DirectExchange direct,
@@ -311,7 +274,6 @@ public class RabbitMQConfig {
                     .with("user.pending.created");
         }
 
-
         @Bean
         public Binding readerPendingCreatedBinding(DirectExchange direct,
                                                    @Qualifier("readerPendingCreatedQueue") Queue queue) {
@@ -320,33 +282,11 @@ public class RabbitMQConfig {
                     .with("reader.pending.created");
         }
 
-        // User event bindings for receiving events from lms_auth_users
-        @Bean
-        public Binding userCreatedBinding(DirectExchange direct,
-                                         @Qualifier("userCreatedQueue") Queue queue) {
-            return BindingBuilder.bind(queue)
-                    .to(direct)
-                    .with(UserEvents.USER_CREATED);
-        }
+        // ========================================
+        // Listeners
+        // ========================================
 
         @Bean
-        public Binding userUpdatedBinding(DirectExchange direct,
-                                         @Qualifier("userUpdatedQueue") Queue queue) {
-            return BindingBuilder.bind(queue)
-                    .to(direct)
-                    .with(UserEvents.USER_UPDATED);
-        }
-
-        @Bean
-        public Binding userDeletedBinding(DirectExchange direct,
-                                         @Qualifier("userDeletedQueue") Queue queue) {
-            return BindingBuilder.bind(queue)
-                    .to(direct)
-                    .with(UserEvents.USER_DELETED);
-        }
-
-        @Bean
-
         public RpcBootstrapListener rpcBootstrapListener(BookService bookService, GenreService genreService, LendingService lendingService, ReaderService readerService, RpcBootstrapPublisher rpcBootstrapPublisher) {
             return new RpcBootstrapListener(readerService, bookService, genreService, lendingService, rpcBootstrapPublisher);
         }
@@ -356,12 +296,10 @@ public class RabbitMQConfig {
             return new BookEventListener(bookService);
         }
 
-
         @Bean
         public GenreEventListener genreReceiver(GenreService genreService) {
             return new GenreEventListener(genreService);
         }
-
 
         @Bean
         public LendingEventListener lendingReceiver(LendingService lendingService) {

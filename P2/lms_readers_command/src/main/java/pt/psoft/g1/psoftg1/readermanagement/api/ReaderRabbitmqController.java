@@ -16,20 +16,21 @@ import pt.psoft.g1.psoftg1.readermanagement.services.ReaderService;
 import pt.psoft.g1.psoftg1.shared.repositories.ForbiddenNameRepository;
 import pt.psoft.g1.psoftg1.usermanagement.api.UserPendingCreated;
 import pt.psoft.g1.psoftg1.usermanagement.model.Reader;
-import pt.psoft.g1.psoftg1.usermanagement.repositories.UserRepository;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
 
 /**
- * Centralized RabbitMQ Listener for all Reader-related events
+ * Centralized RabbitMQ Listener for Reader-related events
  *
  * Handles:
  * 1. SAGA: Reader + User creation (reader.user.requested.reader)
  * 2. SAGA Coordination: User and Reader pending confirmations
- * 3. Synchronization: Reader created/updated/deleted events
- * 4. Lending SAGA: Reader validation for lending operations
+ * 3. Lending SAGA: Reader validation for lending operations
+ *
+ * NOTE: Sync events (reader.created, reader.updated, reader.deleted) are NOT needed
+ * because all replicas share the same database.
  */
 @Component
 @RequiredArgsConstructor
@@ -37,7 +38,6 @@ public class ReaderRabbitmqController {
 
     private final PendingReaderUserRequestRepository pendingReaderUserRequestRepository;
     private final ReaderRepository readerRepository;
-    private final UserRepository userRepository;
     private final ReaderEventPublisher readerEventPublisher;
     private final ReaderMapper readerMapper;
     private final ForbiddenNameRepository forbiddenNameRepository;
@@ -149,70 +149,6 @@ public class ReaderRabbitmqController {
     }
 
     // ========================================
-    // Synchronization: Reader Events
-    // ========================================
-
-    @RabbitListener(queues = "#{readerCreatedQueue.name}")
-    public void receiveReaderCreated(Message msg) {
-        try {
-            ObjectMapper objectMapper = new ObjectMapper();
-            String jsonReceived = new String(msg.getBody(), StandardCharsets.UTF_8);
-            ReaderViewAMQP readerViewAMQP = objectMapper.readValue(jsonReceived, ReaderViewAMQP.class);
-
-            System.out.println(" [x] [Sync] Received Reader Created - Reader Number: " + readerViewAMQP.getReaderNumber());
-
-            try {
-                readerService.create(readerViewAMQP);
-                System.out.println(" [x] [Sync] Reader synchronized successfully");
-            } catch (Exception e) {
-                System.out.println(" [x] [Sync] Reader already exists, no sync needed");
-            }
-        } catch (Exception ex) {
-            System.out.println(" [x] [Sync] Error receiving Reader created event: " + ex.getMessage());
-        }
-    }
-
-    @RabbitListener(queues = "#{readerUpdatedQueue.name}")
-    public void receiveReaderUpdated(Message msg) {
-        try {
-            ObjectMapper objectMapper = new ObjectMapper();
-            String jsonReceived = new String(msg.getBody(), StandardCharsets.UTF_8);
-            ReaderViewAMQP readerViewAMQP = objectMapper.readValue(jsonReceived, ReaderViewAMQP.class);
-
-            System.out.println(" [x] [Sync] Received Reader Updated - Reader Number: " + readerViewAMQP.getReaderNumber());
-
-            try {
-                readerService.update(readerViewAMQP);
-                System.out.println(" [x] [Sync] Reader update synchronized successfully");
-            } catch (Exception e) {
-                System.out.println(" [x] [Sync] Reader does not exist or version mismatch");
-            }
-        } catch (Exception ex) {
-            System.out.println(" [x] [Sync] Error receiving Reader updated event: " + ex.getMessage());
-        }
-    }
-
-    @RabbitListener(queues = "#{readerDeletedQueue.name}")
-    public void receiveReaderDeleted(String in) {
-        try {
-            ObjectMapper objectMapper = new ObjectMapper();
-            String jsonReceived = new String(in.getBytes(), StandardCharsets.UTF_8);
-            ReaderViewAMQP readerViewAMQP = objectMapper.readValue(jsonReceived, ReaderViewAMQP.class);
-
-            System.out.println(" [x] [Sync] Received Reader Deleted - Reader Number: " + readerViewAMQP.getReaderNumber());
-
-            try {
-                readerService.delete(readerViewAMQP);
-                System.out.println(" [x] [Sync] Reader deletion synchronized successfully");
-            } catch (Exception e) {
-                System.out.println(" [x] [Sync] Reader does not exist, no deletion needed");
-            }
-        } catch (Exception ex) {
-            System.out.println(" [x] [Sync] Error receiving Reader deleted event: " + ex.getMessage());
-        }
-    }
-
-    // ========================================
     // Lending SAGA: Reader Validation
     // ========================================
 
@@ -228,7 +164,7 @@ public class ReaderRabbitmqController {
             System.out.println(" [x] [Lending-SAGA] Received Reader validation request for lending: " + readerSagaViewAMQP.getLendingNumber());
 
             ReaderViewAMQP readerViewAMQP = readerViewAMQPMapper.toReaderViewAMQP(readerSagaViewAMQP);
-            ReaderDetails readerDetails = null;
+            ReaderDetails readerDetails;
 
             try {
                 readerDetails = readerService.create(readerViewAMQP);
@@ -238,9 +174,6 @@ public class ReaderRabbitmqController {
                 response.setStatus("SUCCESS");
                 readerEventPublisher.sendReaderLendingResponse(response);
 
-                if (readerDetails != null) {
-                    readerEventPublisher.sendReaderCreated(readerDetails);
-                }
             } catch (Exception e) {
                 System.out.println(" [x] [Lending-SAGA] Error validating Reader: " + e.getMessage());
                 response.setStatus("ERROR");
@@ -259,7 +192,7 @@ public class ReaderRabbitmqController {
     // ========================================
 
     private void updatePendingRequestAndTryFinalize(String readerNumber, boolean isUserPending, boolean isReaderPending) {
-        int maxRetries = 5;  // Increased retries for better reliability
+        int maxRetries = 5;
         for (int attempt = 0; attempt < maxRetries; attempt++) {
             try {
                 Optional<PendingReaderUserRequest> pendingRequestOpt =
@@ -278,7 +211,7 @@ public class ReaderRabbitmqController {
                     return;
                 }
 
-                // Mark what was received (using OR to preserve existing values)
+                // Mark what was received
                 if (isUserPending) {
                     pendingRequest.setUserPendingReceived(true);
                     System.out.println(" [x] User pending ✓");
@@ -288,8 +221,6 @@ public class ReaderRabbitmqController {
                     System.out.println(" [x] Reader pending ✓");
                 }
 
-                // CRITICAL: Only transition to BOTH_PENDING_CREATED if BOTH flags are actually true
-                // Re-fetch current state to ensure we have latest values from DB
                 boolean bothReceived = pendingRequest.isUserPendingReceived() && pendingRequest.isReaderPendingReceived();
 
                 if (bothReceived) {
@@ -302,24 +233,21 @@ public class ReaderRabbitmqController {
 
                 pendingReaderUserRequestRepository.save(pendingRequest);
 
-                // Try to finalize ONLY if both are received
                 if (bothReceived) {
                     tryCreateReaderAndUser(readerNumber);
                 }
-                break; // Success
+                break;
 
             } catch (OptimisticLockingFailureException e) {
                 if (attempt < maxRetries - 1) {
                     System.out.println(" [x] ⚠️ Optimistic lock conflict (attempt " + (attempt + 1) + "), retrying...");
                     try {
-                        // Exponential backoff: 50ms, 100ms, 200ms, 400ms, 800ms
                         Thread.sleep(50 * (1L << attempt));
                     } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();
                     }
                 } else {
                     System.out.println(" [x] ❌ Failed after " + maxRetries + " attempts due to optimistic locking");
-                    // Don't throw - another replica might succeed
                     return;
                 }
             }
@@ -337,7 +265,6 @@ public class ReaderRabbitmqController {
 
             PendingReaderUserRequest pendingRequest = pendingRequestOpt.get();
 
-            // Skip if already completed or failed
             if (pendingRequest.getStatus() == PendingReaderUserRequest.RequestStatus.READER_USER_CREATED) {
                 System.out.println(" [x] [SAGA-Skip] Already completed for: " + readerNumber);
                 return;
@@ -353,22 +280,17 @@ public class ReaderRabbitmqController {
 
                 Optional<ReaderDetails> existingReader = readerRepository.findByReaderNumber(readerNumber);
                 if (existingReader.isPresent()) {
-                    // Mark SAGA as completed FIRST
                     pendingRequest.setStatus(PendingReaderUserRequest.RequestStatus.READER_USER_CREATED);
                     pendingReaderUserRequestRepository.save(pendingRequest);
                     System.out.println(" [x] ✅ [SAGA-Step4] Marked as completed");
 
-                    // Notify other services
-                    ReaderDetails reader = existingReader.get();
-                    readerEventPublisher.sendReaderCreated(reader);
                     System.out.println(" [x] ✅ [SAGA-Complete] Reader and User successfully created: " + readerNumber);
 
-                    // Cleanup in a separate try-catch to prevent cleanup errors from affecting the SAGA
                     try {
                         pendingReaderUserRequestRepository.delete(pendingRequest);
                         System.out.println(" [x] ✅ [SAGA-Cleanup] Removed pending request");
                     } catch (Exception cleanupEx) {
-                        System.out.println(" [x] ⚠️ [SAGA-Cleanup] Could not delete pending request (may have been deleted already): " + cleanupEx.getMessage());
+                        System.out.println(" [x] ⚠️ [SAGA-Cleanup] Could not delete pending request: " + cleanupEx.getMessage());
                     }
                 } else {
                     System.out.println(" [x] ❌ [SAGA-Error] Reader entity not found: " + readerNumber);
@@ -381,7 +303,6 @@ public class ReaderRabbitmqController {
             System.out.println(" [x] ❌ [SAGA-Error] Finalization failed: " + e.getMessage());
             e.printStackTrace();
 
-            // Only try to update status if it's not an optimistic locking error on cleanup
             if (!(e instanceof org.springframework.orm.ObjectOptimisticLockingFailureException)) {
                 try {
                     Optional<PendingReaderUserRequest> pendingRequestOpt =
@@ -397,8 +318,6 @@ public class ReaderRabbitmqController {
                 } catch (Exception cleanupEx) {
                     System.out.println(" [x] ⚠️ Error during error handling: " + cleanupEx.getMessage());
                 }
-            } else {
-                System.out.println(" [x] ⚠️ Optimistic locking conflict (likely cleanup race condition), ignoring");
             }
         }
     }
