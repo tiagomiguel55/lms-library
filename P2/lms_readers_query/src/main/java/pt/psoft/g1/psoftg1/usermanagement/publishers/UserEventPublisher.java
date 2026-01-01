@@ -7,7 +7,6 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import pt.psoft.g1.psoftg1.shared.model.UserEvents;
-import pt.psoft.g1.psoftg1.usermanagement.api.UserPendingCreated;
 import pt.psoft.g1.psoftg1.usermanagement.api.UserViewAMQP;
 
 @Component
@@ -16,22 +15,8 @@ public class UserEventPublisher {
 
     @Autowired
     private RabbitTemplate template;
-
     @Autowired
     private DirectExchange direct;
-
-    public void sendUserPendingCreated(UserPendingCreated event) {
-        try {
-            ObjectMapper objectMapper = new ObjectMapper();
-            String jsonString = objectMapper.writeValueAsString(event);
-
-            this.template.convertAndSend(direct.getName(), "user.pending.created", jsonString);
-
-            System.out.println(" [x] [AUTH-USERS] Sent UserPendingCreated event: " + jsonString);
-        } catch (Exception ex) {
-            System.out.println(" [x] [AUTH-USERS] Exception sending user pending created event: " + ex.getMessage());
-        }
-    }
 
     public void sendUserCreated(UserViewAMQP event) {
         try {
@@ -64,4 +49,3 @@ public class UserEventPublisher {
         }
     }
 }
-

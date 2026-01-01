@@ -31,12 +31,16 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pt.psoft.g1.psoftg1.exceptions.ConflictException;
+import pt.psoft.g1.psoftg1.exceptions.NotFoundException;
 import pt.psoft.g1.psoftg1.shared.repositories.ForbiddenNameRepository;
 import pt.psoft.g1.psoftg1.shared.services.Page;
+import pt.psoft.g1.psoftg1.usermanagement.api.UserViewAMQP;
+import pt.psoft.g1.psoftg1.usermanagement.api.UserViewAMQPMapper;
 import pt.psoft.g1.psoftg1.usermanagement.model.Librarian;
 import pt.psoft.g1.psoftg1.usermanagement.model.Reader;
 import pt.psoft.g1.psoftg1.usermanagement.model.Role;
 import pt.psoft.g1.psoftg1.usermanagement.model.User;
+import pt.psoft.g1.psoftg1.usermanagement.publishers.UserEventPublisher;
 import pt.psoft.g1.psoftg1.usermanagement.repositories.UserRepository;
 
 import java.util.List;
@@ -52,10 +56,10 @@ public class UserService implements UserDetailsService {
 
     private final UserRepository userRepo;
     private final EditUserMapper userEditMapper;
-
     private final ForbiddenNameRepository forbiddenNameRepository;
-
     private final PasswordEncoder passwordEncoder;
+    private final UserEventPublisher userEventPublisher;
+    private final UserViewAMQPMapper userViewAMQPMapper;
 
     public List<User> findByName(String name) {
         return this.userRepo.findByNameName(name);
@@ -97,7 +101,17 @@ public class UserService implements UserDetailsService {
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         // user.addAuthority(new Role(request.getRole()));
 
-        return userRepo.save(user);
+        User savedUser = userRepo.save(user);
+
+        // Publish user created event via AMQP
+        try {
+            userEventPublisher.sendUserCreated(userViewAMQPMapper.toUserViewAMQP(savedUser));
+        } catch (Exception e) {
+            // Log the error but don't fail the user creation
+            System.out.println("Failed to publish user created event: " + e.getMessage());
+        }
+
+        return savedUser;
     }
 
     @Transactional
@@ -105,17 +119,38 @@ public class UserService implements UserDetailsService {
         final User user = userRepo.getById(id);
         userEditMapper.update(request, user);
 
-        return userRepo.save(user);
+        User updatedUser = userRepo.save(user);
+
+        // Publish user updated event via AMQP
+        try {
+            userEventPublisher.sendUserUpdated(userViewAMQPMapper.toUserViewAMQP(updatedUser));
+        } catch (Exception e) {
+            // Log the error but don't fail the user update
+            System.out.println("Failed to publish user updated event: " + e.getMessage());
+        }
+
+        return updatedUser;
     }
 
     @Transactional
     public User delete(final Long id) {
         final User user = userRepo.getById(id);
+        String username = user.getUsername();
 
         // user.setUsername(user.getUsername().replace("@", String.format("_%s@",
         // user.getId().toString())));
         user.setEnabled(false);
-        return userRepo.save(user);
+        User deletedUser = userRepo.save(user);
+
+        // Publish user deleted event via AMQP
+        try {
+            userEventPublisher.sendUserDeleted(username);
+        } catch (Exception e) {
+            // Log the error but don't fail the user deletion
+            System.out.println("Failed to publish user deleted event: " + e.getMessage());
+        }
+
+        return deletedUser;
     }
 
     @Override
@@ -160,5 +195,84 @@ public class UserService implements UserDetailsService {
         }
 
         return loggedUser.get();
+    }
+
+    /**
+     * Creates a user from AMQP message without publishing events back to avoid loops
+     */
+    @Transactional
+    public User create(final UserViewAMQP userViewAMQP) {
+        // Check if user already exists
+        if (userRepo.findByUsername(userViewAMQP.getUsername()).isPresent()) {
+            throw new ConflictException("Username already exists!");
+        }
+
+        // Validate name for forbidden words
+        Iterable<String> words = List.of(userViewAMQP.getFullName().split("\\s+"));
+        for (String word : words) {
+            if (!forbiddenNameRepository.findByForbiddenNameIsContained(word).isEmpty()) {
+                throw new IllegalArgumentException("Name contains a forbidden word");
+            }
+        }
+
+        // Create Reader as default for AMQP users (could be enhanced to include role in UserViewAMQP)
+        User user = Reader.newReader(userViewAMQP.getUsername(), userViewAMQP.getPassword(), userViewAMQP.getFullName());
+        user.setPassword(passwordEncoder.encode(userViewAMQP.getPassword()));
+
+        return userRepo.save(user);
+    }
+
+    /**
+     * Updates a user from AMQP message without publishing events back to avoid loops
+     */
+    @Transactional
+    public User update(final UserViewAMQP userViewAMQP) {
+        Optional<User> existingUserOpt = userRepo.findByUsername(userViewAMQP.getUsername());
+        if (existingUserOpt.isEmpty()) {
+            throw new NotFoundException("User not found");
+        }
+
+        User existingUser = existingUserOpt.get();
+
+        // Version control - only update if versions match
+        if (userViewAMQP.getVersion() != null &&
+            !userViewAMQP.getVersion().equals(existingUser.getVersion().toString())) {
+            throw new ConflictException("Version mismatch - user may have been modified by another process");
+        }
+
+        // Validate name for forbidden words if name is being changed
+        if (userViewAMQP.getFullName() != null &&
+            !userViewAMQP.getFullName().equals(existingUser.getName().getName())) {
+            Iterable<String> words = List.of(userViewAMQP.getFullName().split("\\s+"));
+            for (String word : words) {
+                if (!forbiddenNameRepository.findByForbiddenNameIsContained(word).isEmpty()) {
+                    throw new IllegalArgumentException("Name contains a forbidden word");
+                }
+            }
+            existingUser.setName(userViewAMQP.getFullName());
+        }
+
+        // Update password if provided
+        if (userViewAMQP.getPassword() != null && !userViewAMQP.getPassword().isEmpty()) {
+            existingUser.setPassword(passwordEncoder.encode(userViewAMQP.getPassword()));
+        }
+
+        return userRepo.save(existingUser);
+    }
+
+    /**
+     * Deletes (disables) a user from AMQP message without publishing events back to avoid loops
+     */
+    @Transactional
+    public User delete(final String username) {
+        Optional<User> existingUserOpt = userRepo.findByUsername(username);
+        if (existingUserOpt.isEmpty()) {
+            throw new NotFoundException("User not found");
+        }
+
+        User existingUser = existingUserOpt.get();
+        existingUser.setEnabled(false);
+
+        return userRepo.save(existingUser);
     }
 }

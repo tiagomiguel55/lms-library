@@ -5,63 +5,71 @@ import org.springframework.amqp.rabbit.annotation.EnableRabbit;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import pt.psoft.g1.psoftg1.shared.model.UserEvents;
 
-/**
- * RabbitMQ Configuration for lms_auth_users service
- *
- * Configures queues and bindings for participating in the Reader+User creation SAGA
- */
 @Configuration
 @EnableRabbit
 public class RabbitMQConfig {
 
+    // Direct exchange for user events
     @Bean
     public DirectExchange directExchange() {
         return new DirectExchange("LMS.direct");
     }
 
-    // ========================================
-    // SAGA: Reader + User Creation Queues
-    // ========================================
-
-    /**
-     * Queue to receive requests to create a User as part of Reader+User SAGA
-     * This is a DURABLE NAMED queue so the service can restart without losing messages
-     */
+    // User event queues
     @Bean
-    public Queue readerUserRequestedUserQueue() {
-        return new Queue("reader.user.requested.user", true);
+    public Queue userCreatedQueue() {
+        return new AnonymousQueue();
     }
 
-    /**
-     * Queue to send confirmation that User was created (pending finalization)
-     * This is a DURABLE NAMED queue for the SAGA coordinator to receive
-     */
     @Bean
-    public Queue userPendingCreatedQueue() {
-        return new Queue("user.pending.created", true);
+    public Queue userUpdatedQueue() {
+        return new AnonymousQueue();
     }
 
-    // ========================================
-    // Bindings
-    // ========================================
-
     @Bean
-    public Binding readerUserRequestedUserBinding(
-            @Qualifier("directExchange") DirectExchange direct,
-            @Qualifier("readerUserRequestedUserQueue") Queue queue) {
+    public Queue userDeletedQueue() {
+        return new AnonymousQueue();
+    }
+
+    // Queue for user requests from other modules
+    @Bean
+    public Queue userRequestQueue() {
+        return QueueBuilder.durable("reader.user.requested.user").build();
+    }
+
+    // Bindings for user events
+    @Bean
+    public Binding userCreatedBinding(DirectExchange direct,
+                                     @Qualifier("userCreatedQueue") Queue queue) {
         return BindingBuilder.bind(queue)
                 .to(direct)
-                .with("reader.user.requested.user");
+                .with(UserEvents.USER_CREATED);
     }
 
     @Bean
-    public Binding userPendingCreatedBinding(
-            @Qualifier("directExchange") DirectExchange direct,
-            @Qualifier("userPendingCreatedQueue") Queue queue) {
+    public Binding userUpdatedBinding(DirectExchange direct,
+                                     @Qualifier("userUpdatedQueue") Queue queue) {
         return BindingBuilder.bind(queue)
                 .to(direct)
-                .with("user.pending.created");
+                .with(UserEvents.USER_UPDATED);
+    }
+
+    @Bean
+    public Binding userDeletedBinding(DirectExchange direct,
+                                     @Qualifier("userDeletedQueue") Queue queue) {
+        return BindingBuilder.bind(queue)
+                .to(direct)
+                .with(UserEvents.USER_DELETED);
+    }
+
+    // Binding for user requests
+    @Bean
+    public Binding userRequestBinding(DirectExchange direct,
+                                     @Qualifier("userRequestQueue") Queue queue) {
+        return BindingBuilder.bind(queue)
+                .to(direct)
+                .with(UserEvents.USER_REQUESTED);
     }
 }
-
