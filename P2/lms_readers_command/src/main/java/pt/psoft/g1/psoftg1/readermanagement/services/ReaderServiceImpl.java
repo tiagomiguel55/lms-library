@@ -132,7 +132,59 @@ public class ReaderServiceImpl implements ReaderService {
     @Override
     @Transactional
     public ReaderDetails createWithUser(ReaderUserRequestedEvent request) {
-        // Generate reader number if not provided
+        final String username = request.getUsername();
+
+        // 1. First check if Reader already exists by username (most important check)
+        Optional<ReaderDetails> existingReader = readerRepo.findByUsername(username);
+        if (existingReader.isPresent()) {
+            System.out.println(" [x] Reader already exists with username: " + username);
+            return existingReader.get();
+        }
+
+        // 2. Check if there's already a pending request for this username
+        Optional<PendingReaderUserRequest> pendingByUsername = pendingReaderUserRequestRepository.findByUsername(username);
+        if (pendingByUsername.isPresent()) {
+            PendingReaderUserRequest pending = pendingByUsername.get();
+            System.out.println(" [x] Found pending request for username: " + username + " (Status: " + pending.getStatus() + ")");
+
+            // If already completed, find and return the reader
+            if (pending.getStatus() == PendingReaderUserRequest.RequestStatus.READER_USER_CREATED) {
+                existingReader = readerRepo.findByReaderNumber(pending.getReaderNumber());
+                if (existingReader.isPresent()) {
+                    // Clean up the completed pending request
+                    try {
+                        pendingReaderUserRequestRepository.delete(pending);
+                        System.out.println(" [x] Cleaned up completed pending request");
+                    } catch (Exception e) {
+                        System.out.println(" [x] Could not clean up pending request: " + e.getMessage());
+                    }
+                    return existingReader.get();
+                }
+            }
+
+            // If failed, clean up and allow retry
+            if (pending.getStatus() == PendingReaderUserRequest.RequestStatus.FAILED) {
+                System.out.println(" [x] Previous request failed, cleaning up and allowing retry");
+                try {
+                    pendingReaderUserRequestRepository.delete(pending);
+                } catch (Exception e) {
+                    System.out.println(" [x] Could not clean up failed request: " + e.getMessage());
+                }
+                // Continue to create new request
+            } else {
+                // Request is still in progress, return null to indicate async processing
+                System.out.println(" [x] Request still in progress, returning 202");
+                return null;
+            }
+        }
+
+        // 3. Check if user exists in User table (created by lms_auth_users)
+        if (userRepo.findByUsername(username).isPresent()) {
+            System.out.println(" [x] User already exists with username: " + username);
+            throw new ConflictException("Username already exists!");
+        }
+
+        // 4. Generate reader number
         String readerNumber = request.getReaderNumber();
         if (readerNumber == null || readerNumber.isEmpty()) {
             int count = readerRepo.getCountFromCurrentYear();
@@ -140,41 +192,15 @@ public class ReaderServiceImpl implements ReaderService {
             request.setReaderNumber(readerNumber);
         }
 
-        final String username = request.getUsername();
-
-        // Check if user/reader already exists - if so, return it
-        Optional<ReaderDetails> existingReader = readerRepo.findByReaderNumber(readerNumber);
-        if (existingReader.isPresent()) {
-            System.out.println(" [x] Reader already exists with number: " + readerNumber);
-            return existingReader.get();
+        // 5. Check if readerNumber already exists (edge case)
+        if (readerRepo.findByReaderNumber(readerNumber).isPresent()) {
+            System.out.println(" [x] Reader number already exists: " + readerNumber + ", generating new one");
+            int count = readerRepo.getCountFromCurrentYear();
+            readerNumber = String.format("%d/%d", java.time.LocalDate.now().getYear(), count + 1);
+            request.setReaderNumber(readerNumber);
         }
 
-        if (userRepo.findByUsername(username).isPresent()) {
-            System.out.println(" [x] User already exists with username: " + username);
-            throw new ConflictException("Username already exists!");
-        }
-
-        // Check if request is already pending
-        Optional<PendingReaderUserRequest> pendingRequest = pendingReaderUserRequestRepository.findByReaderNumber(readerNumber);
-        if (pendingRequest.isPresent()) {
-            PendingReaderUserRequest pending = pendingRequest.get();
-            System.out.println(" [x] Reader and User creation request already pending for reader number: " + readerNumber +
-                             " (Status: " + pending.getStatus() + ")");
-
-            // Check status and provide appropriate response
-            if (pending.getStatus() == PendingReaderUserRequest.RequestStatus.READER_USER_CREATED) {
-                // Reader and User were already created, try to find it
-                existingReader = readerRepo.findByReaderNumber(readerNumber);
-                if (existingReader.isPresent()) {
-                    return existingReader.get();
-                }
-            }
-
-            // Request is still pending, return null to indicate async processing
-            return null;
-        }
-
-        // Save pending request - we need to wait for both UserCmd and ReaderCmd
+        // 6. Save pending request
         PendingReaderUserRequest newPendingRequest = new PendingReaderUserRequest(
                 readerNumber, username, request.getPassword(), request.getFullName(),
                 request.getBirthDate(), request.getPhoneNumber(), request.getPhotoURI(),
@@ -184,12 +210,11 @@ public class ReaderServiceImpl implements ReaderService {
 
         System.out.println(" [x] Saved pending reader-user request for reader number: " + readerNumber);
 
-        // Publish ReaderUserRequestedEvent - BOTH UserCmd and ReaderCmd will listen to this event
+        // 7. Publish ReaderUserRequestedEvent
         System.out.println(" [x] Publishing Reader-User Requested event for reader number: " + readerNumber);
         readerEventPublisher.sendReaderUserRequestedEvent(request);
 
         // Return null - the controller will handle this by returning HTTP 202 Accepted
-        // The actual reader and user will be created asynchronously when both UserPendingCreated and ReaderPendingCreated events arrive
         return null;
     }
 

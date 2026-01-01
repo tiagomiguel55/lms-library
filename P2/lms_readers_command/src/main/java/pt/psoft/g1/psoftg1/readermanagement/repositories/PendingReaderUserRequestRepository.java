@@ -8,4 +8,6 @@ import java.util.Optional;
 public interface PendingReaderUserRequestRepository extends CrudRepository<PendingReaderUserRequest, Long> {
 
     Optional<PendingReaderUserRequest> findByReaderNumber(String readerNumber);
+
+    Optional<PendingReaderUserRequest> findByUsername(String username);
 }
