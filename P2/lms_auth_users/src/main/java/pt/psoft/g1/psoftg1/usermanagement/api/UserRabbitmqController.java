@@ -10,10 +10,13 @@ import pt.psoft.g1.psoftg1.usermanagement.publishers.UserEventPublisher;
 import pt.psoft.g1.psoftg1.usermanagement.repositories.UserRepository;
 
 /**
- * RabbitMQ Listener for SAGA: Reader + User creation
+ * Centralized RabbitMQ Listener for User-related events
  *
- * This listener is part of the distributed SAGA that creates a Reader and User together.
- * It runs in the lms_auth_users service and is responsible for creating the User part.
+ * Handles:
+ * 1. SAGA: Reader + User creation (reader.user.requested.user)
+ *
+ * NOTE: Sync events (user.created, user.updated, user.deleted) are NOT needed
+ * because all replicas share the same database.
  */
 @Component
 @RequiredArgsConstructor
@@ -22,6 +25,10 @@ public class UserRabbitmqController {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserEventPublisher userEventPublisher;
+
+    // ========================================
+    // SAGA: Reader + User Creation
+    // ========================================
 
     /**
      * Listens to reader.user.requested.user queue

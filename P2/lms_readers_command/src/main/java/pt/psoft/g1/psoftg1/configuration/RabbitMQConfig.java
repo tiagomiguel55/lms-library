@@ -115,8 +115,8 @@ public class RabbitMQConfig {
         }
 
         // SAGA queues for Reader-User creation
-        // COORDINATION queues use ANONYMOUS pattern - each replica receives ALL coordination messages
-        // This ensures all replicas stay in sync, optimistic locking handles concurrency
+        // Named queues with load balancing - only ONE replica processes each message
+        // This avoids optimistic locking conflicts when replicas share the same database
         @Bean
         public Queue readerUserRequestedUserQueue() {
             return new Queue("reader.user.requested.user", true);  // Named - only auth_users listens
@@ -129,12 +129,12 @@ public class RabbitMQConfig {
 
         @Bean
         public Queue userPendingCreatedQueue() {
-            return new AnonymousQueue();  // ANONYMOUS - fanout to all replicas for coordination
+            return new Queue("user.pending.created", true);  // Named + Durable - load balance coordination
         }
 
         @Bean
         public Queue readerPendingCreatedQueue() {
-            return new AnonymousQueue();  // ANONYMOUS - fanout to all replicas for coordination
+            return new Queue("reader.pending.created", true);  // Named + Durable - load balance coordination
         }
 
         // User event queues for receiving events from lms_auth_users

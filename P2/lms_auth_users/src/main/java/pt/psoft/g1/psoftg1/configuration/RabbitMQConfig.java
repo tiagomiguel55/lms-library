@@ -17,54 +17,13 @@ public class RabbitMQConfig {
         return new DirectExchange("LMS.direct");
     }
 
-    // User event queues
-    @Bean
-    public Queue userCreatedQueue() {
-        return new AnonymousQueue();
-    }
-
-    @Bean
-    public Queue userUpdatedQueue() {
-        return new AnonymousQueue();
-    }
-
-    @Bean
-    public Queue userDeletedQueue() {
-        return new AnonymousQueue();
-    }
-
-    // Queue for user requests from other modules
+    // Queue for SAGA: Reader + User creation requests
     @Bean
     public Queue userRequestQueue() {
         return QueueBuilder.durable("reader.user.requested.user").build();
     }
 
-    // Bindings for user events
-    @Bean
-    public Binding userCreatedBinding(DirectExchange direct,
-                                     @Qualifier("userCreatedQueue") Queue queue) {
-        return BindingBuilder.bind(queue)
-                .to(direct)
-                .with(UserEvents.USER_CREATED);
-    }
-
-    @Bean
-    public Binding userUpdatedBinding(DirectExchange direct,
-                                     @Qualifier("userUpdatedQueue") Queue queue) {
-        return BindingBuilder.bind(queue)
-                .to(direct)
-                .with(UserEvents.USER_UPDATED);
-    }
-
-    @Bean
-    public Binding userDeletedBinding(DirectExchange direct,
-                                     @Qualifier("userDeletedQueue") Queue queue) {
-        return BindingBuilder.bind(queue)
-                .to(direct)
-                .with(UserEvents.USER_DELETED);
-    }
-
-    // Binding for user requests
+    // Binding for SAGA requests
     @Bean
     public Binding userRequestBinding(DirectExchange direct,
                                      @Qualifier("userRequestQueue") Queue queue) {
@@ -72,4 +31,7 @@ public class RabbitMQConfig {
                 .to(direct)
                 .with(UserEvents.USER_REQUESTED);
     }
+
+    // NOTE: Sync queues (user.created, user.updated, user.deleted) are NOT needed
+    // because all replicas share the same database.
 }
