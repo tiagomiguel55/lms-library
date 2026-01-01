@@ -85,12 +85,20 @@ public class ReaderRepositorySqlServerImpl implements ReaderRepository {
 
     @Override
     public Optional<ReaderDetails> findByUsername(String username) {
-        return Optional.of(readerEntityMapper.toModel(readerRepostorySqlServer.findByUsername(username).get()));
+        Optional<ReaderDetailsEntity> entity = readerRepostorySqlServer.findByUsername(username);
+        if (entity.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(readerEntityMapper.toModel(entity.get()));
     }
 
     @Override
     public Optional<ReaderDetails> findByUserId(String userId) {
-        return Optional.of(readerEntityMapper.toModel(readerRepostorySqlServer.findByUserId(userId).get()));
+        Optional<ReaderDetailsEntity> entity = readerRepostorySqlServer.findByUserId(userId);
+        if (entity.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(readerEntityMapper.toModel(entity.get()));
     }
 
     @Override
