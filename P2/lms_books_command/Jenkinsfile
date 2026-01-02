@@ -690,6 +690,135 @@ EOF
             }
         }
 
+        stage('Release Validation Tests (Staging)') {
+            when {
+                allOf {
+                    expression { params.ENVIRONMENT == 'staging' }
+                    expression { params.SKIP_DEPLOY == false }
+                }
+            }
+            steps {
+                dir("${WORK_DIR}") {
+                    script {
+                        echo "=========================================="
+                        echo "RELEASE VALIDATION TESTS - STAGING"
+                        echo "=========================================="
+                        echo "Running comprehensive validation tests"
+                        echo "Automatic rollback will trigger if tests fail"
+                        echo "=========================================="
+
+                        // Get current service details for potential rollback
+                        def serviceName = sh(
+                            script: """
+                                docker service ls --filter "name=${STACK_NAME_STAGING}" --format "{{.Name}}" | grep lmsbooks | grep command | head -1 || echo ""
+                            """,
+                            returnStdout: true
+                        ).trim()
+
+                        // Get previous image tag for rollback
+                        def previousImage = sh(
+                            script: """
+                                if [ -f /tmp/lmsbooks_staging_previous_image.txt ]; then
+                                    cat /tmp/lmsbooks_staging_previous_image.txt
+                                else
+                                    echo ""
+                                fi
+                            """,
+                            returnStdout: true
+                        ).trim()
+
+                        echo "Service Name: ${serviceName}"
+                        echo "Previous Image: ${previousImage}"
+                        echo ""
+
+                        // Save current image as previous for next deployment
+                        sh """
+                            echo "${FULL_IMAGE_NAME}:${IMAGE_TAG}" > /tmp/lmsbooks_staging_current_image.txt
+                        """
+
+                        // Make validation script executable
+                        sh "chmod +x release-validation-tests.sh || true"
+
+                        // Run validation tests
+                        def validationResult = sh(
+                            script: """
+                                ./release-validation-tests.sh \
+                                    http://74.161.33.56:8082 \
+                                    staging \
+                                    "${serviceName}" \
+                                    "${previousImage}"
+                            """,
+                            returnStatus: true
+                        )
+
+                        if (validationResult != 0) {
+                            echo ""
+                            echo "❌ VALIDATION TESTS FAILED"
+                            echo "Triggering automatic rollback..."
+                            error("Release validation failed - automatic rollback initiated")
+                        } else {
+                            echo ""
+                            echo "✅ ALL VALIDATION TESTS PASSED"
+                            echo "Deployment verified successfully"
+
+                            // Update previous image for next deployment
+                            sh """
+                                cp /tmp/lmsbooks_staging_current_image.txt /tmp/lmsbooks_staging_previous_image.txt
+                            """
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Feature Flag Validation (Staging)') {
+            when {
+                allOf {
+                    expression { params.ENVIRONMENT == 'staging' }
+                    expression { params.SKIP_DEPLOY == false }
+                }
+            }
+            steps {
+                script {
+                    echo "=========================================="
+                    echo "FEATURE FLAG VALIDATION"
+                    echo "=========================================="
+
+                    sh """
+                        echo "Checking feature flag configuration..."
+
+                        # Test feature flag endpoints
+                        SERVICE_URL="http://74.161.33.56:8082"
+
+                        echo ""
+                        echo "1. Testing feature flag health endpoint..."
+                        HEALTH_STATUS=\$(curl -s \$SERVICE_URL/api/admin/feature-flags/health | grep -o '"status":"[^"]*"' | cut -d'"' -f4 || echo "UNKNOWN")
+                        echo "   Status: \$HEALTH_STATUS"
+
+                        echo ""
+                        echo "2. Verifying master kill switch is disabled..."
+                        KILL_SWITCH=\$(curl -s \$SERVICE_URL/api/admin/feature-flags/health | grep -o '"masterKillSwitch":[^,}]*' | cut -d':' -f2 || echo "unknown")
+                        echo "   Master Kill Switch: \$KILL_SWITCH"
+
+                        if [ "\$KILL_SWITCH" = "true" ]; then
+                            echo ""
+                            echo "❌ ERROR: Master kill switch is unexpectedly ACTIVE!"
+                            exit 1
+                        fi
+
+                        echo ""
+                        echo "3. Checking dark launch configuration..."
+                        curl -s \$SERVICE_URL/api/admin/feature-flags | python3 -m json.tool || echo "Could not parse feature flags"
+
+                        echo ""
+                        echo "=========================================="
+                        echo "✅ Feature flag validation passed"
+                        echo "=========================================="
+                    """
+                }
+            }
+        }
+
         stage('Deploy Shared PostgreSQL (Blue/Green)') {
             when {
                 allOf {
@@ -1590,9 +1719,9 @@ EOF
 
                                     if [ "\$LIVE" = "blue" ]; then
                                         echo "  📍 Access at: http://localhost:${env.BLUE_PORT}"
-                                    else
+                                    } else {
                                         echo "  📍 Access at: http://localhost:${env.GREEN_PORT}"
-                                    fi
+                                    }
                                 else
                                     echo "  ⚠️ Live environment file not found"
                                 fi
