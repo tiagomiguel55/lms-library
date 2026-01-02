@@ -416,8 +416,8 @@ EOF
 
                         sh """
                             # Wait for staging services to be fully ready
-                            echo "Waiting 30 seconds for staging services to stabilize..."
-                            sleep 30
+                            echo "Waiting 60 seconds for staging services to stabilize..."
+                            sleep 60
 
                             # Verify service is running
                             echo ""
