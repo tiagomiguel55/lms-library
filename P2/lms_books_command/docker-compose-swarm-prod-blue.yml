@@ -1,0 +1,75 @@
+version: '3.8'
+
+# Blue Environment - Production Blue/Green Deployment
+services:
+  lmsbooks_command_blue:
+    image: docker.io/tiagomiguel55/lmsbooks:${IMAGE_TAG}
+    environment:
+      - SPRING_PROFILES_ACTIVE=bootstrap
+      - spring.datasource.url=jdbc:postgresql://postgres_command_prod:5432/lmsbooks_prod
+      - spring.datasource.username=lmsuser
+      - spring.datasource.password=lmspass
+      - spring.datasource.driver-class-name=org.postgresql.Driver
+      - spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
+      - spring.jpa.hibernate.ddl-auto=update
+      - spring.rabbitmq.host=lms_shared_rabbitmq
+      - spring.rabbitmq.port=5672
+      - spring.rabbitmq.username=guest
+      - spring.rabbitmq.password=guest
+      - DEPLOYMENT_COLOR=blue
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+      labels:
+        - "traefik.enable=true"
+        - "deployment.color=blue"
+    ports:
+      - "8083:8080"
+    networks:
+      - lms_network_prod
+      - lms_network
+
+  postgres_command_prod:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=lmsbooks_prod
+      - POSTGRES_USER=lmsuser
+      - POSTGRES_PASSWORD=lmspass
+    volumes:
+      - postgres_command_data_prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lmsuser -d lmsbooks_prod"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+    ports:
+      - "5434:5432"
+    networks:
+      - lms_network_prod
+
+networks:
+  lms_network_prod:
+    driver: overlay
+    attachable: true
+  lms_network:
+    external: true
+
+volumes:
+  postgres_command_data_prod:
