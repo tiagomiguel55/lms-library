@@ -121,7 +121,7 @@ pipeline {
                                    params.ENVIRONMENT == 'staging' ? STACK_NAME_STAGING : STACK_NAME_DEV
                     def composeFile = params.ENVIRONMENT == 'prod' ? 'docker-compose-swarm-prod.yml' :
                                      params.ENVIRONMENT == 'staging' ? 'docker-compose-swarm-staging.yml' :
-                                     'docker-compose-swarm-dev.yml'
+                                     'docker-compose-swarm.yml'
 
                     dir("${WORK_DIR}") {
                         sh """
