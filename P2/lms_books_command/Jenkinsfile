@@ -432,10 +432,14 @@ EOF
                             echo ""
                             echo "Service URL: \${SERVICE_URL}"
 
+                            # Configure k6 environment for snap
+                            export HOME=\${WORKSPACE}
+                            export SNAP_USER_COMMON=\${WORKSPACE}/.snap
+                            mkdir -p \${SNAP_USER_COMMON}
 
                             echo ""
                             echo "K6 version:"
-                            k6 version
+                            /snap/bin/k6 version || k6 version
 
                             echo ""
                             echo "=========================================="
@@ -447,7 +451,12 @@ EOF
                             export SERVICE_URL="\${SERVICE_URL}"
                             export MONOLITH_BASELINE_RPS=50
 
-                            k6 run \\
+                            /snap/bin/k6 run \\
+                                --out json=/tmp/k6_metrics.json \\
+                                --summary-export=/tmp/k6_summary.json \\
+                                -e SERVICE_URL=\${SERVICE_URL} \\
+                                -e MONOLITH_BASELINE_RPS=\${MONOLITH_BASELINE_RPS} \\
+                                load-test.js || k6 run \\
                                 --out json=/tmp/k6_metrics.json \\
                                 --summary-export=/tmp/k6_summary.json \\
                                 -e SERVICE_URL=\${SERVICE_URL} \\
