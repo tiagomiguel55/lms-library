@@ -1180,7 +1180,9 @@ EOF
                                 echo "Current Live Environment:"
                                 if [ -f "${env.LIVE_ENV_FILE}" ]; then
                                     LIVE=\$(cat ${env.LIVE_ENV_FILE})
-                                    echo "  ✅ \${LIVE^^} is LIVE"
+                                    # Convert to uppercase using tr instead of bash-specific syntax
+                                    LIVE_UPPER=\$(echo "\$LIVE" | tr '[:lower:]' '[:upper:]')
+                                    echo "  ✅ \${LIVE_UPPER} is LIVE"
 
                                     if [ "\$LIVE" = "blue" ]; then
                                         echo "  📍 Access at: http://localhost:${env.BLUE_PORT}"
