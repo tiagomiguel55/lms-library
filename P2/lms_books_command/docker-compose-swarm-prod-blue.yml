@@ -18,7 +18,7 @@ services:
       - spring.rabbitmq.password=guest
       - DEPLOYMENT_COLOR=blue
     healthcheck:
-      test: ["CMD-SHELL", "pgrep -f 'java.*app.jar' || exit 1"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -36,10 +36,12 @@ services:
         # Traefik routing - accept any host (works with IP addresses)
         - "traefik.http.routers.lmsbooks-blue.rule=PathPrefix(`/`)"
         - "traefik.http.routers.lmsbooks-blue.entrypoints=web"
-        - "traefik.http.routers.lmsbooks-blue.priority=1"
+        - "traefik.http.routers.lmsbooks-blue.priority=100"
+        - "traefik.http.routers.lmsbooks-blue.service=lmsbooks-blue"
         - "traefik.http.services.lmsbooks-blue.loadbalancer.server.port=8080"
         - "traefik.http.services.lmsbooks-blue.loadbalancer.healthcheck.path=/actuator/health"
         - "traefik.http.services.lmsbooks-blue.loadbalancer.healthcheck.interval=10s"
+        - "traefik.docker.network=lms_network_prod"
     networks:
       - lms_network_prod
       - lms_network
