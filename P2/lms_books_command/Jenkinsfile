@@ -397,6 +397,310 @@ EOF
             }
         }
 
+        stage('Load Tests - K6 (Staging)') {
+            when {
+                allOf {
+                    expression { params.ENVIRONMENT == 'staging' }
+                    expression { params.SKIP_DEPLOY == false }
+                }
+            }
+            steps {
+                dir("${WORK_DIR}") {
+                    script {
+                        echo "=========================================="
+                        echo "K6 LOAD TESTS - STAGING ENVIRONMENT"
+                        echo "=========================================="
+                        echo "Testing scalability and system behavior under load"
+                        echo "Comparing microservices performance with monolith baseline"
+                        echo "=========================================="
+
+                        sh """
+                            # Wait for staging services to be fully ready
+                            echo "Waiting 60 seconds for staging services to stabilize..."
+                            sleep 60
+
+                            # Verify service is running
+                            echo ""
+                            echo "Verifying staging service status..."
+                            docker service ls --filter "name=${STACK_NAME_STAGING}"
+
+                            # Get the staging service URL - using VM IP
+                            STAGING_PORT=8082
+                            VM_IP="74.161.33.56"
+                            SERVICE_URL="http://\${VM_IP}:\${STAGING_PORT}"
+
+                            echo ""
+                            echo "Service URL: \${SERVICE_URL}"
+
+                            # Check if k6 is installed
+                            if ! command -v k6 &> /dev/null; then
+                                echo "Installing k6..."
+                                # Install k6 on Debian/Ubuntu
+                                sudo gpg -k
+                                sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+                                echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+                                sudo apt-get update
+                                sudo apt-get install -y k6
+                            fi
+
+                            echo ""
+                            echo "K6 version:"
+                            k6 version
+
+                            echo ""
+                            echo "=========================================="
+                            echo "STARTING K6 LOAD TESTS"
+                            echo "=========================================="
+                            echo ""
+
+                            # Run k6 load tests
+                            export SERVICE_URL="\${SERVICE_URL}"
+                            export MONOLITH_BASELINE_RPS=50
+
+                            k6 run \\
+                                --out json=/tmp/k6_metrics.json \\
+                                --summary-export=/tmp/k6_summary.json \\
+                                -e SERVICE_URL=\${SERVICE_URL} \\
+                                -e MONOLITH_BASELINE_RPS=\${MONOLITH_BASELINE_RPS} \\
+                                load-test.js
+
+                            K6_EXIT_CODE=\$?
+
+                            echo ""
+                            echo "=========================================="
+                            echo "K6 LOAD TEST COMPLETED"
+                            echo "=========================================="
+
+                            # Display results summary
+                            if [ -f /tmp/load_test_results.json ]; then
+                                echo ""
+                                echo "Load Test Results:"
+                                cat /tmp/load_test_results.json
+                            fi
+
+                            # Check thresholds
+                            if [ \$K6_EXIT_CODE -ne 0 ]; then
+                                echo ""
+                                echo "⚠️ WARNING: Some K6 thresholds were not met"
+                                echo "This may trigger auto-scaling in the next stage"
+                            else
+                                echo ""
+                                echo "✅ All K6 thresholds passed"
+                            fi
+
+                            echo ""
+                            echo "=========================================="
+                            echo "LOAD TEST METRICS SUMMARY"
+                            echo "=========================================="
+
+                            if [ -f /tmp/load_test_results.json ]; then
+                                # Extract and display key metrics
+                                if command -v jq &> /dev/null; then
+                                    echo "Success Rate:          \$(jq -r '.results.success_rate' /tmp/load_test_results.json)%"
+                                    echo "Requests per Second:   \$(jq -r '.results.requests_per_second' /tmp/load_test_results.json) RPS"
+                                    echo "Avg Response Time:     \$(jq -r '.results.response_time_ms.average' /tmp/load_test_results.json) ms"
+                                    echo "P95 Response Time:     \$(jq -r '.results.response_time_ms.p95' /tmp/load_test_results.json) ms"
+                                    echo ""
+                                    echo "Monolith Baseline:     \$(jq -r '.comparison.monolith_baseline_rps' /tmp/load_test_results.json) RPS"
+                                    echo "Performance Diff:      \$(jq -r '.comparison.performance_improvement_percent' /tmp/load_test_results.json)%"
+                                    echo ""
+                                    echo "Scaling Recommendation: \$(jq -r '.scaling.recommendation' /tmp/load_test_results.json)"
+                                    echo "Recommended Replicas:   \$(jq -r '.scaling.recommended_replicas' /tmp/load_test_results.json)"
+                                else
+                                    cat /tmp/load_test_results.json
+                                fi
+                            fi
+
+                            echo "=========================================="
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Auto-Scale Based on Load Tests (Staging)') {
+            when {
+                allOf {
+                    expression { params.ENVIRONMENT == 'staging' }
+                    expression { params.SKIP_DEPLOY == false }
+                }
+            }
+            steps {
+                dir("${WORK_DIR}") {
+                    script {
+                        echo "=========================================="
+                        echo "AUTO-SCALING BASED ON LOAD TEST RESULTS"
+                        echo "=========================================="
+
+                        sh """
+                            echo "Reading load test results and determining scaling action..."
+                            echo ""
+
+                            # Set variables for auto-scale script
+                            export SERVICE_NAME="${STACK_NAME_STAGING}_lmsbooks_command_staging"
+                            export RESULTS_FILE="/tmp/load_test_results.json"
+                            export MIN_REPLICAS=1
+                            export MAX_REPLICAS=5
+
+                            # Check if results file exists
+                            if [ ! -f "\${RESULTS_FILE}" ]; then
+                                echo "⚠️ Load test results not found. Skipping auto-scaling."
+                                exit 0
+                            fi
+
+                            echo "=========================================="
+                            echo "CURRENT SERVICE STATUS"
+                            echo "=========================================="
+                            docker service ls --filter "name=\${SERVICE_NAME}" || echo "Service not found with exact name"
+
+                            # Try to find the service
+                            ACTUAL_SERVICE=\$(docker service ls --format "{{.Name}}" | grep -E "staging.*lmsbooks|lmsbooks.*staging" | grep command | head -1 || echo "")
+
+                            if [ -z "\$ACTUAL_SERVICE" ]; then
+                                echo "Looking for any staging service..."
+                                ACTUAL_SERVICE=\$(docker service ls --format "{{.Name}}" | grep staging | head -1 || echo "")
+                            fi
+
+                            if [ -n "\$ACTUAL_SERVICE" ]; then
+                                export SERVICE_NAME="\$ACTUAL_SERVICE"
+                                echo "Found service: \$SERVICE_NAME"
+                            fi
+
+                            echo ""
+                            echo "=========================================="
+                            echo "LOAD TEST RESULTS ANALYSIS"
+                            echo "=========================================="
+
+                            # Read scaling recommendation from results
+                            if command -v jq &> /dev/null; then
+                                RECOMMENDATION=\$(jq -r '.scaling.recommendation' "\${RESULTS_FILE}")
+                                RECOMMENDED_REPLICAS=\$(jq -r '.scaling.recommended_replicas' "\${RESULTS_FILE}")
+                                SUCCESS_RATE=\$(jq -r '.results.success_rate' "\${RESULTS_FILE}")
+                                RPS=\$(jq -r '.results.requests_per_second' "\${RESULTS_FILE}")
+                                AVG_RESPONSE=\$(jq -r '.results.response_time_ms.average' "\${RESULTS_FILE}")
+                            else
+                                RECOMMENDATION=\$(python3 -c "import json; print(json.load(open('\${RESULTS_FILE}'))['scaling']['recommendation'])")
+                                RECOMMENDED_REPLICAS=\$(python3 -c "import json; print(json.load(open('\${RESULTS_FILE}'))['scaling']['recommended_replicas'])")
+                                SUCCESS_RATE=\$(python3 -c "import json; print(json.load(open('\${RESULTS_FILE}'))['results']['success_rate'])")
+                                RPS=\$(python3 -c "import json; print(json.load(open('\${RESULTS_FILE}'))['results']['requests_per_second'])")
+                                AVG_RESPONSE=\$(python3 -c "import json; print(json.load(open('\${RESULTS_FILE}'))['results']['response_time_ms']['average'])")
+                            fi
+
+                            echo "Success Rate:          \${SUCCESS_RATE}%"
+                            echo "Requests/Second:       \${RPS} RPS"
+                            echo "Avg Response Time:     \${AVG_RESPONSE} ms"
+                            echo "Recommendation:        \${RECOMMENDATION}"
+                            echo "Recommended Replicas:  \${RECOMMENDED_REPLICAS}"
+
+                            # Get current replicas
+                            CURRENT_REPLICAS=\$(docker service inspect "\${SERVICE_NAME}" --format '{{.Spec.Mode.Replicated.Replicas}}' 2>/dev/null || echo "1")
+                            echo ""
+                            echo "Current Replicas:      \${CURRENT_REPLICAS}"
+
+                            echo ""
+                            echo "=========================================="
+                            echo "SCALING DECISION"
+                            echo "=========================================="
+
+                            TARGET_REPLICAS=\${CURRENT_REPLICAS}
+
+                            if [ "\${RECOMMENDATION}" = "scale_up" ]; then
+                                TARGET_REPLICAS=\${RECOMMENDED_REPLICAS}
+
+                                # Enforce max replicas
+                                if [ \${TARGET_REPLICAS} -gt \${MAX_REPLICAS} ]; then
+                                    TARGET_REPLICAS=\${MAX_REPLICAS}
+                                    echo "⚠️ Capping at max replicas: \${MAX_REPLICAS}"
+                                fi
+
+                                # Ensure we're actually scaling up
+                                if [ \${TARGET_REPLICAS} -le \${CURRENT_REPLICAS} ]; then
+                                    TARGET_REPLICAS=\$((CURRENT_REPLICAS + 1))
+                                    if [ \${TARGET_REPLICAS} -gt \${MAX_REPLICAS} ]; then
+                                        TARGET_REPLICAS=\${MAX_REPLICAS}
+                                    fi
+                                fi
+
+                                echo "Action: SCALE UP"
+                                echo "Reason: Load test metrics indicate need for more capacity"
+
+                            elif [ "\${RECOMMENDATION}" = "scale_down" ]; then
+                                TARGET_REPLICAS=\$((CURRENT_REPLICAS - 1))
+
+                                # Enforce min replicas
+                                if [ \${TARGET_REPLICAS} -lt \${MIN_REPLICAS} ]; then
+                                    TARGET_REPLICAS=\${MIN_REPLICAS}
+                                fi
+
+                                echo "Action: SCALE DOWN"
+                                echo "Reason: System is over-provisioned"
+
+                            else
+                                echo "Action: NO SCALING REQUIRED"
+                                echo "Reason: Current capacity is optimal"
+                            fi
+
+                            echo ""
+                            echo "Current Replicas:  \${CURRENT_REPLICAS}"
+                            echo "Target Replicas:   \${TARGET_REPLICAS}"
+
+                            echo ""
+                            echo "=========================================="
+                            echo "EXECUTING SCALING COMMAND"
+                            echo "=========================================="
+
+                            if [ \${TARGET_REPLICAS} -ne \${CURRENT_REPLICAS} ]; then
+                                echo "Executing: docker service scale \${SERVICE_NAME}=\${TARGET_REPLICAS}"
+                                echo ""
+
+                                docker service scale "\${SERVICE_NAME}=\${TARGET_REPLICAS}"
+
+                                echo ""
+                                echo "Waiting 15 seconds for scaling to complete..."
+                                sleep 15
+
+                                echo ""
+                                echo "=========================================="
+                                echo "SCALING VERIFICATION"
+                                echo "=========================================="
+
+                                NEW_REPLICAS=\$(docker service inspect "\${SERVICE_NAME}" --format '{{.Spec.Mode.Replicated.Replicas}}')
+                                RUNNING=\$(docker service ps "\${SERVICE_NAME}" --filter "desired-state=running" --format "{{.ID}}" 2>/dev/null | wc -l)
+
+                                echo "Desired Replicas:  \${NEW_REPLICAS}"
+                                echo "Running Replicas:  \${RUNNING}"
+                                echo ""
+
+                                docker service ps "\${SERVICE_NAME}" --format "table {{.Name}}\t{{.CurrentState}}\t{{.Node}}" | head -10
+
+                                echo ""
+                                if [ \${RUNNING} -ge \${TARGET_REPLICAS} ]; then
+                                    echo "✅ SCALING SUCCESSFUL"
+                                    echo "Service \${SERVICE_NAME} scaled from \${CURRENT_REPLICAS} to \${TARGET_REPLICAS} replicas"
+                                else
+                                    echo "⚠️ Scaling in progress - some replicas still starting"
+                                fi
+                            else
+                                echo "✅ No scaling action needed"
+                                echo "Service already at optimal replica count (\${CURRENT_REPLICAS})"
+                            fi
+
+                            echo ""
+                            echo "=========================================="
+                            echo "FINAL SERVICE STATUS"
+                            echo "=========================================="
+                            docker service ls --filter "name=\${SERVICE_NAME}"
+
+                            echo ""
+                            echo "=========================================="
+                            echo "AUTO-SCALING OPERATION COMPLETE"
+                            echo "=========================================="
+                        """
+                    }
+                }
+            }
+        }
+
         stage('Deploy Shared PostgreSQL (Blue/Green)') {
             when {
                 allOf {
