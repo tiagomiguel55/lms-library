@@ -972,58 +972,118 @@ EOF
                 }
             }
             steps {
-                script {
-                    echo "=========================================="
-                    echo "ROLLBACK REQUESTED"
-                    echo "=========================================="
-
-                    sh """
-                        # Read current live environment
-                        if [ -f "${LIVE_ENV_FILE}" ]; then
-                            CURRENT_LIVE=\$(cat ${LIVE_ENV_FILE})
-                        else
-                            echo "❌ ERROR: No live environment file found!"
-                            echo "Cannot determine which environment to rollback to."
-                            exit 1
-                        fi
-
-                        # Determine rollback target
-                        if [ "\$CURRENT_LIVE" = "blue" ]; then
-                            ROLLBACK_TO="green"
-                            ROLLBACK_STACK="${STACK_NAME_PROD_GREEN}"
-                            ROLLBACK_PORT="${GREEN_PORT}"
-                        else
-                            ROLLBACK_TO="blue"
-                            ROLLBACK_STACK="${STACK_NAME_PROD_BLUE}"
-                            ROLLBACK_PORT="${BLUE_PORT}"
-                        fi
-
-                        echo "Current live: \$CURRENT_LIVE"
-                        echo "Rolling back to: \$ROLLBACK_TO"
-
-                        # Check if rollback target exists
-                        ROLLBACK_SERVICE=\$(docker service ls --filter "label=com.docker.stack.namespace=\$ROLLBACK_STACK" --format "{{.Name}}" | grep lmsbooks | head -1 || echo "")
-
-                        if [ -z "\$ROLLBACK_SERVICE" ]; then
-                            echo "❌ ERROR: Rollback environment (\$ROLLBACK_TO) is not deployed!"
-                            echo "Cannot rollback - no previous version available."
-                            exit 1
-                        fi
-
-                        # Switch traffic back
-                        echo "\$ROLLBACK_TO" > ${LIVE_ENV_FILE}
-
-                        echo ""
+                dir("${WORK_DIR}") {
+                    script {
                         echo "=========================================="
-                        echo "✅ ROLLBACK COMPLETED!"
-                        echo ""
-                        echo "Traffic switched to: \$ROLLBACK_TO"
-                        echo "Port: \$ROLLBACK_PORT"
-                        echo "Stack: \$ROLLBACK_STACK"
-                        echo ""
-                        echo "Access the service at: http://localhost:\$ROLLBACK_PORT"
+                        echo "ROLLBACK REQUESTED"
                         echo "=========================================="
-                    """
+
+                        sh """
+                            # Read current live environment
+                            if [ -f "${LIVE_ENV_FILE}" ]; then
+                                CURRENT_LIVE=\$(cat ${LIVE_ENV_FILE})
+                            else
+                                echo "❌ ERROR: No live environment file found!"
+                                echo "Cannot determine which environment to rollback to."
+                                exit 1
+                            fi
+
+                            # Determine rollback target
+                            if [ "\$CURRENT_LIVE" = "blue" ]; then
+                                ROLLBACK_TO="green"
+                                ROLLBACK_STACK="${STACK_NAME_PROD_GREEN}"
+                                ROLLBACK_PORT="${GREEN_PORT}"
+                                # Set priorities: Green becomes active (100), Blue becomes standby (1)
+                                NEW_BLUE_PRIORITY=1
+                                NEW_GREEN_PRIORITY=100
+                            else
+                                ROLLBACK_TO="blue"
+                                ROLLBACK_STACK="${STACK_NAME_PROD_BLUE}"
+                                ROLLBACK_PORT="${BLUE_PORT}"
+                                # Set priorities: Blue becomes active (100), Green becomes standby (1)
+                                NEW_BLUE_PRIORITY=100
+                                NEW_GREEN_PRIORITY=1
+                            fi
+
+                            echo "Current live: \$CURRENT_LIVE"
+                            echo "Rolling back to: \$ROLLBACK_TO"
+
+                            # Check if rollback target exists
+                            ROLLBACK_SERVICE=\$(docker service ls --filter "label=com.docker.stack.namespace=\$ROLLBACK_STACK" --format "{{.Name}}" | grep lmsbooks | head -1 || echo "")
+
+                            if [ -z "\$ROLLBACK_SERVICE" ]; then
+                                echo "❌ ERROR: Rollback environment (\$ROLLBACK_TO) is not deployed!"
+                                echo "Cannot rollback - no previous version available."
+                                exit 1
+                            fi
+
+                            # Get current image tags from both services to preserve them
+                            echo ""
+                            echo "Getting current image versions..."
+
+                            BLUE_SERVICE=\$(docker service ls --filter "label=com.docker.stack.namespace=${STACK_NAME_PROD_BLUE}" --format "{{.Name}}" | grep lmsbooks | head -1)
+                            GREEN_SERVICE=\$(docker service ls --filter "label=com.docker.stack.namespace=${STACK_NAME_PROD_GREEN}" --format "{{.Name}}" | grep lmsbooks | head -1)
+
+                            if [ -n "\$BLUE_SERVICE" ]; then
+                                BLUE_IMAGE=\$(docker service inspect \$BLUE_SERVICE --format '{{.Spec.TaskTemplate.ContainerSpec.Image}}')
+                                echo "Blue current image: \$BLUE_IMAGE"
+                            fi
+
+                            if [ -n "\$GREEN_SERVICE" ]; then
+                                GREEN_IMAGE=\$(docker service inspect \$GREEN_SERVICE --format '{{.Spec.TaskTemplate.ContainerSpec.Image}}')
+                                echo "Green current image: \$GREEN_IMAGE"
+                            fi
+
+                            # Update labels via service update (only changes priorities, keeps images)
+                            echo ""
+                            echo "=========================================="
+                            echo "SWITCHING TRAFFIC VIA TRAEFIK PRIORITIES"
+                            echo "=========================================="
+                            echo "New Blue priority: \$NEW_BLUE_PRIORITY"
+                            echo "New Green priority: \$NEW_GREEN_PRIORITY"
+                            echo ""
+
+                            # Update Blue service priority (keep existing image)
+                            if [ -n "\$BLUE_SERVICE" ]; then
+                                echo "Updating Blue priority to \$NEW_BLUE_PRIORITY..."
+                                docker service update \\
+                                    --label-add "traefik.http.routers.lmsbooks-blue.priority=\$NEW_BLUE_PRIORITY" \\
+                                    \$BLUE_SERVICE
+                            fi
+
+                            # Update Green service priority (keep existing image)
+                            if [ -n "\$GREEN_SERVICE" ]; then
+                                echo "Updating Green priority to \$NEW_GREEN_PRIORITY..."
+                                docker service update \\
+                                    --label-add "traefik.http.routers.lmsbooks-green.priority=\$NEW_GREEN_PRIORITY" \\
+                                    \$GREEN_SERVICE
+                            fi
+
+                            # Update the live environment file
+                            echo "\$ROLLBACK_TO" > ${LIVE_ENV_FILE}
+
+                            echo ""
+                            echo "Waiting 10 seconds for Traefik to update routing..."
+                            sleep 10
+
+                            echo ""
+                            echo "=========================================="
+                            echo "✅ ROLLBACK COMPLETED!"
+                            echo "=========================================="
+                            echo "Traffic switched to: \$ROLLBACK_TO"
+                            echo "Port: \$ROLLBACK_PORT (via Traefik on 8085)"
+                            echo "Stack: \$ROLLBACK_STACK"
+                            echo ""
+                            echo "Current state:"
+                            echo "  Blue - Priority: \$NEW_BLUE_PRIORITY, Image: \${BLUE_IMAGE:-N/A}"
+                            echo "  Green - Priority: \$NEW_GREEN_PRIORITY, Image: \${GREEN_IMAGE:-N/A}"
+                            echo ""
+                            echo "⚠️  IMPORTANT: Image versions were preserved during rollback"
+                            echo "Access the service at: http://74.161.33.56:8085"
+                            echo "Traefik Dashboard: http://74.161.33.56:8090/dashboard/"
+                            echo "=========================================="
+                        """
+                    }
                 }
             }
         }
