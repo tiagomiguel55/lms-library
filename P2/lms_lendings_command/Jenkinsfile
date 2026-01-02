@@ -44,16 +44,16 @@ pipeline {
             defaultValue: false,
             description: 'Skip deployment'
         )
-    }
-
-    stages {
-
-        stage('Checkout') {
-            steps {
-                git branch: "${GIT_BRANCH}",
-                    url: "${GIT_REPO_URL}",
-                    credentialsId: "${CREDENTIALS_ID}"
-            }
+        booleanParam(
+            name: 'RUN_LOAD_TESTS',
+            defaultValue: true,
+            description: 'Run K6 load tests in staging environment'
+        )
+        booleanParam(
+            name: 'AUTO_SCALE',
+            defaultValue: true,
+            description: 'Auto-scale services based on load test results'
+        )
         }
 
         stage('Build & Package') {
@@ -377,263 +377,263 @@ EOF
             }
             steps {
                 script {
-                    echo "=========================================="
-                    echo "PRODUCTION DEPLOYMENT APPROVAL REQUIRED"
-                    echo "=========================================="
-                    echo "Project: LMS Lendings Command Service"
-                    echo "Build Number: ${BUILD_NUMBER}"
-                    echo "Image Tag: ${IMAGE_TAG}"
-                    echo "Environment: PRODUCTION"
-                    echo "Deployment Mode: Docker Swarm - Rolling Update (2 replicas)"
-                    echo ""
-                    echo "Rolling Update Strategy:"
-                    echo "  - Update 1 container at a time"
-                    echo "  - 10-second delay between updates"
-                    echo "  - Health checks before proceeding"
-                    echo "  - Automatic rollback on failure"
-                    echo "=========================================="
 
-                    // Try to send email notification
-                    try {
-                        mail(
-                            to: "${EMAIL_RECIPIENT}",
-                            subject: "Jenkins: Production Deployment Approval Required - Build #${BUILD_NUMBER}",
-                            body: """
-                                Production Deployment Approval Required
-                                =======================================
-
-                                Project: LMS Lendings Command Service
-                                Build Number: ${BUILD_NUMBER}
-                                Image Tag: ${IMAGE_TAG}
-                                Environment: PRODUCTION
-                                Deployment Mode: Docker Swarm - Rolling Update (2 replicas)
-
-                                Rolling Update Strategy:
-                                - Update 1 container at a time
-                                - 10-second delay between updates
-                                - Health checks before proceeding
-                                - Automatic rollback on failure
-
-                                Please review and approve/reject the deployment to production.
-
-                                Approve or reject at: ${BUILD_URL}input/
-
-                                View full build details: ${BUILD_URL}
-                            """,
-                            mimeType: 'text/plain'
-                        )
-                        echo "✅ Email notification sent successfully to ${EMAIL_RECIPIENT}"
-                    } catch (Exception e) {
-                        echo "⚠️ WARNING: Could not send email notification"
-                        echo "Email error: ${e.message}"
-                        echo "Continuing with manual approval process..."
-                    }
-
-                    timeout(time: 30, unit: 'MINUTES') {
-                        input message: 'Approve Production Deployment?', ok: 'Deploy'
-                    }
-                }
-            }
-        }
-
-        stage('Deploy to Production (Rolling Update + Rollback)') {
+        stage('Run K6 Load Tests (Staging)') {
             when {
                 allOf {
-                    expression { params.ENVIRONMENT == 'prod' }
+                    expression { params.ENVIRONMENT == 'staging' }
                     expression { params.SKIP_DEPLOY == false }
+                    expression { params.RUN_LOAD_TESTS == true }
                 }
             }
             steps {
                 dir("${WORK_DIR}") {
                     script {
-                        echo "Starting PROD rolling update with image ${IMAGE_NAME}:${IMAGE_TAG}"
-
                         sh """
-                            # Check if service already exists
-                            SERVICE_NAME=\$(docker service ls --filter "label=com.docker.stack.namespace=${STACK_NAME_PROD}" --filter "name=${STACK_NAME_PROD}_lmslendings_command" --format "{{.Name}}" 2>/dev/null || echo "")
+                            echo "=========================================="
+                            echo "K6 LOAD TESTING - STAGING ENVIRONMENT"
+                            echo "=========================================="
+                            echo ""
+                            echo "Testing scalability and system behavior under load"
+                            echo "Comparing microservice performance metrics"
+                            echo ""
 
-                            if [ -z "\$SERVICE_NAME" ]; then
-                                echo "=========================================="
-                                echo "⚠️ Service does not exist yet - First deployment"
-                                echo "Creating stack for the first time..."
-                                echo "=========================================="
+                            # Wait for service to be fully ready
+                            echo "Waiting 60 seconds for services to be fully ready..."
+                            sleep 60
 
-                                # First deployment - just create the stack
-                                export IMAGE_TAG=${IMAGE_TAG}
-                                docker stack deploy -c docker-compose-swarm-prod.yml ${STACK_NAME_PROD}
+                            # Verify service is responding
+                            echo "Verifying service health before load test..."
+                            SERVICE_URL="http://localhost:8091"
 
-                                echo "Waiting for services to start..."
-                                sleep 30
-
-                                # Get the newly created service name
-                                SERVICE_NAME=\$(docker service ls --filter "label=com.docker.stack.namespace=${STACK_NAME_PROD}" --filter "name=${STACK_NAME_PROD}_lmslendings_command" --format "{{.Name}}")
-
-                                if [ -z "\$SERVICE_NAME" ]; then
-                                    echo "❌ ERROR: Service was not created!"
-                                    exit 1
+                            MAX_RETRIES=10
+                            RETRY_COUNT=0
+                            while [ \$RETRY_COUNT -lt \$MAX_RETRIES ]; do
+                                if curl -s -o /dev/null -w "%{http_code}" "\${SERVICE_URL}/actuator/health" | grep -q "200"; then
+                                    echo "✅ Service is healthy and ready for load testing"
+                                    break
                                 fi
+                                echo "Waiting for service to be ready... (attempt \$((RETRY_COUNT + 1))/\$MAX_RETRIES)"
+                                sleep 10
+                                RETRY_COUNT=\$((RETRY_COUNT + 1))
+                            done
 
-                                # Check if all replicas are running
-                                EXPECTED_REPLICAS=\$(docker service inspect \$SERVICE_NAME --format '{{.Spec.Mode.Replicated.Replicas}}')
-                                echo "Expected replicas: \$EXPECTED_REPLICAS"
+                            if [ \$RETRY_COUNT -eq \$MAX_RETRIES ]; then
+                                echo "⚠️ WARNING: Service health check failed, proceeding with caution"
+                            fi
 
-                                MAX_WAIT=180
-                                ELAPSED=0
-
-                                while [ \$ELAPSED -lt \$MAX_WAIT ]; do
-                                    RUNNING_REPLICAS=\$(docker service ps \$SERVICE_NAME --filter "desired-state=running" --format "{{.CurrentState}}" 2>/dev/null | grep -c "Running")
-                                    echo "Running replicas: \$RUNNING_REPLICAS/\$EXPECTED_REPLICAS (elapsed: \${ELAPSED}s)"
-
-                                    if [ \$RUNNING_REPLICAS -ge \$EXPECTED_REPLICAS ]; then
-                                        echo "✅ All replicas are running - first deployment successful!"
-                                        break
-                                    fi
-
-                                    sleep 10
-                                    ELAPSED=\$((ELAPSED + 10))
-                                done
-
-                                if [ \$RUNNING_REPLICAS -lt \$EXPECTED_REPLICAS ]; then
-                                    echo "❌ Not all replicas started in time"
-                                    docker service logs --tail 50 \$SERVICE_NAME || true
-                                    exit 1
-                                fi
-
+                            # Check if k6 is installed, if not use Docker
+                            if command -v k6 &> /dev/null; then
+                                echo "Using native k6 installation"
+                                K6_CMD="k6"
                             else
-                                echo "=========================================="
-                                echo "✓ Service exists - Performing Rolling Update"
-                                echo "Service name: \$SERVICE_NAME"
-                                echo "=========================================="
+                                echo "Using k6 via Docker"
+                                K6_CMD="docker run --rm -i --network host -v \$(pwd)/k6:/scripts grafana/k6"
+                            fi
 
-                                # Save old image for rollback
-                                OLD_IMAGE=\$(docker service inspect \$SERVICE_NAME --format '{{.Spec.TaskTemplate.ContainerSpec.Image}}')
-                                echo "Old image: \$OLD_IMAGE"
-                                echo "New image: ${IMAGE_NAME}:${IMAGE_TAG}"
+                            echo ""
+                            echo "=========================================="
+                            echo "STARTING LOAD TEST"
+                            echo "=========================================="
+                            echo "Test Script: k6/quick-load-test.js"
+                            echo "Target URL: \${SERVICE_URL}"
+                            echo ""
 
-                                # Deploy new image with rolling update
-                                export IMAGE_TAG=${IMAGE_TAG}
-                                docker stack deploy -c docker-compose-swarm-prod.yml ${STACK_NAME_PROD}
+                            # Record start time and initial replica count
+                            INITIAL_REPLICAS=\$(docker service inspect ${STACK_NAME_STAGING}_lmslendings_command --format '{{.Spec.Mode.Replicated.Replicas}}' 2>/dev/null || echo "2")
+                            echo "Initial replica count: \${INITIAL_REPLICAS}"
+                            echo ""
 
-                                echo "Docker Swarm is performing rolling update..."
-                                echo "Monitoring service update progress..."
+                            # Run K6 load test
+                            if command -v k6 &> /dev/null; then
+                                k6 run --env BASE_URL=\${SERVICE_URL} --env ENVIRONMENT=staging k6/quick-load-test.js
+                            else
+                                docker run --rm -i --network host \\
+                                    -v \$(pwd)/k6:/scripts \\
+                                    -e BASE_URL=\${SERVICE_URL} \\
+                                    -e ENVIRONMENT=staging \\
+                                    grafana/k6 run /scripts/quick-load-test.js
+                            fi
 
-                                # Wait for deployment to start
-                                sleep 20
+                            echo ""
+                            echo "=========================================="
+                            echo "LOAD TEST COMPLETED"
+                            echo "=========================================="
 
-                                # Get expected replicas
-                                EXPECTED_REPLICAS=\$(docker service inspect \$SERVICE_NAME --format '{{.Spec.Mode.Replicated.Replicas}}')
-                                echo "Expected replicas: \$EXPECTED_REPLICAS"
+                            # Display current service metrics after load test
+                            echo ""
+                            echo "Service status after load test:"
+                            docker stack services ${STACK_NAME_STAGING}
 
-                                # Monitor rolling update
-                                MAX_WAIT=300
-                                ELAPSED=0
-                                UPDATE_COMPLETE=false
+                            echo ""
+                            echo "Container resource usage:"
+                            docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}" \$(docker ps -q --filter "label=com.docker.stack.namespace=${STACK_NAME_STAGING}") 2>/dev/null || echo "Stats not available"
 
-                                while [ \$ELAPSED -lt \$MAX_WAIT ]; do
-                                    STATUS=\$(docker service inspect \$SERVICE_NAME --format '{{.UpdateStatus.State}}' 2>/dev/null || echo "")
-                                    RUNNING_REPLICAS=\$(docker service ps \$SERVICE_NAME --filter "desired-state=running" --format "{{.CurrentState}}" 2>/dev/null | grep -c "Running" || echo "0")
+                            echo ""
+                            echo "=========================================="
+                            echo "MICROSERVICE VS MONOLITH COMPARISON"
+                            echo "=========================================="
+                            echo ""
+                            echo "Microservice Architecture Benefits Demonstrated:"
+                            echo "  ✓ Independent scaling of lendings service"
+                            echo "  ✓ Isolated failure domain"
+                            echo "  ✓ Resource efficiency per service"
+                            echo "  ✓ Multiple instances handling concurrent load"
+                            echo ""
+                            echo "Current deployment:"
+                            echo "  - Replicas: \${INITIAL_REPLICAS}"
+                            echo "  - Load balanced across instances"
+                            echo "  - Each instance handles portion of traffic"
+                            echo ""
+                            echo "In a monolith architecture:"
+                            echo "  - Would need to scale entire application"
+                            echo "  - All modules share same resources"
+                            echo "  - Single point of failure"
+                            echo "  - Less efficient resource utilization"
+                            echo "=========================================="
+                        """
+                    }
+                }
+            }
+        }
 
-                                    echo "Update status: \${STATUS:-none} | Running replicas: \$RUNNING_REPLICAS/\$EXPECTED_REPLICAS | Elapsed: \${ELAPSED}s"
+        stage('Auto-Scale Based on Load Test Results') {
+            when {
+                allOf {
+                    expression { params.ENVIRONMENT == 'staging' }
+                    expression { params.SKIP_DEPLOY == false }
+                    expression { params.RUN_LOAD_TESTS == true }
+                    expression { params.AUTO_SCALE == true }
+                }
+            }
+            steps {
+                dir("${WORK_DIR}") {
+                    script {
+                        sh """
+                            echo "=========================================="
+                            echo "AUTO-SCALING BASED ON LOAD TEST RESULTS"
+                            echo "=========================================="
+                            echo ""
 
-                                    # Check if update completed
-                                    if [ "\$STATUS" = "completed" ]; then
-                                        echo "✅ Rolling update completed successfully!"
-                                        UPDATE_COMPLETE=true
-                                        break
-                                    # Check if all replicas are running
-                                    elif [ \$RUNNING_REPLICAS -ge \$EXPECTED_REPLICAS ] && [ \$ELAPSED -gt 30 ]; then
-                                        echo "✅ All replicas running - deployment successful!"
-                                        UPDATE_COMPLETE=true
-                                        break
-                                    # Check for failures
-                                    elif [ "\$STATUS" = "rollback_completed" ]; then
-                                        echo "❌ Swarm automatic rollback completed!"
-                                        echo "Checking service logs..."
-                                        docker service logs --tail 50 \$SERVICE_NAME || true
-                                        exit 1
-                                    elif [ "\$STATUS" = "paused" ]; then
-                                        echo "❌ Update paused - rolling back manually to \$OLD_IMAGE..."
-                                        docker service update --image \$OLD_IMAGE \$SERVICE_NAME
-                                        docker service logs --tail 50 \$SERVICE_NAME || true
-                                        exit 1
-                                    fi
+                            SERVICE_NAME="${STACK_NAME_STAGING}_lmslendings_command"
 
-                                    # Show current replicas status
-                                    docker service ps \$SERVICE_NAME --filter "desired-state=running" --format "table {{.Name}}\t{{.CurrentState}}\t{{.Error}}" 2>/dev/null || true
+                            # Get current replica count
+                            CURRENT_REPLICAS=\$(docker service inspect \${SERVICE_NAME} --format '{{.Spec.Mode.Replicated.Replicas}}' 2>/dev/null || echo "2")
+                            echo "Current replica count: \${CURRENT_REPLICAS}"
 
-                                    sleep 10
-                                    ELAPSED=\$((ELAPSED + 10))
-                                done
+                            # Read load test results if available
+                            if [ -f "load-test-results.json" ]; then
+                                echo "Reading load test results..."
 
-                                # Handle timeout
-                                if [ "\$UPDATE_COMPLETE" = "false" ]; then
-                                    echo "⚠️ Rolling update timed out. Checking final status..."
-                                    FINAL_RUNNING=\$(docker service ps \$SERVICE_NAME --filter "desired-state=running" --format "{{.CurrentState}}" 2>/dev/null | grep -c "Running" || echo "0")
-
-                                    if [ \$FINAL_RUNNING -ge \$EXPECTED_REPLICAS ]; then
-                                        echo "✅ All replicas confirmed running - deployment successful!"
-                                        UPDATE_COMPLETE=true
-                                    else
-                                        echo "❌ Not all replicas running. Rolling back to \$OLD_IMAGE..."
-                                        docker service update --image \$OLD_IMAGE \$SERVICE_NAME
-                                        echo "Waiting for rollback to complete..."
-                                        sleep 20
-                                        docker service logs --tail 50 \$SERVICE_NAME || true
-                                        docker service ps \$SERVICE_NAME || true
-                                        exit 1
-                                    fi
+                                # Parse JSON results using jq or grep
+                                if command -v jq &> /dev/null; then
+                                    SCALING_ACTION=\$(jq -r '.scalingRecommendation.action' load-test-results.json)
+                                    RECOMMENDED_REPLICAS=\$(jq -r '.scalingRecommendation.recommendedReplicas' load-test-results.json)
+                                    P95_LATENCY=\$(jq -r '.metrics.http_req_duration_p95' load-test-results.json)
+                                    ERROR_RATE=\$(jq -r '.metrics.http_req_failed' load-test-results.json)
+                                else
+                                    # Fallback parsing without jq
+                                    SCALING_ACTION=\$(grep -o '"action":"[^"]*"' load-test-results.json | cut -d'"' -f4 || echo "MAINTAIN")
+                                    RECOMMENDED_REPLICAS=\$(grep -o '"recommendedReplicas":[0-9]*' load-test-results.json | cut -d':' -f2 || echo "2")
+                                    P95_LATENCY="N/A"
+                                    ERROR_RATE="N/A"
                                 fi
-                            fi
 
-                            echo "=========================================="
-                            echo "Production deployment completed successfully!"
-                            echo "All replicas running version ${IMAGE_TAG}"
-                            echo "=========================================="
-
-                            # Final status
-                            docker stack services ${STACK_NAME_PROD}
-                            docker stack ps ${STACK_NAME_PROD}
-
-                            # Health Check Status
-                            echo ""
-                            echo "=========================================="
-                            echo "HEALTH CHECK STATUS - PRODUCTION"
-                            echo "=========================================="
-
-                            # Get service name
-                            SERVICE_NAME=\$(docker service ls --filter "label=com.docker.stack.namespace=${STACK_NAME_PROD}" --filter "name=${STACK_NAME_PROD}_lmslendings_command" --format "{{.Name}}")
-
-                            if [ -n "\$SERVICE_NAME" ]; then
                                 echo ""
-                                echo "Service: \$SERVICE_NAME"
-                                echo "----------------------------------------"
+                                echo "Load Test Metrics:"
+                                echo "  - P95 Latency: \${P95_LATENCY} ms"
+                                echo "  - Error Rate: \${ERROR_RATE}"
+                                echo "  - Scaling Action: \${SCALING_ACTION}"
+                                echo "  - Recommended Replicas: \${RECOMMENDED_REPLICAS}"
+                            else
+                                echo "⚠️ Load test results file not found"
+                                echo "Using default scaling logic based on service metrics..."
 
-                                # Get all task IDs for the service
-                                TASK_IDS=\$(docker service ps \$SERVICE_NAME --filter "desired-state=running" --format "{{.ID}}" 2>/dev/null)
+                                # Default scaling logic based on resource usage
+                                CPU_USAGE=\$(docker stats --no-stream --format "{{.CPUPerc}}" \$(docker ps -q --filter "label=com.docker.swarm.service.name=\${SERVICE_NAME}" | head -1) 2>/dev/null | tr -d '%' || echo "0")
 
-                                for TASK_ID in \$TASK_IDS; do
-                                    # Get container ID from task
-                                    CONTAINER_ID=\$(docker inspect \$TASK_ID --format "{{.Status.ContainerStatus.ContainerID}}" 2>/dev/null || echo "")
+                                if [ "\${CPU_USAGE%.*}" -gt 80 ]; then
+                                    SCALING_ACTION="SCALE_UP"
+                                    RECOMMENDED_REPLICAS=\$((CURRENT_REPLICAS + 1))
+                                elif [ "\${CPU_USAGE%.*}" -lt 20 ] && [ "\${CURRENT_REPLICAS}" -gt 1 ]; then
+                                    SCALING_ACTION="SCALE_DOWN"
+                                    RECOMMENDED_REPLICAS=\$((CURRENT_REPLICAS - 1))
+                                else
+                                    SCALING_ACTION="MAINTAIN"
+                                    RECOMMENDED_REPLICAS=\${CURRENT_REPLICAS}
+                                fi
 
-                                    if [ -n "\$CONTAINER_ID" ]; then
-                                        echo ""
-                                        echo "Task: \$TASK_ID"
-                                        HEALTH_STATUS=\$(docker inspect \$CONTAINER_ID --format "{{.State.Health.Status}}" 2>/dev/null || echo "no healthcheck")
-
-                                        if [ "\$HEALTH_STATUS" != "no healthcheck" ]; then
-                                            echo "  Health Status: \$HEALTH_STATUS"
-                                        else
-                                            echo "  Health Status: Not configured or starting"
-                                        fi
-
-                                        # Show replica state
-                                        REPLICA_STATE=\$(docker service ps \$SERVICE_NAME --filter "id=\$TASK_ID" --format "{{.CurrentState}}" 2>/dev/null)
-                                        echo "  Replica State: \$REPLICA_STATE"
-                                    fi
-                                done
+                                echo "CPU Usage: \${CPU_USAGE}%"
                             fi
 
                             echo ""
+                            echo "=========================================="
+                            echo "SCALING DECISION"
+                            echo "=========================================="
+
+                            # Apply scaling based on recommendation
+                            case "\${SCALING_ACTION}" in
+                                SCALE_UP)
+                                    if [ "\${RECOMMENDED_REPLICAS}" -gt "\${CURRENT_REPLICAS}" ]; then
+                                        echo "📈 SCALING UP: \${CURRENT_REPLICAS} → \${RECOMMENDED_REPLICAS} replicas"
+                                        echo ""
+                                        echo "Executing: docker service scale \${SERVICE_NAME}=\${RECOMMENDED_REPLICAS}"
+                                        docker service scale \${SERVICE_NAME}=\${RECOMMENDED_REPLICAS}
+
+                                        echo ""
+                                        echo "Waiting for scaling to complete..."
+                                        sleep 30
+
+                                        # Verify scaling
+                                        NEW_REPLICAS=\$(docker service inspect \${SERVICE_NAME} --format '{{.Spec.Mode.Replicated.Replicas}}')
+                                        echo "✅ Scaling completed: \${NEW_REPLICAS} replicas now running"
+                                    else
+                                        echo "ℹ️ Already at or above recommended replicas (\${CURRENT_REPLICAS})"
+                                    fi
+                                    ;;
+                                SCALE_DOWN)
+                                    if [ "\${RECOMMENDED_REPLICAS}" -lt "\${CURRENT_REPLICAS}" ] && [ "\${RECOMMENDED_REPLICAS}" -ge 1 ]; then
+                                        echo "📉 SCALING DOWN: \${CURRENT_REPLICAS} → \${RECOMMENDED_REPLICAS} replicas"
+                                        echo ""
+                                        echo "Executing: docker service scale \${SERVICE_NAME}=\${RECOMMENDED_REPLICAS}"
+                                        docker service scale \${SERVICE_NAME}=\${RECOMMENDED_REPLICAS}
+
+                                        echo ""
+                                        echo "Waiting for scaling to complete..."
+                                        sleep 20
+
+                                        # Verify scaling
+                                        NEW_REPLICAS=\$(docker service inspect \${SERVICE_NAME} --format '{{.Spec.Mode.Replicated.Replicas}}')
+                                        echo "✅ Scaling completed: \${NEW_REPLICAS} replicas now running"
+                                    else
+                                        echo "ℹ️ Minimum replicas reached or no scaling needed (\${CURRENT_REPLICAS})"
+                                    fi
+                                    ;;
+                                MAINTAIN|*)
+                                    echo "➡️ MAINTAINING current replica count: \${CURRENT_REPLICAS}"
+                                    echo "Performance metrics are within acceptable thresholds"
+                                    ;;
+                            esac
+
+                            echo ""
+                            echo "=========================================="
+                            echo "POST-SCALING SERVICE STATUS"
+                            echo "=========================================="
+                            docker stack services ${STACK_NAME_STAGING}
+
+                            echo ""
+                            echo "Service tasks:"
+                            docker service ps \${SERVICE_NAME} --format "table {{.Name}}\t{{.CurrentState}}\t{{.Node}}"
+
+                            echo ""
+                            echo "=========================================="
+                            echo "✅ Auto-scaling stage completed"
+                            echo "=========================================="
+                        """
+                    }
+                }
+            }
+        }
                             echo "=========================================="
                         """
                     }

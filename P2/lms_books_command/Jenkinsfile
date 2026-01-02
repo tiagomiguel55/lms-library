@@ -190,11 +190,11 @@ pipeline {
                     docker info | grep -q "Swarm: active" || docker swarm init || true
 
                     # Create lms_network (shared network for all environments)
-                    docker network ls | grep -q lms_network || \
+                    docker network ls --format "{{.Name}}" | grep -qx lms_network || \
                     docker network create --driver overlay --attachable lms_network || true
 
                     # Create lms_network_prod (for Blue/Green production deployments)
-                    docker network ls | grep -q lms_network_prod || \
+                    docker network ls --format "{{.Name}}" | grep -qx lms_network_prod || \
                     docker network create --driver overlay --attachable lms_network_prod || true
 
                     echo "Networks created:"
