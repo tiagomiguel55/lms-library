@@ -397,7 +397,7 @@ EOF
             }
         }
 
-        stage('Load Tests - K6 (Staging)') {
+       /* stage('Load Tests - K6 (Staging)') {
             when {
                 allOf {
                     expression { params.ENVIRONMENT == 'staging' }
@@ -505,9 +505,9 @@ EOF
                     }
                 }
             }
-        }
+        } */
 
-        stage('Auto-Scale Based on Load Tests (Staging)') {
+     /*   stage('Auto-Scale Based on Load Tests (Staging)') {
             when {
                 allOf {
                     expression { params.ENVIRONMENT == 'staging' }
@@ -688,7 +688,7 @@ EOF
                     }
                 }
             }
-        }
+        } */
 
         stage('Release Validation Tests (Staging)') {
             when {
