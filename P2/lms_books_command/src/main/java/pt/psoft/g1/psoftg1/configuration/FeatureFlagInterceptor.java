@@ -25,7 +25,7 @@ public class FeatureFlagInterceptor implements HandlerInterceptor {
         String path = request.getRequestURI();
 
         // Allow GET requests and health checks always
-        if (method.equals("GET") || path.contains("/actuator") || path.contains("/api/admin/feature-flags")) {
+        if (method.equals("GET") || path.contains("/actuator")) {
             return true;
         }
 
@@ -43,4 +43,3 @@ public class FeatureFlagInterceptor implements HandlerInterceptor {
         return true;
     }
 }
-

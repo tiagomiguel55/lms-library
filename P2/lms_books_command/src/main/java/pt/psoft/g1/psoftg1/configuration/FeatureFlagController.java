@@ -16,6 +16,8 @@ import java.util.Map;
 /**
  * REST API for managing feature flags and kill switches
  * This enables runtime toggling without redeployment
+ *
+ * Requires LIBRARIAN role for all operations
  */
 @Tag(name = "Feature Flags", description = "Manage feature flags, dark launch, and kill switches")
 @RestController
@@ -29,6 +31,7 @@ public class FeatureFlagController {
 
     @Operation(summary = "Get all feature flags status")
     @GetMapping
+    @PreAuthorize("hasRole('LIBRARIAN')")
     public ResponseEntity<FeatureFlagStatus> getFeatureFlags() {
         log.info("Retrieving feature flag status");
 
@@ -43,7 +46,7 @@ public class FeatureFlagController {
 
     @Operation(summary = "Toggle master kill switch - EMERGENCY USE ONLY")
     @PostMapping("/kill-switch")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('LIBRARIAN')")
     public ResponseEntity<Map<String, Object>> toggleMasterKillSwitch(@RequestParam boolean enabled) {
         log.warn("MASTER KILL SWITCH toggled to: {} by admin", enabled);
 
@@ -61,7 +64,7 @@ public class FeatureFlagController {
 
     @Operation(summary = "Toggle a specific feature")
     @PostMapping("/features/{featureName}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('LIBRARIAN')")
     public ResponseEntity<Map<String, Object>> toggleFeature(
             @PathVariable String featureName,
             @RequestParam boolean enabled) {
@@ -90,7 +93,7 @@ public class FeatureFlagController {
 
     @Operation(summary = "Configure dark launch settings")
     @PutMapping("/dark-launch")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('LIBRARIAN')")
     public ResponseEntity<Map<String, Object>> configureDarkLaunch(
             @RequestBody DarkLaunchConfig config) {
 
@@ -144,4 +147,3 @@ public class FeatureFlagController {
         private String[] allowedRoles;
     }
 }
-

@@ -108,6 +108,8 @@ public class SecurityConfig {
         authz
                 .requestMatchers(HttpMethod.POST, "/api/readers").permitAll() // unregistered should be able to register
                 // Our private endpoints
+                // feature-flags - admin only
+                .requestMatchers("/api/admin/feature-flags/**").hasRole(Role.LIBRARIAN)
                 // authors
                 .requestMatchers(HttpMethod.POST, "/api/authors").hasRole(Role.LIBRARIAN)
                 .requestMatchers(HttpMethod.PATCH, "/api/authors/{authorNumber}").hasRole(Role.LIBRARIAN)

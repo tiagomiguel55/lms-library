@@ -17,8 +17,6 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(featureFlagInterceptor)
-                .addPathPatterns("/api/**")
-                .excludePathPatterns("/api/admin/feature-flags/**");
+                .addPathPatterns("/api/**");
     }
 }
-
