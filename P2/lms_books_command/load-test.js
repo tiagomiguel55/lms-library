@@ -82,20 +82,22 @@ export function setup() {
     console.log(`Monolith Baseline RPS: ${MONOLITH_BASELINE_RPS}`);
     console.log('========================================');
 
-    // Health check
-    const healthRes = http.get(`${SERVICE_URL}/actuator/health`, {
+    // Health check using public API endpoint instead of actuator
+    console.log('Performing health check...');
+    const healthRes = http.get(`${SERVICE_URL}/api/books`, {
         timeout: '10s',
     });
 
-    if (healthRes.status !== 200) {
-        console.log(`Warning: Health check returned status ${healthRes.status}`);
-        // Try base URL
-        const baseRes = http.get(`${SERVICE_URL}/api/books`);
-        if (baseRes.status !== 200) {
-            console.log('ERROR: Service is not available!');
+    if (healthRes.status === 200 || healthRes.status === 401) {
+        console.log('✅ Service is accessible and responding');
+        if (healthRes.status === 401) {
+            console.log('ℹ️  Note: Service requires authentication (expected for protected endpoints)');
         }
+    } else if (healthRes.status >= 400 && healthRes.status < 500) {
+        console.log(`⚠️  Service returned status ${healthRes.status} - continuing with load test`);
     } else {
-        console.log('✅ Service health check passed');
+        console.log(`⚠️  Warning: Health check returned status ${healthRes.status}`);
+        console.log('Continuing with load test anyway...');
     }
 
     return {

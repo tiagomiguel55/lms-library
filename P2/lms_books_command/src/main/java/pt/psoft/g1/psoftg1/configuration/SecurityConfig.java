@@ -73,6 +73,9 @@ public class SecurityConfig {
     @Value("${springdoc.swagger-ui.path}")
     private String swaggerPath;
 
+    @Value("${security.public-books-endpoints:false}")
+    private boolean publicBooksEndpoints;
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         // Enable CORS and disable CSRF
@@ -87,12 +90,21 @@ public class SecurityConfig {
                         .accessDeniedHandler(new BearerTokenAccessDeniedHandler()));
 
         // Set permissions on endpoints
-        http.authorizeHttpRequests()
+        var authz = http.authorizeHttpRequests()
                 // Swagger endpoints must be publicly accessible
                 .requestMatchers("/").permitAll().requestMatchers(format("%s/**", restApiDocPath)).permitAll()
                 .requestMatchers(format("%s/**", swaggerPath)).permitAll()
                 // Our public endpoints
-                .requestMatchers("/api/public/**").permitAll() // public assets & end-points
+                .requestMatchers("/api/public/**").permitAll(); // public assets & end-points
+
+        // Allow public access to books GET endpoints in staging (for load testing)
+        if (publicBooksEndpoints) {
+            authz = authz
+                .requestMatchers(HttpMethod.GET, "/api/books").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/books/**").permitAll();
+        }
+
+        authz
                 .requestMatchers(HttpMethod.POST, "/api/readers").permitAll() // unregistered should be able to register
                 // Our private endpoints
                 // authors
@@ -106,26 +118,23 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.DELETE, "/api/authors/{authorNumber}/photo").hasAnyRole(Role.LIBRARIAN)
                 .requestMatchers(HttpMethod.GET, "/api/authors/{authorNumber}/coauthors").hasRole(Role.READER)
                 // end authors
-                // books
+                // books (only if not already made public)
                 .requestMatchers(HttpMethod.POST, "/api/books/create-complete").hasRole(Role.LIBRARIAN)
                 .requestMatchers(HttpMethod.PUT, "/api/books/{isbn}").hasRole(Role.LIBRARIAN)
-                .requestMatchers(HttpMethod.PATCH, "/api/books/{isbn}").hasRole(Role.LIBRARIAN)
-                //.requestMatchers(HttpMethod.GET, "/api/books/{isbn}/avgDuration").hasRole(Role.LIBRARIAN)
+                .requestMatchers(HttpMethod.PATCH, "/api/books/{isbn}").hasRole(Role.LIBRARIAN);
+
+        // Only add GET restrictions if books endpoints are not public
+        if (!publicBooksEndpoints) {
+            authz = authz
                 .requestMatchers(HttpMethod.GET, "/api/books").hasAnyRole(Role.LIBRARIAN, Role.READER)
                 .requestMatchers(HttpMethod.GET, "/api/books/{isbn}").hasAnyRole(Role.READER, Role.LIBRARIAN)
-                //.requestMatchers(HttpMethod.GET, "/api/books/top5").hasRole(Role.LIBRARIAN)
-                .requestMatchers(HttpMethod.GET, "/api/books/{isbn}/photo").hasAnyRole(Role.LIBRARIAN, Role.READER)
+                .requestMatchers(HttpMethod.GET, "/api/books/{isbn}/photo").hasAnyRole(Role.LIBRARIAN, Role.READER);
+        }
+
+        authz
                 .requestMatchers(HttpMethod.DELETE, "/api/books/{isbn}/photo").hasRole(Role.LIBRARIAN)
-                //.requestMatchers(HttpMethod.GET, "/api/books/suggestions").hasRole(Role.READER)
                 .requestMatchers(HttpMethod.POST, "/api/books/search").hasAnyRole(Role.LIBRARIAN, Role.READER)
                 // endBooks
-//                // genres
-//                .requestMatchers(HttpMethod.GET, "/api/genres/top5").hasRole(Role.LIBRARIAN)
-//                .requestMatchers(HttpMethod.GET, "/api/genres/avgLendings").hasRole(Role.LIBRARIAN)
-//                .requestMatchers(HttpMethod.POST, "/api/genres/avgLendingsPerGenre").hasRole(Role.LIBRARIAN)
-//                .requestMatchers(HttpMethod.GET, "/api/genres/lendingsPerMonthLastTwelveMonths").hasRole(Role.LIBRARIAN)
-//                .requestMatchers(HttpMethod.GET, "/api/genres/lendingsAverageDurationPerMonth").hasRole(Role.LIBRARIAN)
-//                // end genres
                 // All other endpoints require authentication
                 .anyRequest().authenticated()
                 // Set up oauth2 resource server

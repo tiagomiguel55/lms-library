@@ -4,7 +4,7 @@ services:
   lmsbooks_command:
     image: docker.io/tiagomiguel55/lmsbooks:${IMAGE_TAG}
     environment:
-      - SPRING_PROFILES_ACTIVE=bootstrap
+      - SPRING_PROFILES_ACTIVE=bootstrap,staging
       - spring.datasource.url=jdbc:postgresql://postgres_command_staging:5432/lmsbooks_staging
       - spring.datasource.username=lmsuser
       - spring.datasource.password=lmspass
