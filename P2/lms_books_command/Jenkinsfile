@@ -391,6 +391,59 @@ EOF
             }
         }
 
+        stage('Deploy Shared PostgreSQL (Blue/Green)') {
+            when {
+                allOf {
+                    expression { params.ENVIRONMENT == 'prod' }
+                    expression { params.SKIP_DEPLOY == false }
+                    expression { params.DEPLOYMENT_STRATEGY == 'blue-green' }
+                }
+            }
+            steps {
+                dir("${WORK_DIR}") {
+                    sh """
+                        echo "=========================================="
+                        echo "DEPLOYING SHARED POSTGRESQL FOR BLUE/GREEN"
+                        echo "=========================================="
+
+                        # Check if PostgreSQL stack already exists
+                        if docker stack ls | grep -q "lmsbooks-prod-postgres"; then
+                            echo "✅ PostgreSQL stack already exists - updating..."
+                        else
+                            echo "📦 Creating new PostgreSQL stack..."
+                        fi
+
+                        # Deploy shared PostgreSQL
+                        docker stack deploy -c docker-compose-swarm-prod-postgres.yml lmsbooks-prod-postgres
+
+                        echo ""
+                        echo "Waiting for PostgreSQL to be ready..."
+                        sleep 20
+
+                        # Verify PostgreSQL is running
+                        PG_SERVICE=\$(docker service ls --filter "name=lmsbooks-prod-postgres_postgres_command_prod" --format "{{.Name}}" || echo "")
+
+                        if [ -n "\$PG_SERVICE" ]; then
+                            echo "✅ PostgreSQL service: \$PG_SERVICE"
+                            docker service ps \$PG_SERVICE --format "  {{.Name}}: {{.CurrentState}}"
+                        else
+                            echo "❌ ERROR: PostgreSQL service not found!"
+                            exit 1
+                        fi
+
+                        echo ""
+                        echo "=========================================="
+                        echo "✅ Shared PostgreSQL ready for Blue/Green deployments"
+                        echo "   - Service: lmsbooks-prod-postgres_postgres_command_prod"
+                        echo "   - Database: lmsbooks_prod"
+                        echo "   - Port: 5434"
+                        echo "   - Network: lms_network_prod"
+                        echo "=========================================="
+                    """
+                }
+            }
+        }
+
         stage('Manual Approval for Production') {
             when {
                 allOf {

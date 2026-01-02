@@ -18,7 +18,7 @@ services:
       - spring.rabbitmq.password=guest
       - DEPLOYMENT_COLOR=blue
     healthcheck:
-      test: ["CMD-SHELL", "pgrep -f 'java.*app.jar' || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -38,38 +38,9 @@ services:
       - lms_network_prod
       - lms_network
 
-  postgres_command_prod:
-    image: postgres:15
-    environment:
-      - POSTGRES_DB=lmsbooks_prod
-      - POSTGRES_USER=lmsuser
-      - POSTGRES_PASSWORD=lmspass
-    volumes:
-      - postgres_command_data_prod:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U lmsuser -d lmsbooks_prod"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-    deploy:
-      replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
-      restart_policy:
-        condition: on-failure
-    ports:
-      - "5434:5432"
-    networks:
-      - lms_network_prod
-
 networks:
   lms_network_prod:
     driver: overlay
     attachable: true
   lms_network:
     external: true
-
-volumes:
-  postgres_command_data_prod:
