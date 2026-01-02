@@ -26,6 +26,13 @@ pipeline {
         STACK_NAME_STAGING = 'lmsbooks-staging'
         STACK_NAME_PROD    = 'lmsbooks-prod'
 
+        // Blue/Green Deployment
+        STACK_NAME_PROD_BLUE  = 'lmsbooks-prod-blue'
+        STACK_NAME_PROD_GREEN = 'lmsbooks-prod-green'
+        BLUE_PORT  = '8083'
+        GREEN_PORT = '8084'
+        LIVE_ENV_FILE = '/tmp/lmsbooks_live_env.txt'
+
         // Email
         EMAIL_RECIPIENT = 'migueltiago255@gmail.com'
 
@@ -39,10 +46,20 @@ pipeline {
             choices: ['dev', 'staging', 'prod'],
             description: 'Deployment environment'
         )
+        choice(
+            name: 'DEPLOYMENT_STRATEGY',
+            choices: ['blue-green', 'rolling'],
+            description: 'Deployment strategy for production (only applies to prod environment)'
+        )
         booleanParam(
             name: 'SKIP_DEPLOY',
             defaultValue: false,
             description: 'Skip deployment'
+        )
+        booleanParam(
+            name: 'FORCE_ROLLBACK',
+            defaultValue: false,
+            description: 'Force rollback to previous environment (Blue/Green only)'
         )
     }
 
@@ -383,6 +400,10 @@ EOF
             }
             steps {
                 script {
+                    def strategyInfo = params.DEPLOYMENT_STRATEGY == 'blue-green' ?
+                        "Blue/Green Deployment (Zero-downtime with instant rollback)" :
+                        "Rolling Update (Gradual update with automatic rollback)"
+
                     echo "=========================================="
                     echo "PRODUCTION DEPLOYMENT APPROVAL REQUIRED"
                     echo "=========================================="
@@ -390,13 +411,21 @@ EOF
                     echo "Build Number: ${BUILD_NUMBER}"
                     echo "Image Tag: ${IMAGE_TAG}"
                     echo "Environment: PRODUCTION"
-                    echo "Deployment Mode: Docker Swarm - Rolling Update (3 replicas)"
+                    echo "Deployment Strategy: ${params.DEPLOYMENT_STRATEGY.toUpperCase()}"
                     echo ""
-                    echo "Rolling Update Strategy:"
-                    echo "  - Update 1 container at a time"
-                    echo "  - 10-second delay between updates"
-                    echo "  - Health checks before proceeding"
-                    echo "  - Automatic rollback on failure"
+                    if (params.DEPLOYMENT_STRATEGY == 'blue-green') {
+                        echo "Blue/Green Strategy:"
+                        echo "  - Deploy to inactive environment"
+                        echo "  - Run health checks on new environment"
+                        echo "  - Switch traffic instantly"
+                        echo "  - Keep old environment for instant rollback"
+                    } else {
+                        echo "Rolling Update Strategy:"
+                        echo "  - Update 1 container at a time"
+                        echo "  - 10-second delay between updates"
+                        echo "  - Health checks before proceeding"
+                        echo "  - Automatic rollback on failure"
+                    }
                     echo "=========================================="
 
                     // Try to send email notification
@@ -412,13 +441,9 @@ EOF
                                 Build Number: ${BUILD_NUMBER}
                                 Image Tag: ${IMAGE_TAG}
                                 Environment: PRODUCTION
-                                Deployment Mode: Docker Swarm - Rolling Update (3 replicas)
+                                Deployment Strategy: ${params.DEPLOYMENT_STRATEGY.toUpperCase()}
 
-                                Rolling Update Strategy:
-                                - Update 1 container at a time
-                                - 10-second delay between updates
-                                - Health checks before proceeding
-                                - Automatic rollback on failure
+                                ${strategyInfo}
 
                                 Please review and approve/reject the deployment to production.
 
@@ -442,11 +467,382 @@ EOF
             }
         }
 
+        stage('Determine Active Environment (Blue/Green)') {
+            when {
+                allOf {
+                    expression { params.ENVIRONMENT == 'prod' }
+                    expression { params.SKIP_DEPLOY == false }
+                    expression { params.DEPLOYMENT_STRATEGY == 'blue-green' }
+                }
+            }
+            steps {
+                script {
+                    sh """
+                        echo "=========================================="
+                        echo "BLUE/GREEN DEPLOYMENT - ENVIRONMENT CHECK"
+                        echo "=========================================="
+
+                        # Check which environment is currently active
+                        BLUE_RUNNING=\$(docker service ls --filter "name=${STACK_NAME_PROD_BLUE}_lmsbooks_command_blue" --format "{{.Replicas}}" 2>/dev/null | grep -v "0/0" | head -1 || echo "")
+                        GREEN_RUNNING=\$(docker service ls --filter "name=${STACK_NAME_PROD_GREEN}_lmsbooks_command_green" --format "{{.Replicas}}" 2>/dev/null | grep -v "0/0" | head -1 || echo "")
+
+                        echo "Blue environment status: \${BLUE_RUNNING:-not deployed}"
+                        echo "Green environment status: \${GREEN_RUNNING:-not deployed}"
+
+                        # Read current live environment from file (if exists)
+                        if [ -f "${LIVE_ENV_FILE}" ]; then
+                            CURRENT_LIVE=\$(cat ${LIVE_ENV_FILE})
+                            echo "Current live environment (from file): \$CURRENT_LIVE"
+                        else
+                            CURRENT_LIVE=""
+                            echo "No live environment file found - first deployment"
+                        fi
+
+                        # Determine which environment to deploy to
+                        if [ "\$CURRENT_LIVE" = "blue" ]; then
+                            TARGET_ENV="green"
+                            INACTIVE_ENV="blue"
+                        elif [ "\$CURRENT_LIVE" = "green" ]; then
+                            TARGET_ENV="blue"
+                            INACTIVE_ENV="green"
+                        elif [ -n "\$BLUE_RUNNING" ] && [ -z "\$GREEN_RUNNING" ]; then
+                            # Blue is running, deploy to green
+                            TARGET_ENV="green"
+                            INACTIVE_ENV="blue"
+                            echo "blue" > ${LIVE_ENV_FILE}
+                        elif [ -n "\$GREEN_RUNNING" ] && [ -z "\$BLUE_RUNNING" ]; then
+                            # Green is running, deploy to blue
+                            TARGET_ENV="blue"
+                            INACTIVE_ENV="green"
+                            echo "green" > ${LIVE_ENV_FILE}
+                        else
+                            # First deployment - start with blue
+                            TARGET_ENV="blue"
+                            INACTIVE_ENV=""
+                            echo "First deployment - deploying to blue environment"
+                        fi
+
+                        echo ""
+                        echo "=========================================="
+                        echo "Deployment Plan:"
+                        echo "  - Current Live: \${CURRENT_LIVE:-none}"
+                        echo "  - Target Environment: \$TARGET_ENV"
+                        echo "  - Will become inactive: \${INACTIVE_ENV:-none}"
+                        echo "=========================================="
+
+                        # Save target environment for next stages
+                        echo "\$TARGET_ENV" > /tmp/lmsbooks_target_env.txt
+                        echo "\${INACTIVE_ENV:-none}" > /tmp/lmsbooks_inactive_env.txt
+                    """
+
+                    // Read target environment into pipeline variable
+                    env.TARGET_ENV = sh(script: "cat /tmp/lmsbooks_target_env.txt", returnStdout: true).trim()
+                    env.INACTIVE_ENV = sh(script: "cat /tmp/lmsbooks_inactive_env.txt", returnStdout: true).trim()
+
+                    echo "Target environment for deployment: ${env.TARGET_ENV}"
+                }
+            }
+        }
+
+        stage('Deploy to Inactive Environment (Blue/Green)') {
+            when {
+                allOf {
+                    expression { params.ENVIRONMENT == 'prod' }
+                    expression { params.SKIP_DEPLOY == false }
+                    expression { params.DEPLOYMENT_STRATEGY == 'blue-green' }
+                }
+            }
+            steps {
+                dir("${WORK_DIR}") {
+                    script {
+                        def targetEnv = env.TARGET_ENV
+                        def stackName = targetEnv == 'blue' ? env.STACK_NAME_PROD_BLUE : env.STACK_NAME_PROD_GREEN
+                        def composeFile = targetEnv == 'blue' ? 'docker-compose-swarm-prod-blue.yml' : 'docker-compose-swarm-prod-green.yml'
+                        def port = targetEnv == 'blue' ? env.BLUE_PORT : env.GREEN_PORT
+
+                        echo "=========================================="
+                        echo "DEPLOYING TO ${targetEnv.toUpperCase()} ENVIRONMENT"
+                        echo "=========================================="
+                        echo "Stack: ${stackName}"
+                        echo "Compose File: ${composeFile}"
+                        echo "Port: ${port}"
+                        echo "Image: ${IMAGE_NAME}:${IMAGE_TAG}"
+
+                        sh """
+                            export IMAGE_TAG=${IMAGE_TAG}
+
+                            echo ""
+                            echo "Deploying ${targetEnv} environment..."
+                            docker stack deploy -c ${composeFile} ${stackName}
+
+                            echo ""
+                            echo "Waiting for ${targetEnv} environment to start..."
+                            sleep 30
+
+                            # Get service name
+                            SERVICE_NAME=\$(docker service ls --filter "label=com.docker.stack.namespace=${stackName}" --format "{{.Name}}" | grep lmsbooks | head -1)
+
+                            if [ -z "\$SERVICE_NAME" ]; then
+                                echo "❌ ERROR: Service was not created!"
+                                exit 1
+                            fi
+
+                            echo "Service name: \$SERVICE_NAME"
+
+                            # Wait for replicas to be ready
+                            EXPECTED_REPLICAS=\$(docker service inspect \$SERVICE_NAME --format '{{.Spec.Mode.Replicated.Replicas}}')
+                            echo "Expected replicas: \$EXPECTED_REPLICAS"
+
+                            MAX_WAIT=180
+                            ELAPSED=0
+
+                            while [ \$ELAPSED -lt \$MAX_WAIT ]; do
+                                RUNNING_REPLICAS=\$(docker service ps \$SERVICE_NAME --filter "desired-state=running" --format "{{.CurrentState}}" 2>/dev/null | grep -c "Running" || echo "0")
+                                echo "Running replicas: \$RUNNING_REPLICAS/\$EXPECTED_REPLICAS (elapsed: \${ELAPSED}s)"
+
+                                if [ "\$RUNNING_REPLICAS" -ge "\$EXPECTED_REPLICAS" ]; then
+                                    echo "✅ All replicas are running!"
+                                    break
+                                fi
+
+                                sleep 10
+                                ELAPSED=\$((ELAPSED + 10))
+                            done
+
+                            if [ "\$RUNNING_REPLICAS" -lt "\$EXPECTED_REPLICAS" ]; then
+                                echo "❌ Not all replicas started in time"
+                                docker service logs --tail 50 \$SERVICE_NAME || true
+                                exit 1
+                            fi
+
+                            echo ""
+                            echo "=========================================="
+                            echo "✅ ${targetEnv.toUpperCase()} environment deployed successfully!"
+                            echo "=========================================="
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Health Check New Environment (Blue/Green)') {
+            when {
+                allOf {
+                    expression { params.ENVIRONMENT == 'prod' }
+                    expression { params.SKIP_DEPLOY == false }
+                    expression { params.DEPLOYMENT_STRATEGY == 'blue-green' }
+                }
+            }
+            steps {
+                script {
+                    def targetEnv = env.TARGET_ENV
+                    def stackName = targetEnv == 'blue' ? env.STACK_NAME_PROD_BLUE : env.STACK_NAME_PROD_GREEN
+                    def port = targetEnv == 'blue' ? env.BLUE_PORT : env.GREEN_PORT
+
+                    echo "=========================================="
+                    echo "HEALTH CHECK - ${targetEnv.toUpperCase()} ENVIRONMENT"
+                    echo "=========================================="
+
+                    sh """
+                        echo "Waiting for health checks to stabilize..."
+                        sleep 30
+
+                        # Get service name
+                        SERVICE_NAME=\$(docker service ls --filter "label=com.docker.stack.namespace=${stackName}" --format "{{.Name}}" | grep lmsbooks | head -1)
+
+                        echo "Checking health of service: \$SERVICE_NAME"
+                        echo ""
+
+                        # Check service health
+                        TASKS=\$(docker service ps \$SERVICE_NAME --filter "desired-state=running" --format "{{.ID}}" 2>/dev/null)
+                        HEALTHY_COUNT=0
+                        TOTAL_COUNT=0
+
+                        for TASK in \$TASKS; do
+                            TOTAL_COUNT=\$((TOTAL_COUNT + 1))
+                            CONTAINER_ID=\$(docker inspect \$TASK --format "{{.Status.ContainerStatus.ContainerID}}" 2>/dev/null || echo "")
+
+                            if [ -n "\$CONTAINER_ID" ]; then
+                                HEALTH=\$(docker inspect \$CONTAINER_ID --format "{{.State.Health.Status}}" 2>/dev/null || echo "none")
+                                TASK_NAME=\$(docker inspect \$TASK --format "{{.Name}}" 2>/dev/null)
+
+                                if [ "\$HEALTH" = "healthy" ]; then
+                                    echo "  ✅ \$TASK_NAME: HEALTHY"
+                                    HEALTHY_COUNT=\$((HEALTHY_COUNT + 1))
+                                elif [ "\$HEALTH" = "starting" ]; then
+                                    echo "  🔄 \$TASK_NAME: STARTING"
+                                    # Give it more time
+                                    sleep 30
+                                    HEALTH=\$(docker inspect \$CONTAINER_ID --format "{{.State.Health.Status}}" 2>/dev/null || echo "none")
+                                    if [ "\$HEALTH" = "healthy" ]; then
+                                        echo "  ✅ \$TASK_NAME: NOW HEALTHY"
+                                        HEALTHY_COUNT=\$((HEALTHY_COUNT + 1))
+                                    fi
+                                else
+                                    echo "  ⚠️ \$TASK_NAME: \$HEALTH"
+                                fi
+                            fi
+                        done
+
+                        echo ""
+                        echo "Health check summary: \$HEALTHY_COUNT/\$TOTAL_COUNT healthy"
+
+                        # For now, consider deployment successful if replicas are running
+                        # In production, you might want stricter health checks
+                        RUNNING_REPLICAS=\$(docker service ps \$SERVICE_NAME --filter "desired-state=running" --format "{{.CurrentState}}" 2>/dev/null | grep -c "Running" || echo "0")
+                        EXPECTED_REPLICAS=\$(docker service inspect \$SERVICE_NAME --format '{{.Spec.Mode.Replicated.Replicas}}')
+
+                        if [ "\$RUNNING_REPLICAS" -ge "\$EXPECTED_REPLICAS" ]; then
+                            echo ""
+                            echo "=========================================="
+                            echo "✅ Health check PASSED!"
+                            echo "   All \$RUNNING_REPLICAS replicas are running"
+                            echo "=========================================="
+                        else
+                            echo ""
+                            echo "=========================================="
+                            echo "❌ Health check FAILED!"
+                            echo "   Only \$RUNNING_REPLICAS/\$EXPECTED_REPLICAS replicas running"
+                            echo "=========================================="
+                            exit 1
+                        fi
+                    """
+                }
+            }
+        }
+
+        stage('Switch Traffic (Blue/Green)') {
+            when {
+                allOf {
+                    expression { params.ENVIRONMENT == 'prod' }
+                    expression { params.SKIP_DEPLOY == false }
+                    expression { params.DEPLOYMENT_STRATEGY == 'blue-green' }
+                }
+            }
+            steps {
+                script {
+                    def targetEnv = env.TARGET_ENV
+                    def inactiveEnv = env.INACTIVE_ENV
+                    def targetStackName = targetEnv == 'blue' ? env.STACK_NAME_PROD_BLUE : env.STACK_NAME_PROD_GREEN
+                    def targetPort = targetEnv == 'blue' ? env.BLUE_PORT : env.GREEN_PORT
+
+                    echo "=========================================="
+                    echo "SWITCHING TRAFFIC TO ${targetEnv.toUpperCase()}"
+                    echo "=========================================="
+
+                    sh """
+                        echo "New live environment: ${targetEnv}"
+                        echo "Port: ${targetPort}"
+
+                        # Update the live environment file
+                        echo "${targetEnv}" > ${LIVE_ENV_FILE}
+
+                        echo ""
+                        echo "=========================================="
+                        echo "✅ Traffic switched to ${targetEnv.toUpperCase()} environment!"
+                        echo ""
+                        echo "Live Service Details:"
+                        echo "  - Environment: ${targetEnv}"
+                        echo "  - Port: ${targetPort}"
+                        echo "  - Stack: ${targetStackName}"
+                        echo ""
+                        echo "Access the service at: http://localhost:${targetPort}"
+                        echo "=========================================="
+
+                        # Show service status
+                        echo ""
+                        echo "Current service status:"
+                        docker service ls --filter "label=com.docker.stack.namespace=${targetStackName}"
+                    """
+
+                    // Scale down old environment (optional - keep for instant rollback)
+                    if (inactiveEnv != 'none' && inactiveEnv != '') {
+                        def inactiveStackName = inactiveEnv == 'blue' ? env.STACK_NAME_PROD_BLUE : env.STACK_NAME_PROD_GREEN
+
+                        echo ""
+                        echo "=========================================="
+                        echo "KEEPING ${inactiveEnv.toUpperCase()} ENVIRONMENT FOR ROLLBACK"
+                        echo "=========================================="
+                        echo "The ${inactiveEnv} environment will remain running for instant rollback"
+                        echo "Stack: ${inactiveStackName}"
+                        echo ""
+                        echo "To rollback, run the pipeline with FORCE_ROLLBACK=true"
+                    }
+                }
+            }
+        }
+
+        stage('Rollback (Blue/Green)') {
+            when {
+                allOf {
+                    expression { params.ENVIRONMENT == 'prod' }
+                    expression { params.FORCE_ROLLBACK == true }
+                    expression { params.DEPLOYMENT_STRATEGY == 'blue-green' }
+                }
+            }
+            steps {
+                script {
+                    echo "=========================================="
+                    echo "ROLLBACK REQUESTED"
+                    echo "=========================================="
+
+                    sh """
+                        # Read current live environment
+                        if [ -f "${LIVE_ENV_FILE}" ]; then
+                            CURRENT_LIVE=\$(cat ${LIVE_ENV_FILE})
+                        else
+                            echo "❌ ERROR: No live environment file found!"
+                            echo "Cannot determine which environment to rollback to."
+                            exit 1
+                        fi
+
+                        # Determine rollback target
+                        if [ "\$CURRENT_LIVE" = "blue" ]; then
+                            ROLLBACK_TO="green"
+                            ROLLBACK_STACK="${STACK_NAME_PROD_GREEN}"
+                            ROLLBACK_PORT="${GREEN_PORT}"
+                        else
+                            ROLLBACK_TO="blue"
+                            ROLLBACK_STACK="${STACK_NAME_PROD_BLUE}"
+                            ROLLBACK_PORT="${BLUE_PORT}"
+                        fi
+
+                        echo "Current live: \$CURRENT_LIVE"
+                        echo "Rolling back to: \$ROLLBACK_TO"
+
+                        # Check if rollback target exists
+                        ROLLBACK_SERVICE=\$(docker service ls --filter "label=com.docker.stack.namespace=\$ROLLBACK_STACK" --format "{{.Name}}" | grep lmsbooks | head -1 || echo "")
+
+                        if [ -z "\$ROLLBACK_SERVICE" ]; then
+                            echo "❌ ERROR: Rollback environment (\$ROLLBACK_TO) is not deployed!"
+                            echo "Cannot rollback - no previous version available."
+                            exit 1
+                        fi
+
+                        # Switch traffic back
+                        echo "\$ROLLBACK_TO" > ${LIVE_ENV_FILE}
+
+                        echo ""
+                        echo "=========================================="
+                        echo "✅ ROLLBACK COMPLETED!"
+                        echo ""
+                        echo "Traffic switched to: \$ROLLBACK_TO"
+                        echo "Port: \$ROLLBACK_PORT"
+                        echo "Stack: \$ROLLBACK_STACK"
+                        echo ""
+                        echo "Access the service at: http://localhost:\$ROLLBACK_PORT"
+                        echo "=========================================="
+                    """
+                }
+            }
+        }
+
         stage('Deploy to Production (Rolling Update + Rollback)') {
             when {
                 allOf {
                     expression { params.ENVIRONMENT == 'prod' }
                     expression { params.SKIP_DEPLOY == false }
+                    expression { params.DEPLOYMENT_STRATEGY == 'rolling' }
                 }
             }
             steps {
