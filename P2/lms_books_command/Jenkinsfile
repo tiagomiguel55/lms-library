@@ -432,29 +432,9 @@ EOF
                             echo ""
                             echo "Service URL: \${SERVICE_URL}"
 
-                            # Install k6 binary if not available (workaround for snap issues)
-                            if ! command -v /usr/local/bin/k6 &> /dev/null; then
-                                echo ""
-                                echo "Installing k6 binary..."
-
-                                # Download k6 binary
-                                K6_VERSION="v0.47.0"
-                                wget -q -O /tmp/k6.tar.gz "https://github.com/grafana/k6/releases/download/\${K6_VERSION}/k6-\${K6_VERSION}-linux-amd64.tar.gz"
-
-                                # Extract and install
-                                tar -xzf /tmp/k6.tar.gz -C /tmp
-                                sudo mv /tmp/k6-\${K6_VERSION}-linux-amd64/k6 /usr/local/bin/k6
-                                sudo chmod +x /usr/local/bin/k6
-
-                                # Cleanup
-                                rm -rf /tmp/k6.tar.gz /tmp/k6-\${K6_VERSION}-linux-amd64
-
-                                echo "✅ k6 binary installed successfully"
-                            fi
-
                             echo ""
                             echo "K6 version:"
-                            /usr/local/bin/k6 version
+                            k6 version
 
                             echo ""
                             echo "=========================================="
@@ -466,7 +446,7 @@ EOF
                             export SERVICE_URL="\${SERVICE_URL}"
                             export MONOLITH_BASELINE_RPS=50
 
-                            /usr/local/bin/k6 run \\
+                            k6 run \\
                                 --out json=/tmp/k6_metrics.json \\
                                 --summary-export=/tmp/k6_summary.json \\
                                 -e SERVICE_URL=\${SERVICE_URL} \\
