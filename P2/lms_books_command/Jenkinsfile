@@ -412,7 +412,7 @@ EOF
                 dir("${WORK_DIR}") {
                     sh """
                         echo "=========================================="
-                        echo "DEPLOYING SHARED POSTGRESQL FOR BLUE/GREEN"
+                        echo "DEPLOYING SHARED INFRASTRUCTURE FOR BLUE/GREEN"
                         echo "=========================================="
 
                         # Create lms_network_prod if it doesn't exist
@@ -423,6 +423,40 @@ EOF
                         echo ""
                         echo "Network status:"
                         docker network ls | grep lms_network
+
+                        # Deploy Traefik Load Balancer
+                        echo ""
+                        echo "=========================================="
+                        echo "DEPLOYING TRAEFIK LOAD BALANCER"
+                        echo "=========================================="
+
+                        if docker stack ls | grep -q "lmsbooks-prod-traefik"; then
+                            echo "✅ Traefik already deployed - updating..."
+                        else
+                            echo "📦 Deploying Traefik for the first time..."
+                        fi
+
+                        docker stack deploy -c docker-compose-swarm-prod-traefik.yml lmsbooks-prod-traefik
+
+                        echo "Waiting for Traefik to be ready..."
+                        sleep 15
+
+                        TRAEFIK_SERVICE=\$(docker service ls --filter "name=lmsbooks-prod-traefik_traefik" --format "{{.Name}}" || echo "")
+                        if [ -n "\$TRAEFIK_SERVICE" ]; then
+                            echo "✅ Traefik service: \$TRAEFIK_SERVICE"
+                            docker service ps \$TRAEFIK_SERVICE --format "  {{.Name}}: {{.CurrentState}}" | head -3
+                        fi
+
+                        echo ""
+                        echo "✅ Traefik deployed successfully!"
+                        echo "   - Load Balancer Port: 8080 (main entry point)"
+                        echo "   - Dashboard: http://localhost:8090/dashboard/"
+                        echo ""
+
+                        # Deploy PostgreSQL
+                        echo "=========================================="
+                        echo "DEPLOYING SHARED POSTGRESQL"
+                        echo "=========================================="
 
                         # Check if PostgreSQL stack already exists
                         if docker stack ls | grep -q "lmsbooks-prod-postgres"; then
@@ -471,12 +505,16 @@ EOF
 
                         echo ""
                         echo "=========================================="
-                        echo "✅ Shared PostgreSQL ready for Blue/Green deployments"
+                        echo "✅ Shared Infrastructure Ready!"
+                        echo "=========================================="
+                        echo "Traefik Load Balancer:"
+                        echo "   - Main Entry: http://localhost:8080"
+                        echo "   - Dashboard: http://localhost:8090/dashboard/"
+                        echo ""
+                        echo "PostgreSQL Database:"
                         echo "   - Service: lmsbooks-prod-postgres_postgres_command_prod"
                         echo "   - Database: lmsbooks_prod"
-                        echo "   - Internal hostname: lmsbooks-prod-postgres_postgres_command_prod"
                         echo "   - Port: 5434 (external), 5432 (internal)"
-                        echo "   - Network: lms_network_prod"
                         echo "=========================================="
                     """
                 }
@@ -850,53 +888,76 @@ EOF
                 }
             }
             steps {
-                script {
-                    def targetEnv = env.TARGET_ENV
-                    def inactiveEnv = env.INACTIVE_ENV
-                    def targetStackName = targetEnv == 'blue' ? env.STACK_NAME_PROD_BLUE : env.STACK_NAME_PROD_GREEN
-                    def targetPort = targetEnv == 'blue' ? env.BLUE_PORT : env.GREEN_PORT
-
-                    echo "=========================================="
-                    echo "SWITCHING TRAFFIC TO ${targetEnv.toUpperCase()}"
-                    echo "=========================================="
-
-                    sh """
-                        echo "New live environment: ${targetEnv}"
-                        echo "Port: ${targetPort}"
-
-                        # Update the live environment file
-                        echo "${targetEnv}" > ${LIVE_ENV_FILE}
-
-                        echo ""
-                        echo "=========================================="
-                        echo "✅ Traffic switched to ${targetEnv.toUpperCase()} environment!"
-                        echo ""
-                        echo "Live Service Details:"
-                        echo "  - Environment: ${targetEnv}"
-                        echo "  - Port: ${targetPort}"
-                        echo "  - Stack: ${targetStackName}"
-                        echo ""
-                        echo "Access the service at: http://localhost:${targetPort}"
-                        echo "=========================================="
-
-                        # Show service status
-                        echo ""
-                        echo "Current service status:"
-                        docker service ls --filter "label=com.docker.stack.namespace=${targetStackName}"
-                    """
-
-                    // Scale down old environment (optional - keep for instant rollback)
-                    if (inactiveEnv != 'none' && inactiveEnv != '') {
+                dir("${WORK_DIR}") {
+                    script {
+                        def targetEnv = env.TARGET_ENV
+                        def inactiveEnv = env.INACTIVE_ENV
+                        def targetStackName = targetEnv == 'blue' ? env.STACK_NAME_PROD_BLUE : env.STACK_NAME_PROD_GREEN
                         def inactiveStackName = inactiveEnv == 'blue' ? env.STACK_NAME_PROD_BLUE : env.STACK_NAME_PROD_GREEN
 
-                        echo ""
                         echo "=========================================="
-                        echo "KEEPING ${inactiveEnv.toUpperCase()} ENVIRONMENT FOR ROLLBACK"
+                        echo "SWITCHING TRAFFIC TO ${targetEnv.toUpperCase()} (TRAEFIK)"
                         echo "=========================================="
-                        echo "The ${inactiveEnv} environment will remain running for instant rollback"
-                        echo "Stack: ${inactiveStackName}"
-                        echo ""
-                        echo "To rollback, run the pipeline with FORCE_ROLLBACK=true"
+
+                        sh """
+                            echo "New live environment: ${targetEnv}"
+                            echo "Previous live: ${inactiveEnv}"
+
+                            # Update priorities via environment variables and redeploy
+                            echo ""
+                            echo "Setting Traefik routing priorities..."
+
+                            # Target environment gets priority 100 (active)
+                            # Inactive environment gets priority 1 (standby)
+
+                            if [ "${targetEnv}" = "blue" ]; then
+                                export BLUE_PRIORITY=100
+                                export GREEN_PRIORITY=1
+                            else
+                                export BLUE_PRIORITY=1
+                                export GREEN_PRIORITY=100
+                            fi
+
+                            export IMAGE_TAG=${IMAGE_TAG}
+
+                            echo "Blue priority: \$BLUE_PRIORITY"
+                            echo "Green priority: \$GREEN_PRIORITY"
+
+                            # Redeploy both stacks with new priorities
+                            echo ""
+                            echo "Updating Blue environment with priority \$BLUE_PRIORITY..."
+                            docker stack deploy -c docker-compose-swarm-prod-blue.yml ${STACK_NAME_PROD_BLUE}
+
+                            echo ""
+                            echo "Updating Green environment with priority \$GREEN_PRIORITY..."
+                            docker stack deploy -c docker-compose-swarm-prod-green.yml ${STACK_NAME_PROD_GREEN}
+
+                            echo ""
+                            echo "Waiting 10 seconds for Traefik to update routing..."
+                            sleep 10
+
+                            # Update the live environment file
+                            echo "${targetEnv}" > ${LIVE_ENV_FILE}
+
+                            echo ""
+                            echo "=========================================="
+                            echo "✅ Traffic switched to ${targetEnv.toUpperCase()} via Traefik!"
+                            echo "=========================================="
+                            echo "Traefik Load Balancer:"
+                            echo "  - Main Entry: http://localhost:8080"
+                            echo "  - Dashboard: http://localhost:8090/dashboard/"
+                            echo ""
+                            echo "Live Environment: ${targetEnv.toUpperCase()}"
+                            echo "  - Stack: ${targetStackName}"
+                            echo "  - Priority: \$([ '${targetEnv}' = 'blue' ] && echo '\$BLUE_PRIORITY' || echo '\$GREEN_PRIORITY')"
+                            echo ""
+                            echo "Standby Environment: ${inactiveEnv.toUpperCase()}"
+                            echo "  - Stack: ${inactiveStackName}"
+                            echo "  - Priority: \$([ '${inactiveEnv}' = 'blue' ] && echo '\$BLUE_PRIORITY' || echo '\$GREEN_PRIORITY')"
+                            echo ""
+                            echo "⚠️  NOTE: Both environments remain running for instant rollback"
+                            echo "=========================================="
+                        """
                     }
                 }
             }
