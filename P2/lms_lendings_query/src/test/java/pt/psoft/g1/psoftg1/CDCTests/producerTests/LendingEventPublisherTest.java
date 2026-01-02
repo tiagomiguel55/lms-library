@@ -97,7 +97,7 @@ public class LendingEventPublisherTest {
 
         LendingNumber lendingNumber = new LendingNumber(1);
 
-        Lending lending = new Lending(1,book,readerDetails,lendingNumber,s,r,r,200,"gen-11",true,true,"VAlIDATED",1L,"");
+        Lending lending = new Lending(0L, book, readerDetails, lendingNumber, s, r, r, 200, "gen-11", true, true, "VALIDATED", 1L, "", null);
 
         lendingEventPublisher.sendLendingCreated(lending);
 
@@ -138,7 +138,7 @@ public class LendingEventPublisherTest {
 
         LendingNumber lendingNumber = new LendingNumber(1);
 
-        Lending lending = new Lending(1,book,readerDetails,lendingNumber,s,r,r,200,"gen-11",true,true,"VAlIDATED",1L,"");
+        Lending lending = new Lending(0L, book, readerDetails, lendingNumber, s, r, r, 200, "gen-11", true, true, "VALIDATED", 1L, "", null);
 
         lendingEventPublisher.sendLendingUpdated(lending, lending.getVersion());
 
@@ -177,7 +177,7 @@ public class LendingEventPublisherTest {
 
         LendingNumber lendingNumber = new LendingNumber(1);
 
-        Lending lending = new Lending(1,book,readerDetails,lendingNumber,s,r,r,200,"gen-11",true,true,"VAlIDATED",1L,"");
+        Lending lending = new Lending(0L, book, readerDetails, lendingNumber, s, r, r, 200, "gen-11", true, true, "VALIDATED", 1L, "", null);
 
         lendingEventPublisher.sendLendingDeleted(lending, lending.getVersion());
 

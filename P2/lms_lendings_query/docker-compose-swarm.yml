@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   lmslendings_query:
-    image: lmslendings:query
+    image: docker.io/tiagomiguel55/lmslendingsquery:${IMAGE_TAG}
     environment:
       - SPRING_PROFILES_ACTIVE=sqlServer,bootstrap
       - spring.datasource.url=jdbc:postgresql://postgres_lendings_query:5432/query_lendings
@@ -11,37 +11,38 @@ services:
       - spring.datasource.driver-class-name=org.postgresql.Driver
       - spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
       - spring.jpa.hibernate.ddl-auto=update
-      - spring.rabbitmq.host=shared_stack_rabbitmq
+      - spring.rabbitmq.host=lms_shared_rabbitmq
       - spring.rabbitmq.port=5672
       - spring.rabbitmq.username=guest
       - spring.rabbitmq.password=guest
-      - WAIT_FOR_HOSTS=postgres_lendings_query:5432,shared_stack_rabbitmq:5672
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'java.*app.jar' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
     deploy:
       replicas: 2
       restart_policy:
         condition: on-failure
-        delay: 15s
-        max_attempts: 5
-        window: 2m
+        delay: 10s
+        max_attempts: 3
+      update_config:
+        order: start-first
     ports:
       - "8091:8081"
     networks:
+      - lms_network_dev
       - lms_network
-    healthcheck:
-      test: ["CMD-SHELL", "bash -c '>/dev/tcp/127.0.0.1/8081' || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
 
   postgres_lendings_query:
-    image: postgres:latest
+    image: postgres:15
     environment:
       - POSTGRES_DB=query_lendings
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=password
     volumes:
-      - postgres_lendings_query_data:/var/lib/postgresql
+      - postgres_lendings_query_data:/var/lib/postgresql/data
     deploy:
       replicas: 1
       placement:
@@ -49,9 +50,6 @@ services:
           - node.role == manager
       restart_policy:
         condition: on-failure
-        delay: 10s
-        max_attempts: 3
-        window: 1m
     ports:
       - "5437:5432"
     healthcheck:
@@ -59,14 +57,15 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
     networks:
-      - lms_network
+      - lms_network_dev
 
 networks:
+  lms_network_dev:
+    driver: overlay
+    attachable: true
   lms_network:
     external: true
 
 volumes:
   postgres_lendings_query_data:
-    driver: local
