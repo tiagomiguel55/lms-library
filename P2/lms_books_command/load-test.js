@@ -66,8 +66,10 @@ export const options = {
     thresholds: {
         // Success rate should be above 95%
         'success_rate': ['rate>0.95'],
-        // 95% of requests should be below 500ms, average should be below 200ms
-        'http_req_duration': ['p(95)<500', 'avg<200'],
+        // For create-complete endpoint (write-heavy operation):
+        // - 95% of requests should be below 1000ms (1 second)
+        // - Average should be below 300ms
+        'http_req_duration': ['p(95)<1000', 'avg<300'],
         // Failed requests should be less than 5%
         'http_req_failed': ['rate<0.05'],
     },

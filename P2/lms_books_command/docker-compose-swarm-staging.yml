@@ -34,7 +34,7 @@ services:
       - target: 8080
         published: 8082
         protocol: tcp
-        mode: host
+        mode: ingress
     networks:
       - lms_network_staging
       - lms_network
