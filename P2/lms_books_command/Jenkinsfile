@@ -1073,15 +1073,34 @@ EOF
             }
             steps {
                 script {
-                    def stackName = params.ENVIRONMENT == 'dev' ? env.STACK_NAME_DEV :
+                    // Determine correct stack name based on deployment strategy and environment
+                    def stackName
+
+                    if (params.ENVIRONMENT == 'prod' && params.DEPLOYMENT_STRATEGY == 'blue-green') {
+                        // For Blue/Green, verify the target environment that was just deployed
+                        def targetEnv = env.TARGET_ENV ?: 'blue'
+                        stackName = targetEnv == 'blue' ? env.STACK_NAME_PROD_BLUE : env.STACK_NAME_PROD_GREEN
+
+                        echo "=========================================="
+                        echo "POST-DEPLOYMENT VERIFICATION (BLUE/GREEN)"
+                        echo "Environment: ${params.ENVIRONMENT}"
+                        echo "Deployment Strategy: Blue/Green"
+                        echo "Active Environment: ${targetEnv}"
+                        echo "Stack Name: ${stackName}"
+                        echo "=========================================="
+                    } else {
+                        // For dev, staging, or rolling update
+                        stackName = params.ENVIRONMENT == 'dev' ? env.STACK_NAME_DEV :
                                    (params.ENVIRONMENT == 'staging' ? env.STACK_NAME_STAGING : env.STACK_NAME_PROD)
 
-                    sh """
                         echo "=========================================="
                         echo "POST-DEPLOYMENT VERIFICATION"
                         echo "Environment: ${params.ENVIRONMENT}"
+                        echo "Stack Name: ${stackName}"
                         echo "=========================================="
+                    }
 
+                    sh """
                         # Wait for Docker Swarm to update replica status
                         echo ""
                         echo "Waiting 15 seconds for Docker Swarm to update replica status..."
@@ -1089,11 +1108,11 @@ EOF
 
                         echo ""
                         echo "Current service status:"
-                        docker stack services ${stackName}
+                        docker stack services ${stackName} || echo "⚠️ Stack ${stackName} may not exist yet"
 
                         echo ""
                         echo "Service tasks:"
-                        docker stack ps ${stackName} --no-trunc
+                        docker stack ps ${stackName} --no-trunc || echo "⚠️ No tasks found for stack ${stackName}"
 
                         echo ""
                         echo "=========================================="
@@ -1101,6 +1120,42 @@ EOF
 
                     // Show health checks for production only
                     if (params.ENVIRONMENT == 'prod') {
+                        // For Blue/Green, show both environments if they exist
+                        if (params.DEPLOYMENT_STRATEGY == 'blue-green') {
+                            sh """
+                                echo ""
+                                echo "=========================================="
+                                echo "BLUE/GREEN ENVIRONMENT STATUS"
+                                echo "=========================================="
+
+                                echo ""
+                                echo "BLUE Environment (${env.STACK_NAME_PROD_BLUE}):"
+                                echo "----------------------------------------"
+                                docker service ls --filter "label=com.docker.stack.namespace=${env.STACK_NAME_PROD_BLUE}" --format "table {{.Name}}\t{{.Replicas}}\t{{.Image}}" 2>/dev/null || echo "Not deployed"
+
+                                echo ""
+                                echo "GREEN Environment (${env.STACK_NAME_PROD_GREEN}):"
+                                echo "----------------------------------------"
+                                docker service ls --filter "label=com.docker.stack.namespace=${env.STACK_NAME_PROD_GREEN}" --format "table {{.Name}}\t{{.Replicas}}\t{{.Image}}" 2>/dev/null || echo "Not deployed"
+
+                                echo ""
+                                echo "Current Live Environment:"
+                                if [ -f "${env.LIVE_ENV_FILE}" ]; then
+                                    LIVE=\$(cat ${env.LIVE_ENV_FILE})
+                                    echo "  ✅ \${LIVE^^} is LIVE"
+
+                                    if [ "\$LIVE" = "blue" ]; then
+                                        echo "  📍 Access at: http://localhost:${env.BLUE_PORT}"
+                                    else
+                                        echo "  📍 Access at: http://localhost:${env.GREEN_PORT}"
+                                    fi
+                                else
+                                    echo "  ⚠️ Live environment file not found"
+                                fi
+                                echo "=========================================="
+                            """
+                        }
+
                         sh """
                             echo ""
                             echo "=========================================="
