@@ -82,17 +82,21 @@ export function setup() {
     console.log(`Monolith Baseline RPS: ${MONOLITH_BASELINE_RPS}`);
     console.log('========================================');
 
-    // Health check using public API endpoint instead of actuator
+    // Health check using create-complete endpoint
     console.log('Performing health check...');
-    const healthRes = http.get(`${SERVICE_URL}/api/books`, {
+    const healthPayload = JSON.stringify({
+        title: 'Health Check Book',
+        authorName: 'Test Author',
+        genreName: 'Test Genre'
+    });
+
+    const healthRes = http.post(`${SERVICE_URL}/api/books/create-complete`, healthPayload, {
+        headers: { 'Content-Type': 'application/json' },
         timeout: '10s',
     });
 
-    if (healthRes.status === 200 || healthRes.status === 401) {
+    if (healthRes.status === 200 || healthRes.status === 201 || healthRes.status === 202) {
         console.log('✅ Service is accessible and responding');
-        if (healthRes.status === 401) {
-            console.log('ℹ️  Note: Service requires authentication (expected for protected endpoints)');
-        }
     } else if (healthRes.status >= 400 && healthRes.status < 500) {
         console.log(`⚠️  Service returned status ${healthRes.status} - continuing with load test`);
     } else {
@@ -109,32 +113,28 @@ export function setup() {
 
 // Main test function - runs for each VU iteration
 export default function (data) {
-    const endpoints = [
-        { method: 'GET', path: '/api/books', name: 'List Books' },
-        { method: 'GET', path: '/api/books?page=0&size=10', name: 'List Books Paginated' },
-    ];
+    // Generate unique book data for each request
+    const timestamp = Date.now();
+    const randomId = Math.floor(Math.random() * 1000000);
 
-    // Randomly select an endpoint
-    const endpoint = endpoints[Math.floor(Math.random() * endpoints.length)];
-    const url = `${data.serviceUrl}${endpoint.path}`;
+    const bookPayload = {
+        title: `Load Test Book ${timestamp}-${randomId}`,
+        authorName: `Test Author ${randomId}`,
+        genreName: `Genre ${randomId % 10}` // Rotate through 10 genres
+    };
+
+    const url = `${data.serviceUrl}/api/books/create-complete`;
 
     const params = {
         headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
         },
-        tags: { endpoint: endpoint.name },
+        tags: { endpoint: 'Create Complete Book' },
     };
 
     const startTime = Date.now();
-    let res;
-
-    if (endpoint.method === 'GET') {
-        res = http.get(url, params);
-    } else if (endpoint.method === 'POST') {
-        res = http.post(url, JSON.stringify(endpoint.body), params);
-    }
-
+    const res = http.post(url, JSON.stringify(bookPayload), params);
     const duration = Date.now() - startTime;
 
     // Record custom metrics

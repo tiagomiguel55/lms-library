@@ -101,7 +101,8 @@ public class SecurityConfig {
         if (publicBooksEndpoints) {
             authz = authz
                 .requestMatchers(HttpMethod.GET, "/api/books").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/books/**").permitAll();
+                .requestMatchers(HttpMethod.GET, "/api/books/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/books/create-complete").permitAll();
         }
 
         authz
