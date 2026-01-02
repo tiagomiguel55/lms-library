@@ -1077,4 +1077,82 @@ EOF
                             echo ""
                             echo "=========================================="
                             echo "POST-DEPLOYMENT HEALTH CHECK VERIFICATION"
-                            echo "==========================================""
+                            echo "=========================================="
+
+                            # Wait a bit for health checks to stabilize
+                            echo "Waiting 30 seconds for health checks to stabilize..."
+                            sleep 30
+
+                            # Get service name
+                            SERVICE_NAME=\$(docker service ls --filter "label=com.docker.stack.namespace=${STACK_NAME_PROD}" --filter "name=${STACK_NAME_PROD}_lmsbooks_query" --format "{{.Name}}")
+
+                            if [ -n "\$SERVICE_NAME" ]; then
+                                echo ""
+                                echo "Service: \$SERVICE_NAME"
+                                echo "----------------------------------------"
+
+                                # Get all task IDs for the service
+                                TASK_IDS=\$(docker service ps \$SERVICE_NAME --filter "desired-state=running" --format "{{.ID}}" 2>/dev/null)
+
+                                for TASK_ID in \$TASK_IDS; do
+                                    # Get container ID from task
+                                    CONTAINER_ID=\$(docker inspect \$TASK_ID --format "{{.Status.ContainerStatus.ContainerID}}" 2>/dev/null || echo "")
+
+                                    if [ -n "\$CONTAINER_ID" ]; then
+                                        echo ""
+                                        echo "Task: \$TASK_ID"
+                                        HEALTH_STATUS=\$(docker inspect \$CONTAINER_ID --format "{{.State.Health.Status}}" 2>/dev/null || echo "no healthcheck")
+
+                                        if [ "\$HEALTH_STATUS" != "no healthcheck" ]; then
+                                            echo "  Health Status: \$HEALTH_STATUS"
+
+                                            # Get last health check log
+                                            LAST_CHECK=\$(docker inspect \$CONTAINER_ID --format "{{range .State.Health.Log}}{{.End}} - {{.ExitCode}} - {{.Output}}{{end}}" 2>/dev/null | tail -1 || echo "N/A")
+                                            echo "  Last Check: \$LAST_CHECK"
+                                        else
+                                            echo "  Health Status: Not configured or starting"
+                                        fi
+
+                                        # Show replica state
+                                        REPLICA_STATE=\$(docker service ps \$SERVICE_NAME --filter "id=\$TASK_ID" --format "{{.CurrentState}}" 2>/dev/null)
+                                        echo "  Replica State: \$REPLICA_STATE"
+                                    fi
+                                done
+
+                                echo ""
+                                echo "----------------------------------------"
+                                echo "Health Check Configuration:"
+                                docker service inspect \$SERVICE_NAME --format "{{json .Spec.TaskTemplate.ContainerSpec.Healthcheck}}" 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "  Configured in docker-compose file"
+                            fi
+
+                            # Check health of all services in the stack
+                            echo ""
+                            echo "=========================================="
+                            echo "ALL SERVICES HEALTH STATUS"
+                            echo "=========================================="
+                            docker service ls --filter "label=com.docker.stack.namespace=${STACK_NAME_PROD}" --format "table {{.Name}}\t{{.Replicas}}\t{{.Image}}"
+
+                            echo ""
+                            echo "Detailed service inspection:"
+                            for SERVICE in \$(docker service ls --filter "label=com.docker.stack.namespace=${STACK_NAME_PROD}" --format "{{.Name}}"); do
+                                echo ""
+                                echo "Service: \$SERVICE"
+                                docker service ps \$SERVICE --format "  {{.Name}}: {{.CurrentState}}" | head -5
+                            done
+
+                            echo ""
+                            echo "=========================================="
+                        """
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            echo "Cleaning up workspace..."
+            cleanWs()
+        }
+    }
+}
