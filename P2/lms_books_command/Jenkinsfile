@@ -903,59 +903,81 @@ EOF
                             echo "New live environment: ${targetEnv}"
                             echo "Previous live: ${inactiveEnv}"
 
-                            # Update priorities via environment variables and redeploy
-                            echo ""
-                            echo "Setting Traefik routing priorities..."
-
-                            # Target environment gets priority 100 (active)
-                            # Inactive environment gets priority 1 (standby)
-
+                            # Determine priorities
                             if [ "${targetEnv}" = "blue" ]; then
-                                export BLUE_PRIORITY=100
-                                export GREEN_PRIORITY=1
+                                NEW_BLUE_PRIORITY=100
+                                NEW_GREEN_PRIORITY=1
                             else
-                                export BLUE_PRIORITY=1
-                                export GREEN_PRIORITY=100
+                                NEW_BLUE_PRIORITY=1
+                                NEW_GREEN_PRIORITY=100
                             fi
 
-                            export IMAGE_TAG=${IMAGE_TAG}
-
-                            echo "Blue priority: \$BLUE_PRIORITY"
-                            echo "Green priority: \$GREEN_PRIORITY"
-
-                            # Redeploy both stacks with new priorities
                             echo ""
-                            echo "Updating Blue environment with priority \$BLUE_PRIORITY..."
-                            docker stack deploy -c docker-compose-swarm-prod-blue.yml ${STACK_NAME_PROD_BLUE}
+                            echo "Setting Traefik routing priorities..."
+                            echo "Blue priority: \$NEW_BLUE_PRIORITY"
+                            echo "Green priority: \$NEW_GREEN_PRIORITY"
 
+                            # Get service names
+                            BLUE_SERVICE=\$(docker service ls --filter "label=com.docker.stack.namespace=${STACK_NAME_PROD_BLUE}" --format "{{.Name}}" | grep lmsbooks | head -1)
+                            GREEN_SERVICE=\$(docker service ls --filter "label=com.docker.stack.namespace=${STACK_NAME_PROD_GREEN}" --format "{{.Name}}" | grep lmsbooks | head -1)
+
+                            # Get current images to show in output
+                            if [ -n "\$BLUE_SERVICE" ]; then
+                                BLUE_IMAGE=\$(docker service inspect \$BLUE_SERVICE --format '{{.Spec.TaskTemplate.ContainerSpec.Image}}')
+                                echo "Blue current image: \$BLUE_IMAGE"
+                            fi
+
+                            if [ -n "\$GREEN_SERVICE" ]; then
+                                GREEN_IMAGE=\$(docker service inspect \$GREEN_SERVICE --format '{{.Spec.TaskTemplate.ContainerSpec.Image}}')
+                                echo "Green current image: \$GREEN_IMAGE"
+                            fi
+
+                            # Update priorities via docker service update (preserves images)
                             echo ""
-                            echo "Updating Green environment with priority \$GREEN_PRIORITY..."
-                            docker stack deploy -c docker-compose-swarm-prod-green.yml ${STACK_NAME_PROD_GREEN}
+                            echo "Updating service priorities (without changing images)..."
+
+                            # Update Blue service priority
+                            if [ -n "\$BLUE_SERVICE" ]; then
+                                echo "Updating Blue priority to \$NEW_BLUE_PRIORITY..."
+                                docker service update \\
+                                    --label-add "traefik.http.routers.lmsbooks-blue.priority=\$NEW_BLUE_PRIORITY" \\
+                                    \$BLUE_SERVICE
+                            fi
+
+                            # Update Green service priority
+                            if [ -n "\$GREEN_SERVICE" ]; then
+                                echo "Updating Green priority to \$NEW_GREEN_PRIORITY..."
+                                docker service update \\
+                                    --label-add "traefik.http.routers.lmsbooks-green.priority=\$NEW_GREEN_PRIORITY" \\
+                                    \$GREEN_SERVICE
+                            fi
+
+                            # Update the live environment file
+                            echo "${targetEnv}" > ${LIVE_ENV_FILE}
 
                             echo ""
                             echo "Waiting 10 seconds for Traefik to update routing..."
                             sleep 10
-
-                            # Update the live environment file
-                            echo "${targetEnv}" > ${LIVE_ENV_FILE}
 
                             echo ""
                             echo "=========================================="
                             echo "✅ Traffic switched to ${targetEnv.toUpperCase()} via Traefik!"
                             echo "=========================================="
                             echo "Traefik Load Balancer:"
-                            echo "  - Main Entry: http://localhost:8080"
-                            echo "  - Dashboard: http://localhost:8090/dashboard/"
+                            echo "  - Main Entry: http://74.161.33.56:8085"
+                            echo "  - Dashboard: http://74.161.33.56:8090/dashboard/"
                             echo ""
                             echo "Live Environment: ${targetEnv.toUpperCase()}"
                             echo "  - Stack: ${targetStackName}"
-                            echo "  - Priority: \$([ '${targetEnv}' = 'blue' ] && echo '\$BLUE_PRIORITY' || echo '\$GREEN_PRIORITY')"
+                            echo "  - Priority: \$NEW_BLUE_PRIORITY (if blue) or \$NEW_GREEN_PRIORITY (if green)"
+                            echo "  - Image: \$([ "${targetEnv}" = "blue" ] && echo "\$BLUE_IMAGE" || echo "\$GREEN_IMAGE")"
                             echo ""
                             echo "Standby Environment: ${inactiveEnv.toUpperCase()}"
                             echo "  - Stack: ${inactiveStackName}"
-                            echo "  - Priority: \$([ '${inactiveEnv}' = 'blue' ] && echo '\$BLUE_PRIORITY' || echo '\$GREEN_PRIORITY')"
+                            echo "  - Priority: \$([ "${inactiveEnv}" = "blue" ] && echo "\$NEW_BLUE_PRIORITY" || echo "\$NEW_GREEN_PRIORITY")"
+                            echo "  - Image: \$([ "${inactiveEnv}" = "blue" ] && echo "\$BLUE_IMAGE" || echo "\$GREEN_IMAGE")"
                             echo ""
-                            echo "⚠️  NOTE: Both environments remain running for instant rollback"
+                            echo "⚠️  NOTE: Both environments remain running with PRESERVED images for instant rollback"
                             echo "=========================================="
                         """
                     }
