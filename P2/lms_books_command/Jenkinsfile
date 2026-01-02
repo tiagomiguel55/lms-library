@@ -406,10 +406,21 @@ EOF
                         echo "DEPLOYING SHARED POSTGRESQL FOR BLUE/GREEN"
                         echo "=========================================="
 
+                        # Create lms_network_prod if it doesn't exist
+                        echo "Ensuring lms_network_prod exists..."
+                        docker network ls | grep -q lms_network_prod || \
+                        docker network create --driver overlay --attachable lms_network_prod || true
+
+                        echo ""
+                        echo "Network status:"
+                        docker network ls | grep lms_network
+
                         # Check if PostgreSQL stack already exists
                         if docker stack ls | grep -q "lmsbooks-prod-postgres"; then
+                            echo ""
                             echo "✅ PostgreSQL stack already exists - updating..."
                         else
+                            echo ""
                             echo "📦 Creating new PostgreSQL stack..."
                         fi
 
@@ -426,6 +437,24 @@ EOF
                         if [ -n "\$PG_SERVICE" ]; then
                             echo "✅ PostgreSQL service: \$PG_SERVICE"
                             docker service ps \$PG_SERVICE --format "  {{.Name}}: {{.CurrentState}}"
+
+                            # Wait for PostgreSQL to be healthy
+                            echo ""
+                            echo "Waiting for PostgreSQL to become healthy..."
+                            MAX_WAIT=60
+                            ELAPSED=0
+                            while [ \$ELAPSED -lt \$MAX_WAIT ]; do
+                                REPLICAS=\$(docker service ls --filter "name=\$PG_SERVICE" --format "{{.Replicas}}")
+                                echo "PostgreSQL status: \$REPLICAS (elapsed: \${ELAPSED}s)"
+
+                                if echo "\$REPLICAS" | grep -q "1/1"; then
+                                    echo "✅ PostgreSQL is ready!"
+                                    break
+                                fi
+
+                                sleep 5
+                                ELAPSED=\$((ELAPSED + 5))
+                            done
                         else
                             echo "❌ ERROR: PostgreSQL service not found!"
                             exit 1
@@ -436,7 +465,8 @@ EOF
                         echo "✅ Shared PostgreSQL ready for Blue/Green deployments"
                         echo "   - Service: lmsbooks-prod-postgres_postgres_command_prod"
                         echo "   - Database: lmsbooks_prod"
-                        echo "   - Port: 5434"
+                        echo "   - Internal hostname: lmsbooks-prod-postgres_postgres_command_prod"
+                        echo "   - Port: 5434 (external), 5432 (internal)"
                         echo "   - Network: lms_network_prod"
                         echo "=========================================="
                     """

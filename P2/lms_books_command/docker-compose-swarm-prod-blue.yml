@@ -6,7 +6,7 @@ services:
     image: docker.io/tiagomiguel55/lmsbooks:${IMAGE_TAG}
     environment:
       - SPRING_PROFILES_ACTIVE=bootstrap
-      - spring.datasource.url=jdbc:postgresql://postgres_command_prod:5432/lmsbooks_prod
+      - spring.datasource.url=jdbc:postgresql://lmsbooks-prod-postgres_postgres_command_prod:5432/lmsbooks_prod
       - spring.datasource.username=lmsuser
       - spring.datasource.password=lmspass
       - spring.datasource.driver-class-name=org.postgresql.Driver
@@ -40,7 +40,6 @@ services:
 
 networks:
   lms_network_prod:
-    driver: overlay
-    attachable: true
+    external: true
   lms_network:
     external: true
