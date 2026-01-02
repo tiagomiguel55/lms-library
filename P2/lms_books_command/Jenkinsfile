@@ -653,56 +653,94 @@ EOF
                         echo "Checking health of service: \$SERVICE_NAME"
                         echo ""
 
-                        # Check service health
+                        # Get expected replicas
+                        EXPECTED_REPLICAS=\$(docker service inspect \$SERVICE_NAME --format '{{.Spec.Mode.Replicated.Replicas}}')
+                        echo "Expected replicas: \$EXPECTED_REPLICAS"
+                        echo ""
+
+                        # Check service health and show detailed status
+                        echo "Replica Status Details:"
+                        echo "----------------------------------------"
+                        docker service ps \$SERVICE_NAME --filter "desired-state=running" --format "{{.Name}}: {{.CurrentState}}" 2>/dev/null || echo "No tasks found"
+
+                        echo ""
                         TASKS=\$(docker service ps \$SERVICE_NAME --filter "desired-state=running" --format "{{.ID}}" 2>/dev/null)
                         HEALTHY_COUNT=0
                         TOTAL_COUNT=0
+                        RUNNING_COUNT=0
 
                         for TASK in \$TASKS; do
                             TOTAL_COUNT=\$((TOTAL_COUNT + 1))
                             CONTAINER_ID=\$(docker inspect \$TASK --format "{{.Status.ContainerStatus.ContainerID}}" 2>/dev/null || echo "")
+                            TASK_NAME=\$(docker inspect \$TASK --format "{{.Name}}" 2>/dev/null)
+                            TASK_STATE=\$(docker inspect \$TASK --format "{{.Status.State}}" 2>/dev/null || echo "unknown")
 
                             if [ -n "\$CONTAINER_ID" ]; then
                                 HEALTH=\$(docker inspect \$CONTAINER_ID --format "{{.State.Health.Status}}" 2>/dev/null || echo "none")
-                                TASK_NAME=\$(docker inspect \$TASK --format "{{.Name}}" 2>/dev/null)
+
+                                # Count as running if task state is "running"
+                                if [ "\$TASK_STATE" = "running" ]; then
+                                    RUNNING_COUNT=\$((RUNNING_COUNT + 1))
+                                fi
 
                                 if [ "\$HEALTH" = "healthy" ]; then
-                                    echo "  ✅ \$TASK_NAME: HEALTHY"
+                                    echo "  ✅ \$TASK_NAME: HEALTHY (state: \$TASK_STATE)"
                                     HEALTHY_COUNT=\$((HEALTHY_COUNT + 1))
                                 elif [ "\$HEALTH" = "starting" ]; then
-                                    echo "  🔄 \$TASK_NAME: STARTING"
+                                    echo "  🔄 \$TASK_NAME: STARTING (state: \$TASK_STATE)"
                                     # Give it more time
                                     sleep 30
                                     HEALTH=\$(docker inspect \$CONTAINER_ID --format "{{.State.Health.Status}}" 2>/dev/null || echo "none")
+                                    TASK_STATE=\$(docker inspect \$TASK --format "{{.Status.State}}" 2>/dev/null || echo "unknown")
                                     if [ "\$HEALTH" = "healthy" ]; then
-                                        echo "  ✅ \$TASK_NAME: NOW HEALTHY"
+                                        echo "  ✅ \$TASK_NAME: NOW HEALTHY (state: \$TASK_STATE)"
                                         HEALTHY_COUNT=\$((HEALTHY_COUNT + 1))
+                                        if [ "\$TASK_STATE" = "running" ]; then
+                                            RUNNING_COUNT=\$((RUNNING_COUNT + 1))
+                                        fi
                                     fi
                                 else
-                                    echo "  ⚠️ \$TASK_NAME: \$HEALTH"
+                                    echo "  ℹ️  \$TASK_NAME: \${HEALTH} (state: \$TASK_STATE)"
+                                    # If task is running but health check not configured, count it
+                                    if [ "\$TASK_STATE" = "running" ] && [ "\$HEALTH" = "none" ]; then
+                                        echo "      (No health check configured - counting as healthy based on running state)"
+                                        HEALTHY_COUNT=\$((HEALTHY_COUNT + 1))
+                                    fi
                                 fi
+                            else
+                                echo "  ⚠️  \$TASK_NAME: Container not yet available (state: \$TASK_STATE)"
                             fi
                         done
 
                         echo ""
-                        echo "Health check summary: \$HEALTHY_COUNT/\$TOTAL_COUNT healthy"
+                        echo "Summary:"
+                        echo "  Total tasks: \$TOTAL_COUNT"
+                        echo "  Running tasks: \$RUNNING_COUNT"
+                        echo "  Healthy/Ready tasks: \$HEALTHY_COUNT"
+                        echo "  Expected replicas: \$EXPECTED_REPLICAS"
 
-                        # For now, consider deployment successful if replicas are running
-                        # In production, you might want stricter health checks
-                        RUNNING_REPLICAS=\$(docker service ps \$SERVICE_NAME --filter "desired-state=running" --format "{{.CurrentState}}" 2>/dev/null | grep -c "Running" || echo "0")
-                        EXPECTED_REPLICAS=\$(docker service inspect \$SERVICE_NAME --format '{{.Spec.Mode.Replicated.Replicas}}')
-
-                        if [ "\$RUNNING_REPLICAS" -ge "\$EXPECTED_REPLICAS" ]; then
+                        # Consider deployment successful if we have the expected number of running replicas
+                        # Health checks might still be starting, which is acceptable
+                        if [ "\$RUNNING_COUNT" -ge "\$EXPECTED_REPLICAS" ]; then
                             echo ""
                             echo "=========================================="
                             echo "✅ Health check PASSED!"
-                            echo "   All \$RUNNING_REPLICAS replicas are running"
+                            echo "   All \$RUNNING_COUNT/\$EXPECTED_REPLICAS replicas are running"
+                            if [ "\$HEALTHY_COUNT" -lt "\$EXPECTED_REPLICAS" ]; then
+                                echo "   ⚠️  Note: Some health checks still initializing (this is normal)"
+                            fi
                             echo "=========================================="
                         else
                             echo ""
                             echo "=========================================="
                             echo "❌ Health check FAILED!"
-                            echo "   Only \$RUNNING_REPLICAS/\$EXPECTED_REPLICAS replicas running"
+                            echo "   Only \$RUNNING_COUNT/\$EXPECTED_REPLICAS replicas running"
+                            echo ""
+                            echo "Detailed task information:"
+                            docker service ps \$SERVICE_NAME --format "table {{.Name}}\t{{.CurrentState}}\t{{.Error}}" --no-trunc
+                            echo ""
+                            echo "Service logs (last 50 lines):"
+                            docker service logs --tail 50 \$SERVICE_NAME || true
                             echo "=========================================="
                             exit 1
                         fi
