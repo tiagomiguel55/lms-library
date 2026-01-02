@@ -27,11 +27,13 @@ services:
       - "5434:5432"
     networks:
       - lms_network_prod
+      - lms_network
 
 networks:
   lms_network_prod:
-    driver: overlay
-    attachable: true
+    external: true
+  lms_network:
+    external: true
 
 volumes:
   postgres_command_data_prod:
