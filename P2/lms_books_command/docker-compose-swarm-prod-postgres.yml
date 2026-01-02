@@ -1,0 +1,38 @@
+version: '3.8'
+
+# Shared PostgreSQL for Blue/Green Production Environments
+services:
+  postgres_command_prod:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=lmsbooks_prod
+      - POSTGRES_USER=lmsuser
+      - POSTGRES_PASSWORD=lmspass
+    volumes:
+      - postgres_command_data_prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lmsuser -d lmsbooks_prod"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+    ports:
+      - "5434:5432"
+    networks:
+      - lms_network_prod
+
+networks:
+  lms_network_prod:
+    driver: overlay
+    attachable: true
+
+volumes:
+  postgres_command_data_prod:
+
