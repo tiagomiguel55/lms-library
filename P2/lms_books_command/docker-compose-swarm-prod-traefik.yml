@@ -23,7 +23,7 @@ services:
       - "--log.level=INFO"
       - "--accesslog=true"
     ports:
-      - "8080:80"      # Main entry point for the application
+      - "8085:80"      # Main entry point for the application (mudado de 8080 para 8085)
       - "8090:8080"    # Traefik dashboard
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
@@ -50,4 +50,3 @@ networks:
     external: true
   lms_network:
     external: true
-
