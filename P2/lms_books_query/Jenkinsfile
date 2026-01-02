@@ -464,12 +464,7 @@ EOF
 
                         sh """
                             # Wait for staging services to be fully ready
-                            echo "Waiting 30 seconds for staging services to stabilize..."
-                            sleep 30
-
-                            # Additional wait for MongoDB to sync data from Command service
-                            echo ""
-                            echo "Waiting additional 60 seconds for MongoDB to sync data from books_command..."
+                            echo "Waiting 60 seconds for staging services to stabilize..."
                             sleep 60
 
                             # Verify service is running
@@ -1077,70 +1072,44 @@ EOF
                             echo ""
                             echo "=========================================="
                             echo "POST-DEPLOYMENT HEALTH CHECK VERIFICATION"
-                            echo "=========================================="
+                            echo "==========================================""
 
                             # Wait a bit for health checks to stabilize
                             echo "Waiting 30 seconds for health checks to stabilize..."
                             sleep 30
 
-                            # Get service name
-                            SERVICE_NAME=\$(docker service ls --filter "label=com.docker.stack.namespace=${STACK_NAME_PROD}" --filter "name=${STACK_NAME_PROD}_lmsbooks_query" --format "{{.Name}}")
-
-                            if [ -n "\$SERVICE_NAME" ]; then
+                            # Check each service
+                            for SERVICE in \$(docker service ls --filter "label=com.docker.stack.namespace=${stackName}" --format "{{.Name}}"); do
                                 echo ""
-                                echo "Service: \$SERVICE_NAME"
+                                echo "Checking health of: \$SERVICE"
                                 echo "----------------------------------------"
 
-                                # Get all task IDs for the service
-                                TASK_IDS=\$(docker service ps \$SERVICE_NAME --filter "desired-state=running" --format "{{.ID}}" 2>/dev/null)
+                                # Get task IDs
+                                TASKS=\$(docker service ps \$SERVICE --filter "desired-state=running" --format "{{.ID}}" 2>/dev/null)
 
-                                for TASK_ID in \$TASK_IDS; do
-                                    # Get container ID from task
-                                    CONTAINER_ID=\$(docker inspect \$TASK_ID --format "{{.Status.ContainerStatus.ContainerID}}" 2>/dev/null || echo "")
+                                for TASK in \$TASKS; do
+                                    CONTAINER_ID=\$(docker inspect \$TASK --format "{{.Status.ContainerStatus.ContainerID}}" 2>/dev/null || echo "")
 
                                     if [ -n "\$CONTAINER_ID" ]; then
-                                        echo ""
-                                        echo "Task: \$TASK_ID"
-                                        HEALTH_STATUS=\$(docker inspect \$CONTAINER_ID --format "{{.State.Health.Status}}" 2>/dev/null || echo "no healthcheck")
+                                        HEALTH=\$(docker inspect \$CONTAINER_ID --format "{{.State.Health.Status}}" 2>/dev/null || echo "none")
+                                        TASK_NAME=\$(docker inspect \$TASK --format "{{.Name}}" 2>/dev/null)
 
-                                        if [ "\$HEALTH_STATUS" != "no healthcheck" ]; then
-                                            echo "  Health Status: \$HEALTH_STATUS"
-
-                                            # Get last health check log
-                                            LAST_CHECK=\$(docker inspect \$CONTAINER_ID --format "{{range .State.Health.Log}}{{.End}} - {{.ExitCode}} - {{.Output}}{{end}}" 2>/dev/null | tail -1 || echo "N/A")
-                                            echo "  Last Check: \$LAST_CHECK"
+                                        if [ "\$HEALTH" = "healthy" ]; then
+                                            echo "  ✅ \$TASK_NAME: HEALTHY"
+                                        elif [ "\$HEALTH" = "unhealthy" ]; then
+                                            echo "  ❌ \$TASK_NAME: UNHEALTHY"
+                                        elif [ "\$HEALTH" = "starting" ]; then
+                                            echo "  🔄 \$TASK_NAME: STARTING (health checks in progress)"
                                         else
-                                            echo "  Health Status: Not configured or starting"
+                                            echo "  ℹ️  \$TASK_NAME: No health check configured"
                                         fi
-
-                                        # Show replica state
-                                        REPLICA_STATE=\$(docker service ps \$SERVICE_NAME --filter "id=\$TASK_ID" --format "{{.CurrentState}}" 2>/dev/null)
-                                        echo "  Replica State: \$REPLICA_STATE"
                                     fi
                                 done
-
-                                echo ""
-                                echo "----------------------------------------"
-                                echo "Health Check Configuration:"
-                                docker service inspect \$SERVICE_NAME --format "{{json .Spec.TaskTemplate.ContainerSpec.Healthcheck}}" 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "  Configured in docker-compose file"
-                            fi
-
-                            # Check health of all services in the stack
-                            echo ""
-                            echo "=========================================="
-                            echo "ALL SERVICES HEALTH STATUS"
-                            echo "=========================================="
-                            docker service ls --filter "label=com.docker.stack.namespace=${STACK_NAME_PROD}" --format "table {{.Name}}\t{{.Replicas}}\t{{.Image}}"
-
-                            echo ""
-                            echo "Detailed service inspection:"
-                            for SERVICE in \$(docker service ls --filter "label=com.docker.stack.namespace=${STACK_NAME_PROD}" --format "{{.Name}}"); do
-                                echo ""
-                                echo "Service: \$SERVICE"
-                                docker service ps \$SERVICE --format "  {{.Name}}: {{.CurrentState}}" | head -5
                             done
 
                             echo ""
+                            echo "=========================================="
+                            echo "✅ Post-deployment verification completed"
                             echo "=========================================="
                         """
                     }
@@ -1150,9 +1119,64 @@ EOF
     }
 
     post {
-        always {
-            echo "Cleaning up workspace..."
-            cleanWs()
+        success {
+            script {
+                echo "=========================================="
+                echo "Pipeline completed successfully!"
+                echo "Environment: ${params.ENVIRONMENT}"
+                echo "Image: ${IMAGE_NAME}:${IMAGE_TAG}"
+                echo "=========================================="
+
+                try {
+                    emailext(
+                        subject: "SUCCESS: LMS Books Query - ${params.ENVIRONMENT} - Build #${BUILD_NUMBER}",
+                        body: """
+                            <h2>Build Successful</h2>
+                            <p><strong>Environment:</strong> ${params.ENVIRONMENT}</p>
+                            <p><strong>Build Number:</strong> ${BUILD_NUMBER}</p>
+                            <p><strong>Image Tag:</strong> ${IMAGE_TAG}</p>
+                            <p><strong>Status:</strong> ✅ SUCCESS</p>
+                            <br>
+                            <p><a href="${BUILD_URL}">View Build Details</a></p>
+                        """,
+                        to: "${EMAIL_RECIPIENT}",
+                        mimeType: 'text/html'
+                    )
+                    echo "✅ Success notification email sent to ${EMAIL_RECIPIENT}"
+                } catch (Exception e) {
+                    echo "⚠️ WARNING: Could not send success email notification"
+                    echo "Email error: ${e.message}"
+                }
+            }
+        }
+
+        failure {
+            script {
+                echo "=========================================="
+                echo "Pipeline failed!"
+                echo "Environment: ${params.ENVIRONMENT}"
+                echo "=========================================="
+
+                try {
+                    emailext(
+                        subject: "FAILURE: LMS Books Query - ${params.ENVIRONMENT} - Build #${BUILD_NUMBER}",
+                        body: """
+                            <h2>Build Failed</h2>
+                            <p><strong>Environment:</strong> ${params.ENVIRONMENT}</p>
+                            <p><strong>Build Number:</strong> ${BUILD_NUMBER}</p>
+                            <p><strong>Status:</strong> ❌ FAILURE</p>
+                            <br>
+                            <p><a href="${BUILD_URL}console">View Console Output</a></p>
+                        """,
+                        to: "${EMAIL_RECIPIENT}",
+                        mimeType: 'text/html'
+                    )
+                    echo "✅ Failure notification email sent to ${EMAIL_RECIPIENT}"
+                } catch (Exception e) {
+                    echo "⚠️ WARNING: Could not send failure email notification"
+                    echo "Email error: ${e.message}"
+                }
+            }
         }
     }
 }

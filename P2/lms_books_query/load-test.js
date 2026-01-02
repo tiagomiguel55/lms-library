@@ -29,7 +29,6 @@ let testIsbnList = [];
 
 // Test configuration
 export const options = {
-    setupTimeout: '120s',  // Increase setup timeout to 120 seconds
     scenarios: {
         // Warm-up phase
         warmup: {
@@ -91,58 +90,68 @@ export function setup() {
 
     // Fetch list of books to get ISBNs for testing
     console.log('Fetching books list to get test ISBNs...');
-    const listRes = http.get(`${SERVICE_URL}/api/books?page=0&size=20`, {
-        timeout: '30s',
+    const listRes = http.get(`${SERVICE_URL}/api/books?page=0&size=50`, {
+        timeout: '10s',
     });
 
     let isbnList = [];
 
     if (listRes.status === 200) {
         try {
-            const books = JSON.parse(listRes.body);
-            // Handle both array response and paginated response
-            const bookArray = Array.isArray(books) ? books : (books.content || books._embedded?.books || []);
+            const response = JSON.parse(listRes.body);
+            let bookArray = [];
+
+            // Handle different response formats
+            if (Array.isArray(response)) {
+                // Direct array of books
+                bookArray = response;
+            } else if (response.content && Array.isArray(response.content)) {
+                // Spring Page format
+                bookArray = response.content;
+            } else if (response._embedded && response._embedded.books) {
+                // HAL format
+                bookArray = response._embedded.books;
+            } else if (response.isbn) {
+                // Single book object
+                bookArray = [response];
+            }
 
             if (bookArray.length > 0) {
                 isbnList = bookArray.map(book => book.isbn).filter(isbn => isbn);
-                console.log(`✅ Found ${isbnList.length} books for testing`);
+                console.log(`✅ Found ${isbnList.length} books in database for testing`);
+                console.log(`Sample ISBNs: ${isbnList.slice(0, 3).join(', ')}`);
             } else {
-                console.log('⚠️  No books found in database');
-                // Use some default ISBNs for testing
-                isbnList = ['9782826012092', '9782070612758', '9780747532699'];
-                console.log('Using default ISBNs for testing');
+                console.log('❌ ERROR: No books found in database');
+                console.log('Cannot proceed with load test - database must have books');
+                throw new Error('No books available in database for testing');
             }
         } catch (e) {
-            console.log(`⚠️  Could not parse books response: ${e.message}`);
-            isbnList = ['9782826012092', '9782070612758', '9780747532699'];
-            console.log('Using default ISBNs for testing');
+            console.log(`❌ ERROR: Could not parse books response: ${e.message}`);
+            throw e;
         }
-    } else if (listRes.status === 0) {
-        console.log('⚠️  Service connection timeout - service may still be starting');
-        console.log('Using default ISBNs and continuing with test');
-        isbnList = ['9782826012092', '9782070612758', '9780747532699'];
     } else {
-        console.log(`⚠️  Could not fetch books list (status ${listRes.status})`);
-        // Use default ISBNs
-        isbnList = ['9782826012092', '9782070612758', '9780747532699'];
-        console.log('Using default ISBNs for testing');
+        console.log(`❌ ERROR: Could not fetch books list (status ${listRes.status})`);
+        console.log('Response body:', listRes.body);
+        throw new Error(`Failed to fetch books from API - status ${listRes.status}`);
+    }
+
+    // Verify we have ISBNs before continuing
+    if (!isbnList || isbnList.length === 0) {
+        console.log('❌ ERROR: No valid ISBNs found for testing');
+        throw new Error('No ISBNs available - cannot proceed with load test');
     }
 
     // Health check using one of the ISBNs
     console.log('Performing health check...');
     const testIsbn = isbnList[0];
     const healthRes = http.get(`${SERVICE_URL}/api/books/${testIsbn}`, {
-        timeout: '30s',
+        timeout: '10s',
     });
 
     if (healthRes.status === 200) {
         console.log('✅ Service is accessible and responding');
     } else if (healthRes.status === 404) {
-        console.log('⚠️  Book not found (404) - database may be empty or still syncing');
-        console.log('Continuing with load test anyway...');
-    } else if (healthRes.status === 0) {
-        console.log('⚠️  Service timeout - service is still initializing');
-        console.log('Continuing with load test...');
+        console.log('⚠️  Book not found (404) - this is expected if database is empty');
     } else if (healthRes.status >= 400 && healthRes.status < 500) {
         console.log(`⚠️  Service returned status ${healthRes.status} - continuing with load test`);
     } else {
