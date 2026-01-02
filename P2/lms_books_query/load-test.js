@@ -29,6 +29,7 @@ let testIsbnList = [];
 
 // Test configuration
 export const options = {
+    setupTimeout: '120s',  // Increase setup timeout to 120 seconds
     scenarios: {
         // Warm-up phase
         warmup: {
@@ -88,10 +89,6 @@ export function setup() {
     console.log(`Monolith Baseline RPS: ${MONOLITH_BASELINE_RPS}`);
     console.log('========================================');
 
-    // Wait for service to be fully ready
-    console.log('Waiting 60 seconds for MongoDB sync and service initialization...');
-    sleep(60);
-
     // Fetch list of books to get ISBNs for testing
     console.log('Fetching books list to get test ISBNs...');
     const listRes = http.get(`${SERVICE_URL}/api/books?page=0&size=20`, {
@@ -145,8 +142,6 @@ export function setup() {
         console.log('Continuing with load test anyway...');
     } else if (healthRes.status === 0) {
         console.log('⚠️  Service timeout - service is still initializing');
-        console.log('Waiting additional 30 seconds...');
-        sleep(30);
         console.log('Continuing with load test...');
     } else if (healthRes.status >= 400 && healthRes.status < 500) {
         console.log(`⚠️  Service returned status ${healthRes.status} - continuing with load test`);
