@@ -88,10 +88,14 @@ export function setup() {
     console.log(`Monolith Baseline RPS: ${MONOLITH_BASELINE_RPS}`);
     console.log('========================================');
 
+    // Wait for service to be fully ready
+    console.log('Waiting 60 seconds for MongoDB sync and service initialization...');
+    sleep(60);
+
     // Fetch list of books to get ISBNs for testing
     console.log('Fetching books list to get test ISBNs...');
     const listRes = http.get(`${SERVICE_URL}/api/books?page=0&size=20`, {
-        timeout: '10s',
+        timeout: '30s',
     });
 
     let isbnList = [];
@@ -109,28 +113,41 @@ export function setup() {
                 console.log('⚠️  No books found in database');
                 // Use some default ISBNs for testing
                 isbnList = ['9782826012092', '9782070612758', '9780747532699'];
+                console.log('Using default ISBNs for testing');
             }
         } catch (e) {
             console.log(`⚠️  Could not parse books response: ${e.message}`);
             isbnList = ['9782826012092', '9782070612758', '9780747532699'];
+            console.log('Using default ISBNs for testing');
         }
+    } else if (listRes.status === 0) {
+        console.log('⚠️  Service connection timeout - service may still be starting');
+        console.log('Using default ISBNs and continuing with test');
+        isbnList = ['9782826012092', '9782070612758', '9780747532699'];
     } else {
         console.log(`⚠️  Could not fetch books list (status ${listRes.status})`);
         // Use default ISBNs
         isbnList = ['9782826012092', '9782070612758', '9780747532699'];
+        console.log('Using default ISBNs for testing');
     }
 
     // Health check using one of the ISBNs
     console.log('Performing health check...');
     const testIsbn = isbnList[0];
     const healthRes = http.get(`${SERVICE_URL}/api/books/${testIsbn}`, {
-        timeout: '10s',
+        timeout: '30s',
     });
 
     if (healthRes.status === 200) {
         console.log('✅ Service is accessible and responding');
     } else if (healthRes.status === 404) {
-        console.log('⚠️  Book not found (404) - this is expected if database is empty');
+        console.log('⚠️  Book not found (404) - database may be empty or still syncing');
+        console.log('Continuing with load test anyway...');
+    } else if (healthRes.status === 0) {
+        console.log('⚠️  Service timeout - service is still initializing');
+        console.log('Waiting additional 30 seconds...');
+        sleep(30);
+        console.log('Continuing with load test...');
     } else if (healthRes.status >= 400 && healthRes.status < 500) {
         console.log(`⚠️  Service returned status ${healthRes.status} - continuing with load test`);
     } else {
@@ -326,4 +343,3 @@ function textSummary(data, options) {
 
     return summary;
 }
-
