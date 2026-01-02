@@ -33,10 +33,10 @@ services:
         - "traefik.enable=true"
         - "deployment.color=green"
         - "deployment.environment=production"
-        # Traefik routing - only active when this label is set to true
-        - "traefik.http.routers.lmsbooks-green.rule=Host(`lmsbooks.localhost`) || PathPrefix(`/`)"
+        # Traefik routing - accept any host (works with IP addresses)
+        - "traefik.http.routers.lmsbooks-green.rule=PathPrefix(`/`)"
         - "traefik.http.routers.lmsbooks-green.entrypoints=web"
-        - "traefik.http.routers.lmsbooks-green.priority=${GREEN_PRIORITY:-1}"
+        - "traefik.http.routers.lmsbooks-green.priority=1"
         - "traefik.http.services.lmsbooks-green.loadbalancer.server.port=8080"
         - "traefik.http.services.lmsbooks-green.loadbalancer.healthcheck.path=/actuator/health"
         - "traefik.http.services.lmsbooks-green.loadbalancer.healthcheck.interval=10s"
