@@ -32,6 +32,8 @@ pipeline {
         BLUE_PORT  = '8083'
         GREEN_PORT = '8084'
         LIVE_ENV_FILE = '/tmp/lmsbooks_live_env.txt'
+        BLUE_IMAGE_FILE = '/tmp/lmsbooks_blue_image.txt'
+        GREEN_IMAGE_FILE = '/tmp/lmsbooks_green_image.txt'
 
         // Email
         EMAIL_RECIPIENT = 'migueltiago255@gmail.com'
@@ -925,11 +927,15 @@ EOF
                             if [ -n "\$BLUE_SERVICE" ]; then
                                 BLUE_IMAGE=\$(docker service inspect \$BLUE_SERVICE --format '{{.Spec.TaskTemplate.ContainerSpec.Image}}')
                                 echo "Blue current image: \$BLUE_IMAGE"
+                                # Save blue image to file for rollback reference
+                                echo "\$BLUE_IMAGE" > ${BLUE_IMAGE_FILE}
                             fi
 
                             if [ -n "\$GREEN_SERVICE" ]; then
                                 GREEN_IMAGE=\$(docker service inspect \$GREEN_SERVICE --format '{{.Spec.TaskTemplate.ContainerSpec.Image}}')
                                 echo "Green current image: \$GREEN_IMAGE"
+                                # Save green image to file for rollback reference
+                                echo "\$GREEN_IMAGE" > ${GREEN_IMAGE_FILE}
                             fi
 
                             # Update priorities via docker service update (preserves images)
