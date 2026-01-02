@@ -24,13 +24,16 @@ public interface LendingEntityMapper {
     @Mapping(target = "readerValid", source = "readerValid")
     @Mapping(target = "lendingStatus", source = "lendingStatus")
     @Mapping(target = "bookValid", source = "bookValid")
+    @Mapping(target = "commentary", source = "commentary")
+    @Mapping(target = "grade", source = "grade")
     Lending sqlServerToModel(LendingEntity lendingEntity);
 
     // Mapear de Lending para LendingEntity
-
     @Mapping(target = "readerValid", source = "readerValid")
     @Mapping(target = "lendingStatus", source = "lendingStatus")
     @Mapping(target = "bookValid", source = "bookValid")
+    @Mapping(target = "commentary", source = "commentary")
+    @Mapping(target = "grade", source = "grade")
     LendingEntity modelToSqlServer(Lending lending);
     @Mapping(target = "lendingNumber", source = "value")
     LendingNumberEntity stringToLne (String value);

@@ -67,6 +67,9 @@ public class Lending {
     @Setter
     private String commentary = null;
 
+    @Setter
+    private Integer grade = null;
+
     private int fineValuePerDayInCents;
 
     private Integer daysUntilReturn;
@@ -113,7 +116,7 @@ public class Lending {
         }
     }
     @Builder
-    public Lending(long pk,Book book, ReaderDetails readerDetails, LendingNumber lendingNumber, LocalDate startDate, LocalDate limitDate, LocalDate returnedDate, int fineValuePerDayInCents, String genId, boolean readerValid, boolean bookValid, String lendingStatus, long version, String commentary) {
+    public Lending(long pk,Book book, ReaderDetails readerDetails, LendingNumber lendingNumber, LocalDate startDate, LocalDate limitDate, LocalDate returnedDate, int fineValuePerDayInCents, String genId, boolean readerValid, boolean bookValid, String lendingStatus, long version, String commentary, Integer grade) {
         try {
             this.book = Objects.requireNonNull(book);
 
@@ -138,6 +141,7 @@ public class Lending {
         this.lendingStatus = lendingStatus;
         this.version = version;
         this.commentary = commentary;
+        this.grade = grade;
         this.pk = pk;
     }
 
