@@ -1,0 +1,329 @@
+/**
+ * K6 Load Test Script for LMS Books Query Service
+ * ============================================================================
+ * This script performs load testing on the staging environment to:
+ * - Test read performance with GET /api/books/{isbn}
+ * - Demonstrate scalability with multiple instances
+ * - Test system behavior under load
+ * - Compare microservices performance vs monolith baseline
+ * - Output metrics for auto-scaling decisions
+ * ============================================================================
+ */
+
+import http from 'k6/http';
+import { check, sleep } from 'k6';
+import { Rate, Trend, Counter } from 'k6/metrics';
+
+// Custom metrics
+const successRate = new Rate('success_rate');
+const requestDuration = new Trend('request_duration');
+const requestsTotal = new Counter('requests_total');
+const requestsFailed = new Counter('requests_failed');
+
+// Configuration from environment variables
+const SERVICE_URL = __ENV.SERVICE_URL || 'http://74.161.33.56:8086';
+const MONOLITH_BASELINE_RPS = parseFloat(__ENV.MONOLITH_BASELINE_RPS) || 50;
+
+// Sample ISBNs to test (will be populated in setup)
+let testIsbnList = [];
+
+// Test configuration
+export const options = {
+    scenarios: {
+        // Warm-up phase
+        warmup: {
+            executor: 'constant-vus',
+            vus: 2,
+            duration: '10s',
+            startTime: '0s',
+            tags: { phase: 'warmup' },
+        },
+        // Ramp-up load test
+        load_test: {
+            executor: 'ramping-vus',
+            startVUs: 0,
+            stages: [
+                { duration: '30s', target: 10 },   // Ramp up to 10 users
+                { duration: '1m', target: 10 },    // Stay at 10 users
+                { duration: '30s', target: 25 },   // Ramp up to 25 users
+                { duration: '1m', target: 25 },    // Stay at 25 users
+                { duration: '30s', target: 50 },   // Ramp up to 50 users
+                { duration: '1m', target: 50 },    // Stay at 50 users (peak load)
+                { duration: '30s', target: 0 },    // Ramp down
+            ],
+            startTime: '10s',
+            tags: { phase: 'load_test' },
+        },
+        // Stress test - push the system
+        stress_test: {
+            executor: 'ramping-vus',
+            startVUs: 0,
+            stages: [
+                { duration: '20s', target: 100 },  // Ramp to 100 users
+                { duration: '30s', target: 100 },  // Stay at 100 users
+                { duration: '20s', target: 0 },    // Ramp down
+            ],
+            startTime: '5m10s',
+            tags: { phase: 'stress_test' },
+        },
+    },
+    thresholds: {
+        // Success rate should be above 95%
+        'success_rate': ['rate>0.95'],
+        // For GET operations (read-heavy, should be fast):
+        // - 95% of requests should be below 300ms
+        // - Average should be below 100ms
+        'http_req_duration': ['p(95)<300', 'avg<100'],
+        // Failed requests should be less than 5%
+        'http_req_failed': ['rate<0.05'],
+    },
+};
+
+// Setup function - runs once before the test
+export function setup() {
+    console.log('========================================');
+    console.log('LMS BOOKS QUERY - K6 LOAD TEST');
+    console.log('========================================');
+    console.log(`Service URL: ${SERVICE_URL}`);
+    console.log(`Monolith Baseline RPS: ${MONOLITH_BASELINE_RPS}`);
+    console.log('========================================');
+
+    // Fetch list of books to get ISBNs for testing
+    console.log('Fetching books list to get test ISBNs...');
+    const listRes = http.get(`${SERVICE_URL}/api/books?page=0&size=20`, {
+        timeout: '10s',
+    });
+
+    let isbnList = [];
+
+    if (listRes.status === 200) {
+        try {
+            const books = JSON.parse(listRes.body);
+            // Handle both array response and paginated response
+            const bookArray = Array.isArray(books) ? books : (books.content || books._embedded?.books || []);
+
+            if (bookArray.length > 0) {
+                isbnList = bookArray.map(book => book.isbn).filter(isbn => isbn);
+                console.log(`✅ Found ${isbnList.length} books for testing`);
+            } else {
+                console.log('⚠️  No books found in database');
+                // Use some default ISBNs for testing
+                isbnList = ['9782826012092', '9782070612758', '9780747532699'];
+            }
+        } catch (e) {
+            console.log(`⚠️  Could not parse books response: ${e.message}`);
+            isbnList = ['9782826012092', '9782070612758', '9780747532699'];
+        }
+    } else {
+        console.log(`⚠️  Could not fetch books list (status ${listRes.status})`);
+        // Use default ISBNs
+        isbnList = ['9782826012092', '9782070612758', '9780747532699'];
+    }
+
+    // Health check using one of the ISBNs
+    console.log('Performing health check...');
+    const testIsbn = isbnList[0];
+    const healthRes = http.get(`${SERVICE_URL}/api/books/${testIsbn}`, {
+        timeout: '10s',
+    });
+
+    if (healthRes.status === 200) {
+        console.log('✅ Service is accessible and responding');
+    } else if (healthRes.status === 404) {
+        console.log('⚠️  Book not found (404) - this is expected if database is empty');
+    } else if (healthRes.status >= 400 && healthRes.status < 500) {
+        console.log(`⚠️  Service returned status ${healthRes.status} - continuing with load test`);
+    } else {
+        console.log(`⚠️  Warning: Health check returned status ${healthRes.status}`);
+        console.log('Continuing with load test anyway...');
+    }
+
+    console.log('========================================');
+
+    return {
+        serviceUrl: SERVICE_URL,
+        monolithBaseline: MONOLITH_BASELINE_RPS,
+        isbnList: isbnList,
+        startTime: new Date().toISOString(),
+    };
+}
+
+// Main test function - runs for each VU iteration
+export default function (data) {
+    // Randomly select an ISBN from the list
+    const isbn = data.isbnList[Math.floor(Math.random() * data.isbnList.length)];
+    const url = `${data.serviceUrl}/api/books/${isbn}`;
+
+    const params = {
+        headers: {
+            'Accept': 'application/json',
+        },
+        tags: { endpoint: 'Get Book by ISBN' },
+    };
+
+    const startTime = Date.now();
+    const res = http.get(url, params);
+    const duration = Date.now() - startTime;
+
+    // Record custom metrics
+    requestsTotal.add(1);
+    requestDuration.add(duration);
+
+    const isSuccess = res.status >= 200 && res.status < 400;
+    successRate.add(isSuccess);
+
+    if (!isSuccess) {
+        requestsFailed.add(1);
+    }
+
+    // Validate response
+    check(res, {
+        'status is 2xx or 3xx': (r) => r.status >= 200 && r.status < 400,
+        'response time < 300ms': (r) => r.timings.duration < 300,
+        'response has body': (r) => r.body && r.body.length > 0,
+    });
+
+    // Random sleep between requests (simulating user think time)
+    sleep(Math.random() * 0.5 + 0.1);
+}
+
+// Teardown function - runs once after the test
+export function teardown(data) {
+    console.log('========================================');
+    console.log('LOAD TEST COMPLETED');
+    console.log('========================================');
+    console.log(`Start Time: ${data.startTime}`);
+    console.log(`End Time: ${new Date().toISOString()}`);
+    console.log('========================================');
+}
+
+// Handle summary - generate JSON output for pipeline consumption
+export function handleSummary(data) {
+    const metrics = data.metrics;
+
+    // Calculate key metrics
+    const totalRequests = metrics.http_reqs ? metrics.http_reqs.values.count : 0;
+    const failedRequests = metrics.http_req_failed ? metrics.http_req_failed.values.passes : 0;
+    const successfulRequests = totalRequests - failedRequests;
+    const successRateValue = totalRequests > 0 ? (successfulRequests / totalRequests) * 100 : 0;
+
+    const avgResponseTime = metrics.http_req_duration ? metrics.http_req_duration.values.avg : 0;
+    const minResponseTime = metrics.http_req_duration ? metrics.http_req_duration.values.min : 0;
+    const maxResponseTime = metrics.http_req_duration ? metrics.http_req_duration.values.max : 0;
+    const p95ResponseTime = metrics.http_req_duration ? metrics.http_req_duration.values['p(95)'] : 0;
+
+    const testDuration = data.state.testRunDurationMs / 1000;
+    const requestsPerSecond = testDuration > 0 ? totalRequests / testDuration : 0;
+
+    // Calculate performance comparison with monolith
+    const performanceImprovement = MONOLITH_BASELINE_RPS > 0
+        ? ((requestsPerSecond - MONOLITH_BASELINE_RPS) / MONOLITH_BASELINE_RPS) * 100
+        : 0;
+
+    // Determine scaling recommendation
+    let scaleRecommendation = 'none';
+    let recommendedReplicas = 2;
+
+    if (successRateValue < 95) {
+        scaleRecommendation = 'scale_up';
+        recommendedReplicas = 3;
+    } else if (avgResponseTime > 200) {
+        scaleRecommendation = 'scale_up';
+        recommendedReplicas = 3;
+    } else if (p95ResponseTime > 300) {
+        scaleRecommendation = 'scale_up';
+        recommendedReplicas = 3;
+    } else if (successRateValue >= 99 && avgResponseTime < 50) {
+        scaleRecommendation = 'scale_down';
+        recommendedReplicas = 1;
+    }
+
+    // Build summary output
+    const summary = {
+        timestamp: new Date().toISOString(),
+        service_url: SERVICE_URL,
+        test_configuration: {
+            scenarios: Object.keys(options.scenarios),
+            thresholds: options.thresholds,
+        },
+        results: {
+            total_requests: totalRequests,
+            successful_requests: successfulRequests,
+            failed_requests: failedRequests,
+            success_rate: parseFloat(successRateValue.toFixed(2)),
+            total_duration_seconds: parseFloat(testDuration.toFixed(2)),
+            requests_per_second: parseFloat(requestsPerSecond.toFixed(2)),
+            response_time_ms: {
+                average: parseFloat(avgResponseTime.toFixed(2)),
+                minimum: parseFloat(minResponseTime.toFixed(2)),
+                maximum: parseFloat(maxResponseTime.toFixed(2)),
+                p95: parseFloat(p95ResponseTime.toFixed(2)),
+            },
+        },
+        comparison: {
+            monolith_baseline_rps: MONOLITH_BASELINE_RPS,
+            microservice_rps: parseFloat(requestsPerSecond.toFixed(2)),
+            performance_improvement_percent: parseFloat(performanceImprovement.toFixed(2)),
+        },
+        scaling: {
+            recommendation: scaleRecommendation,
+            recommended_replicas: recommendedReplicas,
+        },
+        thresholds_passed: !data.thresholds || Object.values(data.thresholds).every(t => t.ok),
+    };
+
+    // Console output
+    console.log('\n========================================');
+    console.log('LOAD TEST RESULTS SUMMARY');
+    console.log('========================================');
+    console.log(`Total Requests:        ${totalRequests}`);
+    console.log(`Successful Requests:   ${successfulRequests}`);
+    console.log(`Failed Requests:       ${failedRequests}`);
+    console.log(`Success Rate:          ${successRateValue.toFixed(2)}%`);
+    console.log('----------------------------------------');
+    console.log(`Avg Response Time:     ${avgResponseTime.toFixed(2)} ms`);
+    console.log(`Min Response Time:     ${minResponseTime.toFixed(2)} ms`);
+    console.log(`Max Response Time:     ${maxResponseTime.toFixed(2)} ms`);
+    console.log(`P95 Response Time:     ${p95ResponseTime.toFixed(2)} ms`);
+    console.log('----------------------------------------');
+    console.log(`Test Duration:         ${testDuration.toFixed(2)} seconds`);
+    console.log(`Requests/Second:       ${requestsPerSecond.toFixed(2)} RPS`);
+    console.log('========================================');
+    console.log('COMPARISON WITH MONOLITH');
+    console.log('========================================');
+    console.log(`Monolith Baseline:     ${MONOLITH_BASELINE_RPS} RPS`);
+    console.log(`Microservice:          ${requestsPerSecond.toFixed(2)} RPS`);
+    console.log(`Performance Diff:      ${performanceImprovement >= 0 ? '+' : ''}${performanceImprovement.toFixed(2)}%`);
+    console.log('========================================');
+    console.log('SCALING RECOMMENDATION');
+    console.log('========================================');
+    console.log(`Recommendation:        ${scaleRecommendation}`);
+    console.log(`Recommended Replicas:  ${recommendedReplicas}`);
+    console.log('========================================');
+
+    return {
+        'stdout': textSummary(data, { indent: ' ', enableColors: true }),
+        '/tmp/load_test_results.json': JSON.stringify(summary, null, 2),
+    };
+}
+
+// Text summary helper
+function textSummary(data, options) {
+    const indent = options.indent || '';
+    let summary = '';
+
+    summary += `${indent}========================================\n`;
+    summary += `${indent}K6 LOAD TEST EXECUTION COMPLETE\n`;
+    summary += `${indent}========================================\n`;
+
+    if (data.metrics) {
+        summary += `${indent}HTTP Requests: ${data.metrics.http_reqs?.values?.count || 0}\n`;
+        summary += `${indent}HTTP Failures: ${data.metrics.http_req_failed?.values?.passes || 0}\n`;
+        summary += `${indent}Avg Duration:  ${(data.metrics.http_req_duration?.values?.avg || 0).toFixed(2)}ms\n`;
+    }
+
+    summary += `${indent}========================================\n`;
+
+    return summary;
+}
+
