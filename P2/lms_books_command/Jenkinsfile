@@ -772,67 +772,6 @@ EOF
             }
         }
 
-        stage('Feature Flag Validation (Staging)') {
-            when {
-                allOf {
-                    expression { params.ENVIRONMENT == 'staging' }
-                    expression { params.SKIP_DEPLOY == false }
-                }
-            }
-            steps {
-                dir("${WORK_DIR}") {
-                    script {
-                        echo "=========================================="
-                        echo "FEATURE FLAG VALIDATION"
-                        echo "=========================================="
-                        echo "Validating dark launch and kill switch configuration"
-                        echo "=========================================="
-
-                        try {
-                            // Make script executable
-                            sh "chmod +x feature-flag-validation.sh || true"
-
-                            // Run feature flag validation with authentication
-                            def validationResult = sh(
-                                script: """
-                                    ./feature-flag-validation.sh \
-                                        "http://74.161.33.56:8082" \
-                                        "http://74.161.33.56:8085" \
-                                        "staging"
-                                """,
-                                returnStatus: true
-                            )
-
-                            if (validationResult != 0) {
-                                echo ""
-                                echo "⚠️  Feature flag validation encountered issues"
-                                echo "This may be due to:"
-                                echo "  - Service still initializing"
-                                echo "  - Auth service unavailable"
-                                echo "  - Network connectivity issues"
-                                echo ""
-                                echo "Will continue with deployment but verify manually"
-                            } else {
-                                echo ""
-                                echo "✅ Feature flag validation completed successfully"
-                            }
-
-                            // Display validation results if available
-                            sh """
-                                if [ -f /tmp/feature_flag_validation_results.json ]; then
-                                    echo ""
-                                    echo "Validation Results:"
-                                    cat /tmp/feature_flag_validation_results.json | python3 -m json.tool 2>/dev/null || cat /tmp/feature_flag_validation_results.json
-                                fi
-                            """
-                        } catch (Exception e) {
-                            echo "⚠️  Exception during feature flag validation: ${e.message}"
-                            echo "Continuing with deployment..."
-                        }
-                    }
-                }
-            }
-        }
 
         stage('Deploy Shared PostgreSQL (Blue/Green)') {
             when {

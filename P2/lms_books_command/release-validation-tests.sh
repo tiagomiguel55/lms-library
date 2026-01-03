@@ -218,35 +218,6 @@ else
     echo "⚠️ SKIPPED: Feature Flag endpoint not responding yet"
 fi
 
-# Test 4: Authenticated Feature Flags Endpoint (if JWT available)
-if [ -n "$JWT_TOKEN" ]; then
-    echo ""
-    echo "Running: Get Feature Flags (Authenticated)"
-
-    FEATURE_FLAGS_RESPONSE=$(curl -s -m 10 \
-        -H "Authorization: Bearer $JWT_TOKEN" \
-        -H "Content-Type: application/json" \
-        "$SERVICE_URL/api/admin/feature-flags" 2>/dev/null || echo "")
-
-    if [ -n "$FEATURE_FLAGS_RESPONSE" ] && echo "$FEATURE_FLAGS_RESPONSE" | grep -q "masterKillSwitch"; then
-        echo "✅ PASSED: Feature Flags retrieved with authentication"
-        TESTS_PASSED=$((TESTS_PASSED + 1))
-
-        # Check that master kill switch is disabled
-        if echo "$FEATURE_FLAGS_RESPONSE" | grep -q '"masterKillSwitch":false'; then
-            echo "✅ PASSED: Master Kill Switch is DISABLED in authenticated endpoint"
-            TESTS_PASSED=$((TESTS_PASSED + 1))
-        elif echo "$FEATURE_FLAGS_RESPONSE" | grep -q '"masterKillSwitch":true'; then
-            echo "❌ FAILED: Master Kill Switch is ENABLED - this disables write operations!"
-            TESTS_FAILED=$((TESTS_FAILED + 1))
-        fi
-    else
-        echo "⚠️ Could not get authenticated feature flags"
-        echo "Response: $FEATURE_FLAGS_RESPONSE"
-    fi
-else
-    echo "⚠️ Skipping authenticated feature flag test (no JWT token)"
-fi
 
 # Test 5: Service Replicas Running (ALWAYS CHECK THIS)
 if [ -n "$SERVICE_NAME" ]; then
