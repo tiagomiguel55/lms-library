@@ -20,6 +20,7 @@ import pt.psoft.g1.psoftg1.shared.model.BookEvents;
 import pt.psoft.g1.psoftg1.shared.model.GenreEvents;
 import pt.psoft.g1.psoftg1.shared.model.LendingEvents;
 import pt.psoft.g1.psoftg1.shared.model.ReaderEvents;
+import pt.psoft.g1.psoftg1.shared.model.UserEvents;
 import pt.psoft.g1.psoftg1.shared.publishers.RpcBootstrapPublisher;
 
 @Configuration
@@ -116,10 +117,25 @@ public class RabbitMQConfig {
             return new AnonymousQueue();
         }
 
-            @Bean
-            public Queue validateReaderQueue() {
-                return new AnonymousQueue();
-            }
+        @Bean
+        public Queue userCreatedQueue() {
+            return new AnonymousQueue();
+        }
+
+        @Bean
+        public Queue userUpdatedQueue() {
+            return new AnonymousQueue();
+        }
+
+        @Bean
+        public Queue userDeletedQueue() {
+            return new AnonymousQueue();
+        }
+
+        @Bean
+        public Queue validateReaderQueue() {
+            return new AnonymousQueue();
+        }
 
         // Definindo bindings para as filas
 
@@ -259,6 +275,30 @@ public class RabbitMQConfig {
             return BindingBuilder.bind(validateReaderQueue)
                 .to(direct)
                 .with("reader.validate");
+        }
+
+        @Bean
+        public Binding userCreatedBinding(DirectExchange direct,
+                                          @Qualifier("userCreatedQueue") Queue queue) {
+            return BindingBuilder.bind(queue)
+                    .to(direct)
+                    .with(UserEvents.USER_CREATED);
+        }
+
+        @Bean
+        public Binding userUpdatedBinding(DirectExchange direct,
+                                          @Qualifier("userUpdatedQueue") Queue queue) {
+            return BindingBuilder.bind(queue)
+                    .to(direct)
+                    .with(UserEvents.USER_UPDATED);
+        }
+
+        @Bean
+        public Binding userDeletedBinding(DirectExchange direct,
+                                          @Qualifier("userDeletedQueue") Queue queue) {
+            return BindingBuilder.bind(queue)
+                    .to(direct)
+                    .with(UserEvents.USER_DELETED);
         }
 
         @Bean
