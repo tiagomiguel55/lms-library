@@ -149,45 +149,6 @@ public class ReaderRabbitmqController {
     }
 
     // ========================================
-    // Lending SAGA: Reader Validation
-    // ========================================
-
-    @RabbitListener(queues = "#{readerLendingRequestQueue.name}")
-    public void receiveReaderLendingRequest(Message msg) {
-        SagaCreationResponse response = new SagaCreationResponse();
-
-        try {
-            ObjectMapper objectMapper = new ObjectMapper();
-            String jsonReceived = new String(msg.getBody(), StandardCharsets.UTF_8);
-            ReaderSagaViewAMQP readerSagaViewAMQP = objectMapper.readValue(jsonReceived, ReaderSagaViewAMQP.class);
-
-            System.out.println(" [x] [Lending-SAGA] Received Reader validation request for lending: " + readerSagaViewAMQP.getLendingNumber());
-
-            ReaderViewAMQP readerViewAMQP = readerViewAMQPMapper.toReaderViewAMQP(readerSagaViewAMQP);
-            ReaderDetails readerDetails;
-
-            try {
-                readerDetails = readerService.create(readerViewAMQP);
-                System.out.println(" [x] [Lending-SAGA] Reader created/validated for lending");
-
-                response.setLendingNumber(readerSagaViewAMQP.getLendingNumber());
-                response.setStatus("SUCCESS");
-                readerEventPublisher.sendReaderLendingResponse(response);
-
-            } catch (Exception e) {
-                System.out.println(" [x] [Lending-SAGA] Error validating Reader: " + e.getMessage());
-                response.setStatus("ERROR");
-                response.setLendingNumber(readerSagaViewAMQP.getLendingNumber());
-                response.setError(e.getMessage());
-                readerEventPublisher.sendReaderLendingResponse(response);
-            }
-
-        } catch (Exception ex) {
-            System.out.println(" [x] [Lending-SAGA] Error processing lending request: " + ex.getMessage());
-        }
-    }
-
-    // ========================================
     // Private Helper Methods
     // ========================================
 

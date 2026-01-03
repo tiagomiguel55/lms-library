@@ -60,22 +60,6 @@ public class ReaderEventPublisher {
         }
     }
 
-    public void sendReaderLendingResponse(SagaCreationResponse response) {
-
-        try {
-            ObjectMapper objectMapper = new ObjectMapper();
-
-            String jsonString = objectMapper.writeValueAsString(response);
-
-            this.template.convertAndSend(direct.getName(), "reader.lending.responses", jsonString);
-
-            System.out.println(" [x] Sent '" + jsonString + "'");
-        }
-        catch( Exception ex ) {
-            System.out.println(" [x] Exception sending reader lending response: '" + ex.getMessage() + "'");
-        }
-    }
-
     public void sendReaderUserRequestedEvent(ReaderUserRequestedEvent request) {
         try {
             ObjectMapper objectMapper = new ObjectMapper();
