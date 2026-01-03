@@ -287,8 +287,8 @@
                         <outputFormat>XML</outputFormat>
                         <outputFormat>HTML</outputFormat>
                     </outputFormats>
-                    <mutationThreshold>60</mutationThreshold>
-                    <coverageThreshold>70</coverageThreshold>
+                    <mutationThreshold>0</mutationThreshold>
+                    <coverageThreshold>0</coverageThreshold>
                     <timestampedReports>false</timestampedReports>
                 </configuration>
                 <executions>

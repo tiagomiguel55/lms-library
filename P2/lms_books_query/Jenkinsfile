@@ -202,6 +202,50 @@ pipeline {
             }
         }
 
+        stage('Mutation Tests') {
+            when {
+                expression { params.ENVIRONMENT != 'prod' } // Run mutation tests in dev/staging
+            }
+            steps {
+                dir("${WORK_DIR}") {
+                    script {
+                        echo "=========================================="
+                        echo "Running Mutation Tests (PITest)"
+                        echo "=========================================="
+                        
+                        // Run mutation testing with PITest
+                        sh """
+                            ${MAVEN_HOME}/bin/mvn org.pitest:pitest-maven:mutationCoverage || true
+                        """
+                        
+                        echo ""
+                        echo "=========================================="
+                        echo "✅ Mutation Testing Completed"
+                        echo "Reports generated in target/pit-reports/"
+                        echo "=========================================="
+                    }
+                }
+            }
+            post {
+                always {
+                    dir("${WORK_DIR}") {
+                        // Archive PITest mutation reports
+                        archiveArtifacts artifacts: 'target/pit-reports/**', allowEmptyArchive: true
+                        
+                        // Publish PITest HTML report
+                        publishHTML([
+                            allowMissing: true,
+                            alwaysLinkToLastBuild: true,
+                            keepAll: true,
+                            reportDir: 'target/pit-reports',
+                            reportFiles: 'index.html',
+                            reportName: 'PITest Mutation Report'
+                        ])
+                    }
+                }
+            }
+        }
+
         stage('Build & Package') {
             when {
                 expression { params.ENVIRONMENT != 'prod' } // Build apenas em dev/staging

@@ -91,6 +91,148 @@ public class BooksCDCDefinitionTest {
             .withContent(body)
             .toPact();
   }
+
+  @Pact(consumer = "book_deleted-consumer")
+  V4Pact createBookDeletedPact(MessagePactBuilder builder) {
+    PactDslJsonBody body = new PactDslJsonBody()
+            .stringType("isbn", "6475803429671")
+            .stringMatcher("deletedAt", "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}", "2026-01-03T10:30:00");
+
+    Map<String, Object> metadata = new HashMap<>();
+    metadata.put("Content-Type", "application/json");
+
+    return builder.expectsToReceive("a book deleted event")
+            .withMetadata(metadata)
+            .withContent(body)
+            .toPact();
+  }
+
+  @Pact(consumer = "author_created-consumer")
+  V4Pact createAuthorCreatedPact(MessagePactBuilder builder) {
+    PactDslJsonBody body = new PactDslJsonBody()
+            .integerType("authorId", 1)
+            .stringType("name", "João Silva")
+            .stringType("bio", "An experienced author with multiple publications")
+            .stringMatcher("version", "[0-9]+", "1");
+
+    Map<String, Object> metadata = new HashMap<>();
+    metadata.put("Content-Type", "application/json");
+
+    return builder.expectsToReceive("an author created event")
+            .withMetadata(metadata)
+            .withContent(body)
+            .toPact();
+  }
+
+  @Pact(consumer = "author_pending_created-consumer")
+  V4Pact createAuthorPendingCreatedPact(MessagePactBuilder builder) {
+    PactDslJsonBody body = new PactDslJsonBody()
+            .stringType("name", "Maria Santos")
+            .stringType("bio", "New author pending approval")
+            .stringType("requestId", "req-12345")
+            .stringMatcher("timestamp", "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}", "2026-01-03T10:30:00");
+
+    Map<String, Object> metadata = new HashMap<>();
+    metadata.put("Content-Type", "application/json");
+
+    return builder.expectsToReceive("an author pending created event")
+            .withMetadata(metadata)
+            .withContent(body)
+            .toPact();
+  }
+
+  @Pact(consumer = "genre_created-consumer")
+  V4Pact createGenreCreatedPact(MessagePactBuilder builder) {
+    PactDslJsonBody body = new PactDslJsonBody()
+            .stringType("genre", "Science Fiction")
+            .stringMatcher("version", "[0-9]+", "1");
+
+    Map<String, Object> metadata = new HashMap<>();
+    metadata.put("Content-Type", "application/json");
+
+    return builder.expectsToReceive("a genre created event")
+            .withMetadata(metadata)
+            .withContent(body)
+            .toPact();
+  }
+
+  @Pact(consumer = "book_requested-consumer")
+  V4Pact createBookRequestedPact(MessagePactBuilder builder) {
+    PactDslJsonBody body = new PactDslJsonBody();
+    body.stringType("isbn", "9780140449136");
+    body.stringType("title", "The Odyssey");
+    body.stringType("description", "An epic poem by Homer");
+    body.stringType("genre", "Classic Literature");
+    body.array("authorIds")
+            .integerType(5)
+            .closeArray();
+    body.stringType("requestId", "req-98765");
+
+    Map<String, Object> metadata = new HashMap<>();
+    metadata.put("Content-Type", "application/json");
+
+    return builder.expectsToReceive("a book requested event")
+            .withMetadata(metadata)
+            .withContent(body)
+            .toPact();
+  }
+
+  @Pact(consumer = "book_finalized-consumer")
+  V4Pact createBookFinalizedPact(MessagePactBuilder builder) {
+    PactDslJsonBody body = new PactDslJsonBody()
+            .stringType("isbn", "9780140449136")
+            .stringType("status", "APPROVED")
+            .stringType("requestId", "req-98765")
+            .stringMatcher("finalizedAt", "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}", "2026-01-03T11:00:00");
+
+    Map<String, Object> metadata = new HashMap<>();
+    metadata.put("Content-Type", "application/json");
+
+    return builder.expectsToReceive("a book finalized event")
+            .withMetadata(metadata)
+            .withContent(body)
+            .toPact();
+  }
+
+  @Pact(consumer = "author_creation_failed-consumer")
+  V4Pact createAuthorCreationFailedPact(MessagePactBuilder builder) {
+    PactDslJsonBody body = new PactDslJsonBody()
+            .stringType("name", "Invalid Author")
+            .stringType("requestId", "req-11111")
+            .stringType("errorMessage", "Author name validation failed")
+            .stringMatcher("timestamp", "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}", "2026-01-03T10:45:00");
+
+    Map<String, Object> metadata = new HashMap<>();
+    metadata.put("Content-Type", "application/json");
+
+    return builder.expectsToReceive("an author creation failed event")
+            .withMetadata(metadata)
+            .withContent(body)
+            .toPact();
+  }
+
+  @Pact(consumer = "book_with_multiple_authors-consumer")
+  V4Pact createBookWithMultipleAuthorsPact(MessagePactBuilder builder) {
+    PactDslJsonBody body = new PactDslJsonBody()
+            .stringType("isbn", "9780134685991")
+            .stringType("title", "Effective Java")
+            .stringType("description", "Best practices for the Java platform")
+            .stringType("genre", "Technology");
+    body.array("authorIds")
+            .integerType(1)
+            .integerType(2)
+            .integerType(3)
+            .closeArray();
+    body.stringMatcher("version", "[0-9]+", "1");
+
+    Map<String, Object> metadata = new HashMap<>();
+    metadata.put("Content-Type", "application/json");
+
+    return builder.expectsToReceive("a book created event with multiple authors")
+            .withMetadata(metadata)
+            .withContent(body)
+            .toPact();
+  }
 //
 // The following tests are now defined as IT tests, so that the definition of contract and the tests are decoupled.
 // Yet, while the body of the tests can be elsewhere, the method signature must be defined here so the contract is generated.
@@ -130,5 +272,61 @@ public class BooksCDCDefinitionTest {
 //
 //    // Verify interactions with the mocked service
 //    verify(bookService, times(1)).update(any(BookViewAMQP.class));
+  }
+
+  @Test
+  @PactTestFor(pactMethod = "createBookDeletedPact")
+  void testBookDeleted(List<V4Interaction.AsynchronousMessage> messages) throws Exception {
+    // Verify the contract structure - implementation can be added later
+    // This ensures the consumer can handle book deletion events
+  }
+
+  @Test
+  @PactTestFor(pactMethod = "createAuthorCreatedPact")
+  void testAuthorCreated(List<V4Interaction.AsynchronousMessage> messages) throws Exception {
+    // Verify the contract structure for author creation events
+    // The consumer should be able to process author information
+  }
+
+  @Test
+  @PactTestFor(pactMethod = "createAuthorPendingCreatedPact")
+  void testAuthorPendingCreated(List<V4Interaction.AsynchronousMessage> messages) throws Exception {
+    // Verify the contract for pending author creation
+    // This allows the system to handle author approval workflows
+  }
+
+  @Test
+  @PactTestFor(pactMethod = "createGenreCreatedPact")
+  void testGenreCreated(List<V4Interaction.AsynchronousMessage> messages) throws Exception {
+    // Verify the contract for genre creation events
+    // Ensures proper handling of new genres in the system
+  }
+
+  @Test
+  @PactTestFor(pactMethod = "createBookRequestedPact")
+  void testBookRequested(List<V4Interaction.AsynchronousMessage> messages) throws Exception {
+    // Verify the contract for book request events
+    // This supports the book request and approval workflow
+  }
+
+  @Test
+  @PactTestFor(pactMethod = "createBookFinalizedPact")
+  void testBookFinalized(List<V4Interaction.AsynchronousMessage> messages) throws Exception {
+    // Verify the contract for book finalization events
+    // Handles the completion of book approval process
+  }
+
+  @Test
+  @PactTestFor(pactMethod = "createAuthorCreationFailedPact")
+  void testAuthorCreationFailed(List<V4Interaction.AsynchronousMessage> messages) throws Exception {
+    // Verify the contract for author creation failure events
+    // Allows proper error handling and user notification
+  }
+
+  @Test
+  @PactTestFor(pactMethod = "createBookWithMultipleAuthorsPact")
+  void testBookWithMultipleAuthors(List<V4Interaction.AsynchronousMessage> messages) throws Exception {
+    // Verify the contract for books with multiple authors
+    // Ensures the system can handle collaborative works
   }
 }
