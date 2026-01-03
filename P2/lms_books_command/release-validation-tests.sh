@@ -3,19 +3,18 @@
 # Release Validation Tests - Automatically rollback if tests fail
 # This script validates a deployment and triggers rollback if problems are detected
 
-# DON'T exit on error for first deployments
-# set -e
-
 # Default to staging VM IP and port
 SERVICE_URL=${1:-"http://74.161.33.56:8082"}
 ENVIRONMENT=${2:-"staging"}
 SERVICE_NAME=${3:-"lmsbooks-staging_lmsbooks_command"}
 PREVIOUS_IMAGE=${4:-""}
+AUTH_SERVICE_URL=${5:-"http://74.161.33.56:8080"}
 
 echo "=========================================="
 echo "RELEASE VALIDATION TESTS"
 echo "=========================================="
 echo "Service URL: $SERVICE_URL"
+echo "Auth Service URL: $AUTH_SERVICE_URL"
 echo "Environment: $ENVIRONMENT"
 echo "Service Name: $SERVICE_NAME"
 echo "Previous Image: $PREVIOUS_IMAGE"
@@ -34,6 +33,42 @@ fi
 TESTS_PASSED=0
 TESTS_FAILED=0
 
+# Function to get JWT token
+get_jwt_token() {
+    local auth_url=$1
+
+    echo ""
+    echo "Obtaining JWT token from auth service..."
+    echo "Auth endpoint: $auth_url/api/public/login"
+
+    # Default librarian user credentials
+    local username="maria@gmail.com"
+    local password="Mariaroberta!123"
+
+    # Try to get token
+    local response=$(curl -s -X POST "$auth_url/api/public/login" \
+        -H "Content-Type: application/json" \
+        -d "{\"username\":\"$username\",\"password\":\"$password\"}" \
+        2>/dev/null || echo "")
+
+    if [ -z "$response" ]; then
+        echo "⚠️  Could not connect to auth service"
+        return 1
+    fi
+
+    # Extract token from response - look for "token" field
+    local token=$(echo "$response" | grep -o '"token":"[^"]*' | cut -d'"' -f4 || echo "")
+
+    if [ -z "$token" ]; then
+        echo "⚠️  Could not extract token from response"
+        return 1
+    fi
+
+    echo "✅ JWT token obtained (length: ${#token} chars)"
+    echo "$token"
+    return 0
+}
+
 # Function to run a test
 run_test() {
     local test_name=$1
@@ -51,6 +86,13 @@ run_test() {
         TESTS_FAILED=$((TESTS_FAILED + 1))
         return 1
     fi
+}
+
+# Get JWT token for authenticated requests
+JWT_TOKEN=$(get_jwt_token "$AUTH_SERVICE_URL") || {
+    echo "⚠️  Could not obtain JWT token"
+    echo "Proceeding with public endpoints only"
+    JWT_TOKEN=""
 }
 
 # Wait for service to be ready
@@ -153,7 +195,7 @@ if [ "$SERVICE_READY" = true ]; then
         "curl -s -m 10 $SERVICE_URL/actuator/health | grep -qE '\"status\":|UP|DOWN'"
 fi
 
-# Test 2: Feature Flag Health Check
+# Test 2: Feature Flag Health Check (Public Endpoint - No Auth Required)
 echo ""
 echo "Running: Feature Flag Health Check"
 FEATURE_RESPONSE=$(curl -s -m 10 "$SERVICE_URL/api/admin/feature-flags/health" 2>/dev/null || echo "")
@@ -176,7 +218,37 @@ else
     echo "⚠️ SKIPPED: Feature Flag endpoint not responding yet"
 fi
 
-# Test 4: Service Replicas Running (ALWAYS CHECK THIS)
+# Test 4: Authenticated Feature Flags Endpoint (if JWT available)
+if [ -n "$JWT_TOKEN" ]; then
+    echo ""
+    echo "Running: Get Feature Flags (Authenticated)"
+
+    FEATURE_FLAGS_RESPONSE=$(curl -s -m 10 \
+        -H "Authorization: Bearer $JWT_TOKEN" \
+        -H "Content-Type: application/json" \
+        "$SERVICE_URL/api/admin/feature-flags" 2>/dev/null || echo "")
+
+    if [ -n "$FEATURE_FLAGS_RESPONSE" ] && echo "$FEATURE_FLAGS_RESPONSE" | grep -q "masterKillSwitch"; then
+        echo "✅ PASSED: Feature Flags retrieved with authentication"
+        TESTS_PASSED=$((TESTS_PASSED + 1))
+
+        # Check that master kill switch is disabled
+        if echo "$FEATURE_FLAGS_RESPONSE" | grep -q '"masterKillSwitch":false'; then
+            echo "✅ PASSED: Master Kill Switch is DISABLED in authenticated endpoint"
+            TESTS_PASSED=$((TESTS_PASSED + 1))
+        elif echo "$FEATURE_FLAGS_RESPONSE" | grep -q '"masterKillSwitch":true'; then
+            echo "❌ FAILED: Master Kill Switch is ENABLED - this disables write operations!"
+            TESTS_FAILED=$((TESTS_FAILED + 1))
+        fi
+    else
+        echo "⚠️ Could not get authenticated feature flags"
+        echo "Response: $FEATURE_FLAGS_RESPONSE"
+    fi
+else
+    echo "⚠️ Skipping authenticated feature flag test (no JWT token)"
+fi
+
+# Test 5: Service Replicas Running (ALWAYS CHECK THIS)
 if [ -n "$SERVICE_NAME" ]; then
     echo ""
     echo "Running: Service Replicas Health"
@@ -222,7 +294,7 @@ if [ "$TESTS_PASSED" -ge 1 ]; then
     fi
 
     # Save success
-    echo "{\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"service\":\"$SERVICE_NAME\",\"status\":\"success\",\"tests_passed\":$TESTS_PASSED,\"tests_failed\":$TESTS_FAILED}" > /tmp/validation_success.json
+    echo "{\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"service\":\"$SERVICE_NAME\",\"status\":\"success\",\"tests_passed\":$TESTS_PASSED,\"tests_failed\":$TESTS_FAILED,\"authenticated\":$([ -n \"$JWT_TOKEN\" ] && echo \"true\" || echo \"false\")}" > /tmp/validation_success.json
 
     echo "=========================================="
     exit 0
