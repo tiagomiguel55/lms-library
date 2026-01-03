@@ -8,7 +8,7 @@ set -e
 
 # Parameters
 SERVICE_URL=${1:-"http://74.161.33.56:8082"}
-AUTH_SERVICE_URL=${2:-"http://74.161.33.56:8084"}
+AUTH_SERVICE_URL=${2:-"http://74.161.33.56:8085"}
 ENVIRONMENT=${3:-"staging"}
 
 echo "=========================================="
