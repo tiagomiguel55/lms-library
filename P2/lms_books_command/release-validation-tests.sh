@@ -8,7 +8,7 @@ SERVICE_URL=${1:-"http://74.161.33.56:8082"}
 ENVIRONMENT=${2:-"staging"}
 SERVICE_NAME=${3:-"lmsbooks-staging_lmsbooks_command"}
 PREVIOUS_IMAGE=${4:-""}
-AUTH_SERVICE_URL=${5:-"http://74.161.33.56:8080"}
+AUTH_SERVICE_URL=${5:-"http://74.161.33.56:8084"}
 
 echo "=========================================="
 echo "RELEASE VALIDATION TESTS"
