@@ -308,7 +308,29 @@ else
         echo "✅ ROLLBACK COMPLETED"
         docker service ps "$SERVICE_NAME" --format "{{.Name}}: {{.CurrentState}}" | head -5
 
-        exit 1
+        # Check if rollback was successful
+        if [ "$RUNNING_AFTER" -ge "1" ]; then
+            echo ""
+            echo "=========================================="
+            echo "✅ ROLLBACK SUCCESSFUL"
+            echo "=========================================="
+            echo "Service restored to previous working version"
+            echo "Running replicas: $RUNNING_AFTER/2"
+            echo ""
+            echo "⚠️  NOTE: New deployment was rejected and rolled back"
+            echo "The system is now stable on the previous version"
+            echo "=========================================="
+            exit 0
+        else
+            echo ""
+            echo "=========================================="
+            echo "❌ ROLLBACK FAILED"
+            echo "=========================================="
+            echo "Service still has no running replicas after rollback"
+            echo "Manual intervention required!"
+            echo "=========================================="
+            exit 1
+        fi
     else
         echo ""
         echo "⚠️ This appears to be first deployment"
@@ -328,4 +350,3 @@ else
         exit 1
     fi
 fi
-
