@@ -95,7 +95,12 @@ public class SecurityConfig {
                 .requestMatchers("/").permitAll().requestMatchers(format("%s/**", restApiDocPath)).permitAll()
                 .requestMatchers(format("%s/**", swaggerPath)).permitAll()
                 // Our public endpoints
-                .requestMatchers("/api/public/**").permitAll(); // public assets & end-points
+                .requestMatchers("/api/public/**").permitAll() // public assets & end-points
+                // Actuator endpoints for health checks (used by validation scripts)
+                .requestMatchers("/actuator/health/**").permitAll()
+                .requestMatchers("/actuator/health").permitAll()
+                // Feature flags health endpoint (public for validation)
+                .requestMatchers("/api/admin/feature-flags/health").permitAll();
 
         // Allow public access to books GET endpoints in staging (for load testing)
         if (publicBooksEndpoints) {

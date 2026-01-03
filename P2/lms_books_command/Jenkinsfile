@@ -746,7 +746,8 @@ EOF
                                     http://74.161.33.56:8082 \
                                     staging \
                                     "${serviceName}" \
-                                    "${previousImage}"
+                                    "${previousImage}" \
+                                    http://74.161.33.56:8080
                             """,
                             returnStatus: true
                         )
@@ -796,7 +797,7 @@ EOF
                                 script: """
                                     ./feature-flag-validation.sh \
                                         "http://74.161.33.56:8082" \
-                                        "http://74.161.33.56:8080" \
+                                        "http://74.161.33.56:8084" \
                                         "staging"
                                 """,
                                 returnStatus: true
