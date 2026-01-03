@@ -283,6 +283,15 @@
                     <targetTests>
                         <param>pt.psoft.g1.psoftg1.*</param>
                     </targetTests>
+                    <excludedClasses>
+                        <param>pt.psoft.g1.psoftg1.shared.services.OutboxPublisher</param>
+                        <param>pt.psoft.g1.psoftg1.configuration.*</param>
+                        <param>pt.psoft.g1.psoftg1.LMSBooks</param>
+                    </excludedClasses>
+                    <excludedTestClasses>
+                        <param>pt.psoft.g1.psoftg1.smokeTests.*</param>
+                        <param>CDC.consumer.*</param>
+                    </excludedTestClasses>
                     <outputFormats>
                         <outputFormat>XML</outputFormat>
                         <outputFormat>HTML</outputFormat>
@@ -290,6 +299,13 @@
                     <mutationThreshold>0</mutationThreshold>
                     <coverageThreshold>0</coverageThreshold>
                     <timestampedReports>false</timestampedReports>
+                    <timeoutConstant>10000</timeoutConstant>
+                    <timeoutFactor>2.0</timeoutFactor>
+                    <threads>2</threads>
+                    <jvmArgs>
+                        <jvmArg>-Xmx1024m</jvmArg>
+                        <jvmArg>-Djava.awt.headless=true</jvmArg>
+                    </jvmArgs>
                 </configuration>
                 <executions>
                     <execution>

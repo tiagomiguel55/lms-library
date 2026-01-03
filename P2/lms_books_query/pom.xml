@@ -376,13 +376,25 @@
                     <targetTests>
                         <param>pt.psoft.g1.psoftg1.*</param>
                     </targetTests>
+                    <excludedClasses>
+                        <param>pt.psoft.g1.psoftg1.**.*Config</param>
+                        <param>pt.psoft.g1.psoftg1.**.*DTO</param>
+                        <param>pt.psoft.g1.psoftg1.**.*Mapper</param>
+                        <param>pt.psoft.g1.psoftg1.**.*Application</param>
+                        <param>pt.psoft.g1.psoftg1.**.model.*</param>
+                        <param>pt.psoft.g1.psoftg1.exceptions.*</param>
+                    </excludedClasses>
                     <outputFormats>
                         <outputFormat>XML</outputFormat>
                         <outputFormat>HTML</outputFormat>
                     </outputFormats>
+                    <threads>2</threads>
+                    <timeoutConstant>10000</timeoutConstant>
+                    <timeoutFactor>2.0</timeoutFactor>
                     <mutationThreshold>0</mutationThreshold>
                     <coverageThreshold>0</coverageThreshold>
                     <timestampedReports>false</timestampedReports>
+                    <verbose>false</verbose>
                 </configuration>
                 <executions>
                     <execution>
