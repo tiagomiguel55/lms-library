@@ -1,0 +1,106 @@
+{
+  "info": {
+    "name": "A/B Testing - Feature Flags",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Create Experiment",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"experimentId\": \"book-search-ml-2026\",\n  \"featureName\": \"experimentalBookRecommendations\",\n  \"trafficPercentToB\": 10\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/ab-testing/experiments",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "ab-testing", "experiments"]
+        }
+      }
+    },
+    {
+      "name": "2. Get User Variant",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/ab-testing/experiments/{{experimentId}}/variant?userId={{userId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "ab-testing", "experiments", "{{experimentId}}", "variant"],
+          "query": [{"key": "userId", "value": "{{userId}}"}]
+        }
+      }
+    },
+    {
+      "name": "3. Record Metric",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"metricName\": \"success\",\n  \"value\": 1\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/ab-testing/experiments/{{experimentId}}/metrics",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "ab-testing", "experiments", "{{experimentId}}", "metrics"]
+        }
+      }
+    },
+    {
+      "name": "4. Get Results",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/ab-testing/experiments/{{experimentId}}/results",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "ab-testing", "experiments", "{{experimentId}}", "results"]
+        }
+      }
+    },
+    {
+      "name": "5. Adjust Traffic",
+      "request": {
+        "method": "PUT",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"percentToB\": 25\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/ab-testing/experiments/{{experimentId}}/traffic",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "ab-testing", "experiments", "{{experimentId}}", "traffic"]
+        }
+      }
+    },
+    {
+      "name": "6. Get All Experiments",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/ab-testing/experiments",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "ab-testing", "experiments"]
+        }
+      }
+    },
+    {
+      "name": "7. Stop Experiment",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/ab-testing/experiments/{{experimentId}}/stop",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "ab-testing", "experiments", "{{experimentId}}", "stop"]
+        }
+      }
+    }
+  ],
+  "variable": [
+    {"key": "baseUrl", "value": "http://localhost:8082"},
+    {"key": "experimentId", "value": "book-search-ml-2026"},
+    {"key": "userId", "value": "test-user-001"}
+  ]
+}
