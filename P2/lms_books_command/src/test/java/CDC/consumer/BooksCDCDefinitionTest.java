@@ -10,6 +10,7 @@ import au.com.dius.pact.core.model.PactSpecVersion;
 import au.com.dius.pact.core.model.V4Interaction;
 import au.com.dius.pact.core.model.V4Pact;
 import au.com.dius.pact.core.model.annotations.Pact;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -34,6 +35,21 @@ public class BooksCDCDefinitionTest {
 
   @MockBean
   BookService bookService;
+
+  @MockBean
+  pt.psoft.g1.psoftg1.bookmanagement.repositories.BookRepository bookRepository;
+
+  @MockBean
+  pt.psoft.g1.psoftg1.authormanagement.repositories.AuthorRepository authorRepository;
+
+  @MockBean
+  pt.psoft.g1.psoftg1.genremanagement.repositories.GenreRepository genreRepository;
+
+  @MockBean
+  pt.psoft.g1.psoftg1.bookmanagement.repositories.PendingBookRequestRepository pendingBookRequestRepository;
+
+  @MockBean
+  pt.psoft.g1.psoftg1.bookmanagement.publishers.BookEventsPublisher bookEventsPublisher;
 
   @Autowired
   BookRabbitmqController listener;

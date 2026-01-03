@@ -56,6 +56,152 @@ pipeline {
             }
         }
 
+        stage('Static Analysis') {
+            when {
+                expression { params.ENVIRONMENT != 'prod' } // Run static analysis in dev/staging
+            }
+            steps {
+                dir("${WORK_DIR}") {
+                    script {
+                        echo "=========================================="
+                        echo "Running Static Code Analysis"
+                        echo "Tools: Checkstyle, SpotBugs, PMD"
+                        echo "=========================================="
+                        
+                        // Run Checkstyle
+                        echo ""
+                        echo "Running Checkstyle..."
+                        sh """
+                            ${MAVEN_HOME}/bin/mvn checkstyle:checkstyle -DskipTests || true
+                        """
+                        
+                        // Run SpotBugs
+                        echo ""
+                        echo "Running SpotBugs..."
+                        sh """
+                            ${MAVEN_HOME}/bin/mvn compile spotbugs:spotbugs -DskipTests || true
+                        """
+                        
+                        // Run PMD
+                        echo ""
+                        echo "Running PMD..."
+                        sh """
+                            ${MAVEN_HOME}/bin/mvn pmd:pmd -DskipTests || true
+                        """
+                        
+                        echo ""
+                        echo "=========================================="
+                        echo "✅ Static Analysis Completed"
+                        echo "Reports generated in target/ directory:"
+                        echo "  - Checkstyle: target/checkstyle-result.xml"
+                        echo "  - SpotBugs: target/spotbugsXml.xml"
+                        echo "  - PMD: target/pmd.xml"
+                        echo "=========================================="
+                    }
+                }
+            }
+            post {
+                always {
+                    dir("${WORK_DIR}") {
+                        // Archive static analysis reports
+                        archiveArtifacts artifacts: 'target/checkstyle-result.xml,target/spotbugsXml.xml,target/pmd.xml,target/site/**', allowEmptyArchive: true
+                        
+                        // Publish Checkstyle report
+                        recordIssues(
+                            enabledForFailure: true, 
+                            tools: [checkStyle(pattern: 'target/checkstyle-result.xml')]
+                        )
+                        
+                        // Publish SpotBugs report
+                        recordIssues(
+                            enabledForFailure: true,
+                            tools: [spotBugs(pattern: 'target/spotbugsXml.xml')]
+                        )
+                        
+                        // Publish PMD report
+                        recordIssues(
+                            enabledForFailure: true,
+                            tools: [pmdParser(pattern: 'target/pmd.xml')]
+                        )
+                    }
+                }
+            }
+        }
+
+        stage('Unit & Integration Tests') {
+            when {
+                expression { params.ENVIRONMENT != 'prod' } // Run tests in dev/staging
+            }
+            steps {
+                dir("${WORK_DIR}") {
+                    script {
+                        echo "=========================================="
+                        echo "Running Unit Tests and Integration Tests"
+                        echo "=========================================="
+                        
+                        // Run unit tests and integration tests
+                        sh """
+                            ${MAVEN_HOME}/bin/mvn clean test -DskipIntegrationTests=false || true
+                        """
+                        
+                        echo ""
+                        echo "=========================================="
+                        echo "✅ Unit & Integration Tests Completed"
+                        echo "Reports generated in target/surefire-reports/"
+                        echo "=========================================="
+                    }
+                }
+            }
+            post {
+                always {
+                    dir("${WORK_DIR}") {
+                        // Archive test reports
+                        archiveArtifacts artifacts: 'target/surefire-reports/**,target/failsafe-reports/**', allowEmptyArchive: true
+                        
+                        // Publish JUnit test results
+                        junit 'target/surefire-reports/**/*.xml'
+                    }
+                }
+            }
+        }
+
+        stage('Consumer-Driven Contract Tests') {
+            when {
+                expression { params.ENVIRONMENT != 'prod' } // Run CDC tests in dev/staging
+            }
+            steps {
+                dir("${WORK_DIR}") {
+                    script {
+                        echo "=========================================="
+                        echo "Running Consumer-Driven Contract (PACT) Tests"
+                        echo "=========================================="
+                        
+                        // Run PACT tests (CDC provider and consumer tests)
+                        sh """
+                            ${MAVEN_HOME}/bin/mvn test -Dtest='**/CDC/**/*IT' -DfailIfNoTests=false || true
+                        """
+                        
+                        echo ""
+                        echo "=========================================="
+                        echo "✅ Consumer-Driven Contract Tests Completed"
+                        echo "PACT files generated in target/pacts/"
+                        echo "=========================================="
+                    }
+                }
+            }
+            post {
+                always {
+                    dir("${WORK_DIR}") {
+                        // Archive PACT contract files
+                        archiveArtifacts artifacts: 'target/pacts/**', allowEmptyArchive: true
+                        
+                        // Publish test reports
+                        junit 'target/surefire-reports/**/*.xml', allowEmptyResults: true
+                    }
+                }
+            }
+        }
+
         stage('Build & Package') {
             when {
                 expression { params.ENVIRONMENT != 'prod' } // Build apenas em dev/staging

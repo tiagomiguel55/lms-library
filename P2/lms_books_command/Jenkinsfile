@@ -70,6 +70,39 @@ pipeline {
             }
         }
 
+        stage('Static Analysis - Checkstyle') {
+            steps {
+                dir("${WORK_DIR}") {
+                    sh """
+                        ${MAVEN_HOME}/bin/mvn -B -DskipTests -DskipIT checkstyle:check
+                    """
+                }
+            }
+        }
+
+        stage('Consumer-Driven Contract Tests') {
+            steps {
+                dir("${WORK_DIR}") {
+                    sh """
+                        echo "=========================================="
+                        echo "Running Consumer-Driven Contract Tests (Pact)..."
+                        echo "=========================================="
+                        
+                        ${MAVEN_HOME}/bin/mvn -B test -Dtest=BooksCDCDefinitionTest -DskipPitest
+                        
+                        echo ""
+                        echo "=========================================="
+                        echo "✅ CDC Tests Completed!"
+                        echo "Pact files generated in target/pacts/"
+                        echo "=========================================="
+                        
+                        # List generated Pact files
+                        ls -la target/pacts/
+                    """
+                }
+            }
+        }
+
         stage('Build & Package') {
             when {
                 expression { params.ENVIRONMENT != 'prod' } // Build apenas em dev/staging
