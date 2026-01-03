@@ -747,7 +747,7 @@ EOF
                                     staging \
                                     "${serviceName}" \
                                     "${previousImage}" \
-                                    http://74.161.33.56:8080
+                                    http://74.161.33.56:8084
                             """,
                             returnStatus: true
                         )
