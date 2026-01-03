@@ -115,6 +115,8 @@ public class SecurityConfig {
                 // Our private endpoints
                 // feature-flags - admin only
                 .requestMatchers("/api/admin/feature-flags/**").hasRole(Role.LIBRARIAN)
+                // ab-testing - admin only
+                .requestMatchers("/api/admin/ab-testing/**").hasRole(Role.LIBRARIAN)
                 // authors
                 .requestMatchers(HttpMethod.POST, "/api/authors").hasRole(Role.LIBRARIAN)
                 .requestMatchers(HttpMethod.PATCH, "/api/authors/{authorNumber}").hasRole(Role.LIBRARIAN)
