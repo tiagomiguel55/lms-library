@@ -288,8 +288,21 @@ else
         # Perform rollback
         docker service update --image "$PREVIOUS_IMAGE" "$SERVICE_NAME"
 
+        # Force scale to desired replicas (in case service scaled down to 0)
+        echo "Ensuring service scales to desired replicas..."
+        docker service scale "$SERVICE_NAME"=2
+
+        # Force update to trigger redeployment
+        docker service update --force "$SERVICE_NAME"
+
         echo "Waiting for rollback..."
         sleep 15
+
+        # Verify rollback
+        echo ""
+        echo "Checking service status after rollback..."
+        RUNNING_AFTER=$(docker service ps "$SERVICE_NAME" --filter "desired-state=running" 2>/dev/null | grep -c Running || echo "0")
+        echo "Running replicas: $RUNNING_AFTER/2"
 
         echo ""
         echo "✅ ROLLBACK COMPLETED"
@@ -315,3 +328,4 @@ else
         exit 1
     fi
 fi
+
