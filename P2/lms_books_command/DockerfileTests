@@ -16,6 +16,8 @@ ENV TEST_TYPE=unit
 # Executa o comando Maven com base no tipo de teste
 CMD ["sh", "-c", "if [ \"$TEST_TYPE\" = \"unit\" ]; then \
       mvn test -Dspring.profiles.active=test -Dtest=pt.psoft.g1.psoftg1.unitTests.** -f pom.xml; \
+    elif [ \"$TEST_TYPE\" = \"smokeTests\" ]; then \
+      mvn test -Dspring.profiles.active=test -Dtest=pt.psoft.g1.psoftg1.smokeTests.** -f pom.xml; \
     elif [ \"$TEST_TYPE\" = \"CDCTests\" ]; then \
       mvn test -Dspring.profiles.active=test -Dtest=pt.psoft.g1.psoftg1.CDCTests.** -f pom.xml; \
     elif [ \"$TEST_TYPE\" = \"mutation\" ]; then \

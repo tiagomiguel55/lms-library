@@ -105,6 +105,28 @@ pipeline {
             }
         }
 
+        stage('Smoke Tests') {
+            when {
+                expression { params.ENVIRONMENT != 'prod' } // Smoke tests em dev/staging
+            }
+            steps {
+                dir("${WORK_DIR}") {
+                    sh """
+                        docker build -f DockerfileTests -t ${IMAGE_NAME}-tests:smoke .
+                        docker run --rm -e TEST_TYPE=smokeTests ${IMAGE_NAME}-tests:smoke
+                    """
+                }
+            }
+            post {
+                success {
+                    echo "✅ Smoke Tests passed!"
+                }
+                failure {
+                    echo "❌ Smoke Tests failed!"
+                }
+            }
+        }
+
         stage('CDC Tests') {
             when {
                 expression { params.ENVIRONMENT == 'staging' } // CDC tests apenas em staging
