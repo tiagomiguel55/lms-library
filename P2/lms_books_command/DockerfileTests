@@ -15,11 +15,11 @@ ENV TEST_TYPE=unit
 
 # Executa o comando Maven com base no tipo de teste
 CMD ["sh", "-c", "if [ \"$TEST_TYPE\" = \"unit\" ]; then \
-      mvn test -Dtest=pt.psoft.g1.psoftg1.unitTests.** -f pom.xml; \
+      mvn test -Dspring.profiles.active=test -Dtest=pt.psoft.g1.psoftg1.unitTests.** -f pom.xml; \
     elif [ \"$TEST_TYPE\" = \"CDCTests\" ]; then \
-      mvn test -Dtest=pt.psoft.g1.psoftg1.CDCTests.** -f pom.xml; \
+      mvn test -Dspring.profiles.active=test -Dtest=pt.psoft.g1.psoftg1.CDCTests.** -f pom.xml; \
     elif [ \"$TEST_TYPE\" = \"mutation\" ]; then \
-      mvn org.pitest:pitest-maven:mutationCoverage -DtargetTests=pt.psoft.g1.psoftg1.unitTests.** -DtargetClasses=pt.psoft.g1.psoftg1.* -f pom.xml; \
+      mvn org.pitest:pitest-maven:mutationCoverage -Dspring.profiles.active=test -DtargetTests=pt.psoft.g1.psoftg1.unitTests.** -DtargetClasses=pt.psoft.g1.psoftg1.* -f pom.xml; \
     else \
       echo \"Tipo de teste inválido: $TEST_TYPE\" && exit 1; \
     fi"]
