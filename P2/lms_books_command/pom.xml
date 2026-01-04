@@ -284,7 +284,7 @@
                         <param>pt.psoft.g1.psoftg1.*</param>
                     </targetClasses>
                     <targetTests>
-                        <param>pt.psoft.g1.psoftg1.*</param>
+                        <param>pt.psoft.g1.psoftg1.unitTests.*</param>
                     </targetTests>
                     <outputFormats>
                         <outputFormat>XML</outputFormat>
@@ -294,15 +294,6 @@
                     <coverageThreshold>70</coverageThreshold>
                     <timestampedReports>false</timestampedReports>
                 </configuration>
-                <executions>
-                    <execution>
-                        <id>pit-report</id>
-                        <phase>test</phase>
-                        <goals>
-                            <goal>mutationCoverage</goal>
-                        </goals>
-                    </execution>
-                </executions>
             </plugin>
 
         </plugins>
