@@ -84,7 +84,7 @@ pipeline {
             }
         }
 
-     /*   stage('Unit Tests') {
+       stage('Unit Tests') {
             when {
                 expression { params.ENVIRONMENT != 'prod' } // Testes apenas em dev/staging
             }
@@ -104,9 +104,9 @@ pipeline {
                     echo "❌ Unit Tests failed!"
                 }
             }
-        } */
+        }
 
-        /*stage('Smoke Tests') {
+        stage('Smoke Tests') {
             when {
                 expression { params.ENVIRONMENT != 'prod' } // Smoke tests em dev/staging
             }
@@ -126,9 +126,9 @@ pipeline {
                     echo "❌ Smoke Tests failed!"
                 }
             }
-        } */
+        }
 
-     /*   stage('CDC Tests') {
+        stage('CDC Tests') {
             when {
                 expression { params.ENVIRONMENT == 'staging' } // CDC tests apenas em staging
             }
@@ -148,9 +148,9 @@ pipeline {
                     echo "❌ CDC Tests failed!"
                 }
             }
-        } */
+        }
 
-      /*  stage('Mutation Tests') {
+        stage('Mutation Tests') {
             when {
                 expression { params.ENVIRONMENT == 'staging' } // Mutation tests apenas em staging
             }
@@ -170,7 +170,7 @@ pipeline {
                     echo "❌ Mutation Tests failed!"
                 }
             }
-        } */
+        }
 
         stage('Build & Package') {
             when {
