@@ -17,6 +17,7 @@ public class GenreViewAMQP {
 
     @NotNull
     @Getter
+    @Setter
     private Long version;
 
     @Setter

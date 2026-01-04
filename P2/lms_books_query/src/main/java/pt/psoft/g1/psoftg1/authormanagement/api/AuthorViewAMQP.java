@@ -27,6 +27,7 @@ public class AuthorViewAMQP {
 
     @NotNull
     @Getter
+    @Setter
     private Long version;
 
     @Getter
