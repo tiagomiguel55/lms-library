@@ -53,7 +53,7 @@ public class ReaderTest {
         assertNotNull(readerDetails.getBirthDate());
         assertEquals("2010-01-01", readerDetails.getBirthDate().getBirthDate().toString());
         assertEquals("912345678", readerDetails.getPhoneNumber());
-        assertEquals("2024/123", readerDetails.getReaderNumber());
+        assertEquals("2026/123", readerDetails.getReaderNumber());
 
 
     }
