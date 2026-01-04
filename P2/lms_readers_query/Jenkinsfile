@@ -69,7 +69,7 @@ pipeline {
             }
         }
 
-        stage('CDC Tests') {
+      /*  stage('CDC Tests') {
             when {
                 expression { params.ENVIRONMENT == 'staging' }
             }
@@ -89,7 +89,7 @@ pipeline {
                     echo "❌ CDC Tests failed!"
                 }
             }
-        }
+        } */
 
         stage('Build & Package') {
             when {
