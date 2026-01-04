@@ -25,6 +25,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 @ExtendWith(PactConsumerTestExt.class)
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.NONE,
@@ -42,6 +44,9 @@ public class UsersCDCDefinitionTest {
 
     @MockBean
     UserEventPublisher userEventPublisher;
+
+    @MockBean
+    pt.psoft.g1.psoftg1.usermanagement.services.UserService userService;
 
     @Autowired
     UserRabbitmqController listener;
@@ -131,30 +136,45 @@ public class UsersCDCDefinitionTest {
     @Test
     @PactTestFor(pactMethod = "createReaderUserRequestedPact")
     void testReaderUserRequested(List<V4Interaction.AsynchronousMessage> messages) throws Exception {
-        // Test implementation will be in UsersCDCConsumerIT
+        // Test implementation - validates that the contract is properly defined
+        // The actual test logic is in UsersCDCConsumerIT
+        assertThat(messages).isNotEmpty();
+        System.out.println("Reader user requested contract test passed");
     }
 
     @Test
     @PactTestFor(pactMethod = "createUserCreatedPact")
     void testUserCreated(List<V4Interaction.AsynchronousMessage> messages) throws Exception {
-        // Test implementation will be in UsersCDCConsumerIT
+        // Test implementation - validates that the contract is properly defined
+        // The actual test logic is in UsersCDCConsumerIT
+        assertThat(messages).isNotEmpty();
+        System.out.println("User created contract test passed");
     }
 
     @Test
     @PactTestFor(pactMethod = "createUserUpdatedPact")
     void testUserUpdated(List<V4Interaction.AsynchronousMessage> messages) throws Exception {
-        // Test implementation will be in UsersCDCConsumerIT
+        // Test implementation - validates that the contract is properly defined
+        // The actual test logic is in UsersCDCConsumerIT
+        assertThat(messages).isNotEmpty();
+        System.out.println("User updated contract test passed");
     }
 
     @Test
     @PactTestFor(pactMethod = "createUserPendingCreatedPact")
     void testUserPendingCreated(List<V4Interaction.AsynchronousMessage> messages) throws Exception {
-        // Test implementation will be in UsersCDCConsumerIT
+        // Test implementation - validates that the contract is properly defined
+        // The actual test logic is in UsersCDCConsumerIT
+        assertThat(messages).isNotEmpty();
+        System.out.println("User pending created contract test passed");
     }
 
     @Test
     @PactTestFor(pactMethod = "createUserDeletedPact")
     void testUserDeleted(List<V4Interaction.AsynchronousMessage> messages) throws Exception {
-        // Test implementation will be in UsersCDCConsumerIT
+        // Test implementation - validates that the contract is properly defined
+        // The actual test logic is in UsersCDCConsumerIT
+        assertThat(messages).isNotEmpty();
+        System.out.println("User deleted contract test passed");
     }
 }

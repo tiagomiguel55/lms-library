@@ -275,4 +275,84 @@ public class UserService implements UserDetailsService {
 
         return userRepo.save(existingUser);
     }
+
+    /**
+     * Handle user creation events from AMQP
+     * Used for synchronization between microservices
+     */
+    public void handleUserCreated(UserViewAMQP userViewAMQP) {
+        try {
+            // Check if user already exists
+            Optional<User> existingUser = userRepo.findByUsername(userViewAMQP.getUsername());
+            if (existingUser.isPresent()) {
+                System.out.println(" [x] User already exists: " + userViewAMQP.getUsername());
+                return;
+            }
+
+            // Create user from AMQP event - default to READER since role is not available in UserViewAMQP
+            User user = Reader.newReader(
+                userViewAMQP.getUsername(),
+                userViewAMQP.getPassword(), // Password should already be encoded
+                userViewAMQP.getFullName()
+            );
+
+            userRepo.save(user);
+            System.out.println(" [x] User created from AMQP: " + userViewAMQP.getUsername());
+
+        } catch (Exception e) {
+            System.out.println(" [x] Error handling user created event: " + e.getMessage());
+            throw e;
+        }
+    }
+
+    /**
+     * Handle user update events from AMQP
+     * Used for synchronization between microservices
+     */
+    public void handleUserUpdated(UserViewAMQP userViewAMQP) {
+        try {
+            Optional<User> existingUser = userRepo.findByUsername(userViewAMQP.getUsername());
+            if (existingUser.isEmpty()) {
+                System.out.println(" [x] User not found for update: " + userViewAMQP.getUsername());
+                return;
+            }
+
+            User user = existingUser.get();
+            if (userViewAMQP.getFullName() != null) {
+                user.setName(userViewAMQP.getFullName());
+            }
+
+            userRepo.save(user);
+            System.out.println(" [x] User updated from AMQP: " + userViewAMQP.getUsername());
+
+        } catch (Exception e) {
+            System.out.println(" [x] Error handling user updated event: " + e.getMessage());
+            throw e;
+        }
+    }
+
+    /**
+     * Handle user deletion events from AMQP
+     * Used for synchronization between microservices
+     */
+    public void handleUserDeleted(String username) {
+        try {
+            Optional<User> existingUser = userRepo.findByUsername(username);
+            if (existingUser.isEmpty()) {
+                System.out.println(" [x] User not found for deletion: " + username);
+                return;
+            }
+
+            // Soft delete - disable user instead of hard delete
+            User user = existingUser.get();
+            user.setEnabled(false);
+            userRepo.save(user);
+
+            System.out.println(" [x] User deleted (disabled) from AMQP: " + username);
+
+        } catch (Exception e) {
+            System.out.println(" [x] Error handling user deleted event: " + e.getMessage());
+            throw e;
+        }
+    }
 }
