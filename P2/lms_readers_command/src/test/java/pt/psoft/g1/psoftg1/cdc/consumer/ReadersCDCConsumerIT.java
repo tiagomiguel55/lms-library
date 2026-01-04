@@ -8,7 +8,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ActiveProfiles;
-import pt.psoft.g1.psoftg1.cdc.config.CDCTestConfiguration;
 import pt.psoft.g1.psoftg1.readermanagement.api.ReaderRabbitmqController;
 import pt.psoft.g1.psoftg1.readermanagement.api.ReaderViewAMQPMapper;
 import pt.psoft.g1.psoftg1.readermanagement.model.ReaderDetails;
@@ -26,14 +25,13 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.NONE,
-        classes = {ReaderRabbitmqController.class, CDCTestConfiguration.class}
+        classes = {ReaderRabbitmqController.class}
 )
 @ActiveProfiles("cdc-test")
 public class ReadersCDCConsumerIT {
@@ -58,6 +56,9 @@ public class ReadersCDCConsumerIT {
 
     @MockBean
     ReaderViewAMQPMapper readerViewAMQPMapper;
+
+    @MockBean
+    pt.psoft.g1.psoftg1.usermanagement.services.UserService userService;
 
     @Autowired
     ReaderRabbitmqController listener;
@@ -173,5 +174,98 @@ public class ReadersCDCConsumerIT {
     @Test
     void testReaderDeletedMessageProcessing() throws Exception {
         System.out.println("Reader deleted message processing test - producer only event");
+    }
+
+    @Test
+    void testUserCreatedMessageProcessing() throws Exception {
+        // Use PactReader to load the Pact file
+        File pactFile = new File("target/pacts/user_created-consumer-reader_event-producer.json");
+
+        if (!pactFile.exists()) {
+            System.out.println("Pact file not found, skipping test: " + pactFile.getAbsolutePath());
+            return;
+        }
+
+        PactReader pactReader = DefaultPactReader.INSTANCE;
+        Pact pact = pactReader.loadPact(pactFile);
+
+        List<Message> messagesGeneratedByPact = pact.asMessagePact().get().getMessages();
+        for (Message messageGeneratedByPact : messagesGeneratedByPact) {
+            // Convert the Pact message to a String (JSON payload)
+            String jsonReceived = messageGeneratedByPact.contentsAsString();
+
+            // Create AMQP message for testing
+            org.springframework.amqp.core.Message amqpMessage = new org.springframework.amqp.core.Message(
+                    jsonReceived.getBytes(StandardCharsets.UTF_8),
+                    new MessageProperties()
+            );
+
+            // Simulate receiving the message in the RabbitMQ listener
+            assertDoesNotThrow(() -> {
+                listener.receiveUserCreated(amqpMessage);
+            });
+
+            System.out.println("User created message processed successfully");
+        }
+    }
+
+    @Test
+    void testUserUpdatedMessageProcessing() throws Exception {
+        // Use PactReader to load the Pact file
+        File pactFile = new File("target/pacts/user_updated-consumer-reader_event-producer.json");
+
+        if (!pactFile.exists()) {
+            System.out.println("Pact file not found, skipping test: " + pactFile.getAbsolutePath());
+            return;
+        }
+
+        PactReader pactReader = DefaultPactReader.INSTANCE;
+        Pact pact = pactReader.loadPact(pactFile);
+
+        List<Message> messagesGeneratedByPact = pact.asMessagePact().get().getMessages();
+        for (Message messageGeneratedByPact : messagesGeneratedByPact) {
+            // Convert the Pact message to a String (JSON payload)
+            String jsonReceived = messageGeneratedByPact.contentsAsString();
+
+            // Create AMQP message for testing
+            org.springframework.amqp.core.Message amqpMessage = new org.springframework.amqp.core.Message(
+                    jsonReceived.getBytes(StandardCharsets.UTF_8),
+                    new MessageProperties()
+            );
+
+            // Simulate receiving the message in the RabbitMQ listener
+            assertDoesNotThrow(() -> {
+                listener.receiveUserUpdated(amqpMessage);
+            });
+
+            System.out.println("User updated message processed successfully");
+        }
+    }
+
+    @Test
+    void testUserDeletedMessageProcessing() throws Exception {
+        // Use PactReader to load the Pact file
+        File pactFile = new File("target/pacts/user_deleted-consumer-reader_event-producer.json");
+
+        if (!pactFile.exists()) {
+            System.out.println("Pact file not found, skipping test: " + pactFile.getAbsolutePath());
+            return;
+        }
+
+        PactReader pactReader = DefaultPactReader.INSTANCE;
+        Pact pact = pactReader.loadPact(pactFile);
+
+        List<Message> messagesGeneratedByPact = pact.asMessagePact().get().getMessages();
+        for (Message messageGeneratedByPact : messagesGeneratedByPact) {
+            // Convert the Pact message to a String (JSON payload)
+            String jsonReceived = messageGeneratedByPact.contentsAsString();
+
+            // Simulate receiving the message in the RabbitMQ listener
+            assertDoesNotThrow(() -> {
+                listener.receiveUserDeleted(jsonReceived);
+            });
+
+            System.out.println("User deleted message processed successfully");
+        }
     }
 }

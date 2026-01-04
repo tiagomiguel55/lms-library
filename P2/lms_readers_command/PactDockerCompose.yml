@@ -1,0 +1,36 @@
+# Pact Docker Compose file
+services:
+  db:
+    image: postgres:14
+    container_name: pact-server-db
+    environment:
+      POSTGRES_USER: pactuser
+      POSTGRES_PASSWORD: pactpassword
+      POSTGRES_DB: pactbroker
+    volumes:
+      - pact-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pactuser"]
+      interval: 5s
+      retries: 20
+      start_period: 5s
+
+  pact-broker:
+    image: pactfoundation/pact-broker:latest
+    container_name: pact-server
+    ports:
+      - "9292:9292"
+    environment:
+      PACT_BROKER_DATABASE_HOST: db
+      PACT_BROKER_DATABASE_NAME: pactbroker
+      PACT_BROKER_DATABASE_USERNAME: pactuser
+      PACT_BROKER_DATABASE_PASSWORD: pactpassword
+      PACT_BROKER_LOG_LEVEL: INFO
+      PACT_BROKER_BASIC_AUTH_USERNAME: admin
+      PACT_BROKER_BASIC_AUTH_PASSWORD: admin
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pact-postgres:

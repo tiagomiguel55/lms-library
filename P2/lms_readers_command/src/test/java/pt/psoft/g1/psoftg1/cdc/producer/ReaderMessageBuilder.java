@@ -10,15 +10,17 @@ import pt.psoft.g1.psoftg1.readermanagement.api.ReaderUserRequestedEvent;
 import pt.psoft.g1.psoftg1.readermanagement.api.SagaCreationResponse;
 import pt.psoft.g1.psoftg1.readermanagement.api.ReaderSagaViewAMQP;
 import pt.psoft.g1.psoftg1.usermanagement.api.UserPendingCreated;
+import pt.psoft.g1.psoftg1.usermanagement.api.UserViewAMQP;
 
 public class ReaderMessageBuilder {
-    private ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper = new ObjectMapper();
     private ReaderViewAMQP readerViewAMQP;
     private ReaderPendingCreated readerPendingCreated;
     private ReaderUserRequestedEvent readerUserRequestedEvent;
     private SagaCreationResponse sagaCreationResponse;
     private ReaderSagaViewAMQP readerSagaViewAMQP;
     private UserPendingCreated userPendingCreated;
+    private UserViewAMQP userViewAMQP;
 
     public ReaderMessageBuilder withReader(ReaderViewAMQP readerViewAMQP) {
         this.readerViewAMQP = readerViewAMQP;
@@ -50,6 +52,11 @@ public class ReaderMessageBuilder {
         return this;
     }
 
+    public ReaderMessageBuilder withUser(UserViewAMQP userViewAMQP) {
+        this.userViewAMQP = userViewAMQP;
+        return this;
+    }
+
     public Message<String> build() throws JsonProcessingException {
         String payload;
 
@@ -65,6 +72,8 @@ public class ReaderMessageBuilder {
             payload = this.mapper.writeValueAsString(this.readerSagaViewAMQP);
         } else if (userPendingCreated != null) {
             payload = this.mapper.writeValueAsString(this.userPendingCreated);
+        } else if (userViewAMQP != null) {
+            payload = this.mapper.writeValueAsString(this.userViewAMQP);
         } else {
             throw new IllegalStateException("No payload object set");
         }

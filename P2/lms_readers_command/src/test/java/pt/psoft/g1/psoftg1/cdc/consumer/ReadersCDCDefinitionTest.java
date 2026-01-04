@@ -59,6 +59,9 @@ public class ReadersCDCDefinitionTest {
     @MockBean
     ReaderViewAMQPMapper readerViewAMQPMapper;
 
+    @MockBean
+    pt.psoft.g1.psoftg1.usermanagement.services.UserService userService;
+
     @Autowired
     ReaderRabbitmqController listener;
 
@@ -170,6 +173,57 @@ public class ReadersCDCDefinitionTest {
                 .toPact();
     }
 
+    @Pact(consumer = "user_created-consumer")
+    V4Pact createUserCreatedPact(MessagePactBuilder builder) {
+        PactDslJsonBody body = new PactDslJsonBody();
+        body.stringType("username", "john.doe");
+        body.stringType("fullName", "John Doe");
+        body.stringType("password", "Test123!");
+        body.stringMatcher("version", "[0-9]+", "1");
+
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("Content-Type", "application/json");
+
+        return builder.expectsToReceive("a user created event")
+                .withMetadata(metadata)
+                .withContent(body)
+                .toPact();
+    }
+
+    @Pact(consumer = "user_updated-consumer")
+    V4Pact createUserUpdatedPact(MessagePactBuilder builder) {
+        PactDslJsonBody body = new PactDslJsonBody();
+        body.stringType("username", "john.doe");
+        body.stringType("fullName", "John Doe Updated");
+        body.stringType("password", "UpdatedPassword123!");
+        body.stringMatcher("version", "[0-9]+", "2");
+
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("Content-Type", "application/json");
+
+        return builder.expectsToReceive("a user updated event")
+                .withMetadata(metadata)
+                .withContent(body)
+                .toPact();
+    }
+
+    @Pact(consumer = "user_deleted-consumer")
+    V4Pact createUserDeletedPact(MessagePactBuilder builder) {
+        PactDslJsonBody body = new PactDslJsonBody();
+        body.stringType("username", "john.doe");
+        body.stringType("fullName", "John Doe");
+        body.stringType("password", "Test123!");
+        body.stringMatcher("version", "[0-9]+", "3");
+
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("Content-Type", "application/json");
+
+        return builder.expectsToReceive("a user deleted event")
+                .withMetadata(metadata)
+                .withContent(body)
+                .toPact();
+    }
+
     //
     // Test method signatures for contract generation
     //
@@ -207,6 +261,24 @@ public class ReadersCDCDefinitionTest {
     @Test
     @PactTestFor(pactMethod = "createReaderDeletedPact")
     void testReaderDeleted(List<V4Interaction.AsynchronousMessage> messages) throws Exception {
+        // Test implementation will be in ReadersCDCConsumerIT
+    }
+
+    @Test
+    @PactTestFor(pactMethod = "createUserCreatedPact")
+    void testUserCreated(List<V4Interaction.AsynchronousMessage> messages) throws Exception {
+        // Test implementation will be in ReadersCDCConsumerIT
+    }
+
+    @Test
+    @PactTestFor(pactMethod = "createUserUpdatedPact")
+    void testUserUpdated(List<V4Interaction.AsynchronousMessage> messages) throws Exception {
+        // Test implementation will be in ReadersCDCConsumerIT
+    }
+
+    @Test
+    @PactTestFor(pactMethod = "createUserDeletedPact")
+    void testUserDeleted(List<V4Interaction.AsynchronousMessage> messages) throws Exception {
         // Test implementation will be in ReadersCDCConsumerIT
     }
 }

@@ -16,6 +16,8 @@ import pt.psoft.g1.psoftg1.shared.listeners.RpcBootstrapListener;
 import pt.psoft.g1.psoftg1.shared.model.BookEvents;
 import pt.psoft.g1.psoftg1.shared.model.GenreEvents;
 import pt.psoft.g1.psoftg1.shared.model.LendingEvents;
+import pt.psoft.g1.psoftg1.shared.model.ReaderEvents;
+import pt.psoft.g1.psoftg1.shared.model.UserEvents;
 import pt.psoft.g1.psoftg1.shared.publishers.RpcBootstrapPublisher;
 
 @Configuration
@@ -136,10 +138,41 @@ public class RabbitMQConfig {
             return new Queue("reader.pending.created", true);
         }
 
-        // NOTE: Reader sync queues (reader.created, reader.updated, reader.deleted) are NOT needed
-        // because all replicas share the same database.
-        // NOTE: User sync queues (user.created, user.updated, user.deleted) are NOT needed
-        // because all replicas share the same database.
+        // ========================================
+        // Reader sync queues (needed for cross-service synchronization)
+        // ========================================
+        @Bean
+        public Queue readerCreatedQueue() {
+            return new AnonymousQueue();
+        }
+
+        @Bean
+        public Queue readerUpdatedQueue() {
+            return new AnonymousQueue();
+        }
+
+        @Bean
+        public Queue readerDeletedQueue() {
+            return new AnonymousQueue();
+        }
+
+        // ========================================
+        // User sync queues (needed for cross-service synchronization)
+        // ========================================
+        @Bean
+        public Queue userCreatedQueue() {
+            return new AnonymousQueue();
+        }
+
+        @Bean
+        public Queue userUpdatedQueue() {
+            return new AnonymousQueue();
+        }
+
+        @Bean
+        public Queue userDeletedQueue() {
+            return new AnonymousQueue();
+        }
 
         // ========================================
         // Bindings
@@ -280,6 +313,54 @@ public class RabbitMQConfig {
             return BindingBuilder.bind(queue)
                     .to(direct)
                     .with("reader.pending.created");
+        }
+
+        @Bean
+        public Binding readerCreatedBinding(DirectExchange direct,
+                                            @Qualifier("readerCreatedQueue") Queue queue) {
+            return BindingBuilder.bind(queue)
+                    .to(direct)
+                    .with(ReaderEvents.READER_CREATED);
+        }
+
+        @Bean
+        public Binding readerUpdatedBinding(DirectExchange direct,
+                                            @Qualifier("readerUpdatedQueue") Queue queue) {
+            return BindingBuilder.bind(queue)
+                    .to(direct)
+                    .with(ReaderEvents.READER_UPDATED);
+        }
+
+        @Bean
+        public Binding readerDeletedBinding(DirectExchange direct,
+                                            @Qualifier("readerDeletedQueue") Queue queue) {
+            return BindingBuilder.bind(queue)
+                    .to(direct)
+                    .with(ReaderEvents.READER_DELETED);
+        }
+
+        @Bean
+        public Binding userCreatedBinding(DirectExchange direct,
+                                          @Qualifier("userCreatedQueue") Queue queue) {
+            return BindingBuilder.bind(queue)
+                    .to(direct)
+                    .with(UserEvents.USER_CREATED);
+        }
+
+        @Bean
+        public Binding userUpdatedBinding(DirectExchange direct,
+                                          @Qualifier("userUpdatedQueue") Queue queue) {
+            return BindingBuilder.bind(queue)
+                    .to(direct)
+                    .with(UserEvents.USER_UPDATED);
+        }
+
+        @Bean
+        public Binding userDeletedBinding(DirectExchange direct,
+                                          @Qualifier("userDeletedQueue") Queue queue) {
+            return BindingBuilder.bind(queue)
+                    .to(direct)
+                    .with(UserEvents.USER_DELETED);
         }
 
         // ========================================

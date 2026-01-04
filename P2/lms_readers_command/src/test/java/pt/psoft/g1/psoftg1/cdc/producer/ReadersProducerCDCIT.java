@@ -26,21 +26,17 @@ import org.springframework.test.context.ActiveProfiles;
 
 import java.util.HashMap;
 
-import pt.psoft.g1.psoftg1.cdc.config.CDCTestConfiguration;
 import pt.psoft.g1.psoftg1.readermanagement.api.ReaderViewAMQP;
 import pt.psoft.g1.psoftg1.readermanagement.api.ReaderPendingCreated;
 import pt.psoft.g1.psoftg1.readermanagement.api.ReaderUserRequestedEvent;
-import pt.psoft.g1.psoftg1.readermanagement.api.SagaCreationResponse;
-import pt.psoft.g1.psoftg1.readermanagement.api.ReaderSagaViewAMQP;
 import pt.psoft.g1.psoftg1.readermanagement.publishers.ReaderEventPublisher;
 import pt.psoft.g1.psoftg1.usermanagement.api.UserPendingCreated;
+import pt.psoft.g1.psoftg1.usermanagement.api.UserViewAMQP;
 
-@Import(CDCTestConfiguration.class)
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.NONE,
         classes = {ReaderEventPublisher.class},
         properties = {
-                "stubrunner.amqp.mockConnection=true",
                 "spring.profiles.active=cdc-test"
         }
 )
@@ -150,6 +146,45 @@ public class ReadersProducerCDCIT {
         readerViewAMQP.setVersion("3");
 
         Message<String> message = new ReaderMessageBuilder().withReader(readerViewAMQP).build();
+
+        return generateMessageAndMetadata(message);
+    }
+
+    @PactVerifyProvider("a user created event")
+    public MessageAndMetadata userCreated() throws JsonProcessingException {
+        UserViewAMQP userViewAMQP = new UserViewAMQP();
+        userViewAMQP.setUsername("john.doe");
+        userViewAMQP.setFullName("John Doe");
+        userViewAMQP.setPassword("Test123!");
+        userViewAMQP.setVersion("1");
+
+        Message<String> message = new ReaderMessageBuilder().withUser(userViewAMQP).build();
+
+        return generateMessageAndMetadata(message);
+    }
+
+    @PactVerifyProvider("a user updated event")
+    public MessageAndMetadata userUpdated() throws JsonProcessingException {
+        UserViewAMQP userViewAMQP = new UserViewAMQP();
+        userViewAMQP.setUsername("john.doe");
+        userViewAMQP.setFullName("John Doe Updated");
+        userViewAMQP.setPassword("UpdatedPassword123!");
+        userViewAMQP.setVersion("2");
+
+        Message<String> message = new ReaderMessageBuilder().withUser(userViewAMQP).build();
+
+        return generateMessageAndMetadata(message);
+    }
+
+    @PactVerifyProvider("a user deleted event")
+    public MessageAndMetadata userDeleted() throws JsonProcessingException {
+        UserViewAMQP userViewAMQP = new UserViewAMQP();
+        userViewAMQP.setUsername("john.doe");
+        userViewAMQP.setFullName("John Doe");
+        userViewAMQP.setPassword("Test123!");
+        userViewAMQP.setVersion("3");
+
+        Message<String> message = new ReaderMessageBuilder().withUser(userViewAMQP).build();
 
         return generateMessageAndMetadata(message);
     }

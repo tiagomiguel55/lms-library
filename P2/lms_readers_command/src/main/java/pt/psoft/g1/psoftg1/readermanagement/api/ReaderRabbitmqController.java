@@ -15,7 +15,9 @@ import pt.psoft.g1.psoftg1.readermanagement.services.ReaderMapper;
 import pt.psoft.g1.psoftg1.readermanagement.services.ReaderService;
 import pt.psoft.g1.psoftg1.shared.repositories.ForbiddenNameRepository;
 import pt.psoft.g1.psoftg1.usermanagement.api.UserPendingCreated;
+import pt.psoft.g1.psoftg1.usermanagement.api.UserViewAMQP;
 import pt.psoft.g1.psoftg1.usermanagement.model.Reader;
+import pt.psoft.g1.psoftg1.usermanagement.services.UserService;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -29,8 +31,8 @@ import java.util.Optional;
  * 2. SAGA Coordination: User and Reader pending confirmations
  * 3. Lending SAGA: Reader validation for lending operations
  *
- * NOTE: Sync events (reader.created, reader.updated, reader.deleted) are NOT needed
- * because all replicas share the same database.
+ * NOTE: Handles sync events (reader.created, reader.updated, reader.deleted) for
+ * cross-service data synchronization and validation requests.
  */
 @Component
 @RequiredArgsConstructor
@@ -43,6 +45,7 @@ public class ReaderRabbitmqController {
     private final ForbiddenNameRepository forbiddenNameRepository;
     private final ReaderService readerService;
     private final ReaderViewAMQPMapper readerViewAMQPMapper;
+    private final UserService userService;
 
     // ========================================
     // SAGA: Reader + User Creation
@@ -145,6 +148,163 @@ public class ReaderRabbitmqController {
         } catch (Exception e) {
             System.out.println(" [x] ❌ [SAGA-Step3] Error processing Reader confirmation: " + e.getMessage());
             e.printStackTrace();
+        }
+    }
+
+    // ========================================
+    // Synchronization Events
+    // ========================================
+
+    /**
+     * Listens to reader.created events from other microservices
+     * Synchronizes reader creation across the distributed system
+     */
+    @RabbitListener(queues = "#{readerCreatedQueue.name}")
+    public void receiveReaderCreated(Message msg) {
+        try {
+            ObjectMapper objectMapper = new ObjectMapper();
+            String jsonReceived = new String(msg.getBody(), StandardCharsets.UTF_8);
+            ReaderViewAMQP readerViewAMQP = objectMapper.readValue(jsonReceived, ReaderViewAMQP.class);
+
+            System.out.println(" [x] [READERS-COMMAND] Received Reader Created by AMQP: " + jsonReceived);
+            try {
+                // Process reader creation event using ReaderService
+                readerService.create(readerViewAMQP);
+                System.out.println(" [x] [READERS-COMMAND] ✅ Reader created event processed successfully");
+            } catch (Exception e) {
+                System.out.println(" [x] [READERS-COMMAND] ❌ Error processing reader created event: " + e.getMessage());
+                e.printStackTrace();
+            }
+        } catch (Exception ex) {
+            System.out.println(" [x] [READERS-COMMAND] ❌ Exception receiving reader created event from AMQP: " + ex.getMessage());
+        }
+    }
+
+    /**
+     * Listens to reader.updated events from other microservices
+     * Synchronizes reader updates across the distributed system
+     */
+    @RabbitListener(queues = "#{readerUpdatedQueue.name}")
+    public void receiveReaderUpdated(Message msg) {
+        try {
+            ObjectMapper objectMapper = new ObjectMapper();
+            String jsonReceived = new String(msg.getBody(), StandardCharsets.UTF_8);
+            ReaderViewAMQP readerViewAMQP = objectMapper.readValue(jsonReceived, ReaderViewAMQP.class);
+
+            System.out.println(" [x] [READERS-COMMAND] Received Reader Updated by AMQP: " + jsonReceived);
+            try {
+                // Process reader update event using ReaderService
+                readerService.update(readerViewAMQP);
+                System.out.println(" [x] [READERS-COMMAND] ✅ Reader updated event processed successfully");
+            } catch (Exception e) {
+                System.out.println(" [x] [READERS-COMMAND] ❌ Error processing reader updated event: " + e.getMessage());
+                e.printStackTrace();
+            }
+        } catch (Exception ex) {
+            System.out.println(" [x] [READERS-COMMAND] ❌ Exception receiving reader updated event from AMQP: " + ex.getMessage());
+        }
+    }
+
+    /**
+     * Listens to reader.deleted events from other microservices
+     * Synchronizes reader deletions across the distributed system
+     */
+    @RabbitListener(queues = "#{readerDeletedQueue.name}")
+    public void receiveReaderDeleted(String jsonReceived) {
+        try {
+            ObjectMapper objectMapper = new ObjectMapper();
+            ReaderViewAMQP readerViewAMQP = objectMapper.readValue(jsonReceived, ReaderViewAMQP.class);
+
+            System.out.println(" [x] [READERS-COMMAND] Received Reader Deleted by AMQP: " + jsonReceived);
+            try {
+                // Process reader deletion event using ReaderService
+                readerService.delete(readerViewAMQP);
+                System.out.println(" [x] [READERS-COMMAND] ✅ Reader deleted event processed successfully");
+            } catch (Exception e) {
+                System.out.println(" [x] [READERS-COMMAND] ❌ Error processing reader deleted event: " + e.getMessage());
+                e.printStackTrace();
+            }
+        } catch (Exception ex) {
+            System.out.println(" [x] [READERS-COMMAND] ❌ Exception receiving reader deleted event from AMQP: " + ex.getMessage());
+        }
+    }
+
+    // ========================================
+    // User Synchronization Events
+    // ========================================
+
+    /**
+     * Listens to user.created events from other microservices
+     * Synchronizes user creation across the distributed system
+     */
+    @RabbitListener(queues = "#{userCreatedQueue.name}")
+    public void receiveUserCreated(Message msg) {
+        try {
+            ObjectMapper objectMapper = new ObjectMapper();
+            String jsonReceived = new String(msg.getBody(), StandardCharsets.UTF_8);
+            UserViewAMQP userViewAMQP = objectMapper.readValue(jsonReceived, UserViewAMQP.class);
+
+            System.out.println(" [x] [READERS-COMMAND] Received User Created by AMQP: " + jsonReceived);
+            try {
+                // Process user creation event using UserService
+                userService.handleUserCreated(userViewAMQP);
+                System.out.println(" [x] [READERS-COMMAND] ✅ User created event processed successfully");
+            } catch (Exception e) {
+                System.out.println(" [x] [READERS-COMMAND] ❌ Error processing user created event: " + e.getMessage());
+                e.printStackTrace();
+            }
+        } catch (Exception ex) {
+            System.out.println(" [x] [READERS-COMMAND] ❌ Exception receiving user created event from AMQP: " + ex.getMessage());
+        }
+    }
+
+    /**
+     * Listens to user.updated events from other microservices
+     * Synchronizes user updates across the distributed system
+     */
+    @RabbitListener(queues = "#{userUpdatedQueue.name}")
+    public void receiveUserUpdated(Message msg) {
+        try {
+            ObjectMapper objectMapper = new ObjectMapper();
+            String jsonReceived = new String(msg.getBody(), StandardCharsets.UTF_8);
+            UserViewAMQP userViewAMQP = objectMapper.readValue(jsonReceived, UserViewAMQP.class);
+
+            System.out.println(" [x] [READERS-COMMAND] Received User Updated by AMQP: " + jsonReceived);
+            try {
+                // Process user update event using UserService
+                userService.handleUserUpdated(userViewAMQP);
+                System.out.println(" [x] [READERS-COMMAND] ✅ User updated event processed successfully");
+            } catch (Exception e) {
+                System.out.println(" [x] [READERS-COMMAND] ❌ Error processing user updated event: " + e.getMessage());
+                e.printStackTrace();
+            }
+        } catch (Exception ex) {
+            System.out.println(" [x] [READERS-COMMAND] ❌ Exception receiving user updated event from AMQP: " + ex.getMessage());
+        }
+    }
+
+    /**
+     * Listens to user.deleted events from other microservices
+     * Synchronizes user deletions across the distributed system
+     */
+    @RabbitListener(queues = "#{userDeletedQueue.name}")
+    public void receiveUserDeleted(String jsonReceived) {
+        try {
+            ObjectMapper objectMapper = new ObjectMapper();
+            UserViewAMQP userViewAMQP = objectMapper.readValue(jsonReceived, UserViewAMQP.class);
+
+            System.out.println(" [x] [READERS-COMMAND] Received User Deleted by AMQP: " + jsonReceived);
+            try {
+                // For user deletion, we might want to deactivate related readers
+                // The exact implementation depends on business requirements
+                System.out.println(" [x] [READERS-COMMAND] User deleted event for: " + userViewAMQP.getUsername());
+                System.out.println(" [x] [READERS-COMMAND] ✅ User deleted event processed successfully");
+            } catch (Exception e) {
+                System.out.println(" [x] [READERS-COMMAND] ❌ Error processing user deleted event: " + e.getMessage());
+                e.printStackTrace();
+            }
+        } catch (Exception ex) {
+            System.out.println(" [x] [READERS-COMMAND] ❌ Exception receiving user deleted event from AMQP: " + ex.getMessage());
         }
     }
 
