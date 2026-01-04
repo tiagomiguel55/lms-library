@@ -1,4 +1,4 @@
-package pt.psoft.g1.psoftg1.consumerTests;
+package pt.psoft.g1.psoftg1.CDCTests.consumerTests;
 
 import au.com.dius.pact.consumer.MessagePactBuilder;
 import au.com.dius.pact.consumer.dsl.PactDslJsonBody;

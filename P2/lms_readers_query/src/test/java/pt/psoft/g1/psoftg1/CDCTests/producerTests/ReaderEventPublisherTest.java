@@ -1,4 +1,4 @@
-package pt.psoft.g1.psoftg1.producerTests;
+package pt.psoft.g1.psoftg1.CDCTests.producerTests;
 
 import au.com.dius.pact.core.model.Interaction;
 import au.com.dius.pact.core.model.Pact;
@@ -31,14 +31,10 @@ import pt.psoft.g1.psoftg1.readermanagement.model.ReaderDetails;
 import pt.psoft.g1.psoftg1.readermanagement.publishers.ReaderEventPublisher;
 import pt.psoft.g1.psoftg1.usermanagement.model.Reader;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
-
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.NONE,
-        classes = {ReaderEventPublisher.class, ReaderViewAMQPMapperImpl.class},
+        classes = {ReaderEventPublisher.class},
         properties = {
-                "stubrunner.amqp.mockConnection=true",
                 "spring.profiles.active=test"
         }
 )
@@ -51,18 +47,18 @@ public class ReaderEventPublisherTest {
     @Autowired
     private ReaderEventPublisher readerEventPublisher;
 
-    @Autowired
-    private ReaderViewAMQPMapperImpl readerViewAMQPMapper;
-
     @MockBean
     private RabbitTemplate template;
 
     @MockBean
     private DirectExchange direct;
 
+    @MockBean
+    private ReaderViewAMQPMapper readerViewAMQPMapper;
+
     @TestTemplate
     @ExtendWith(PactVerificationInvocationContextProvider.class)
-    void testTemplate(Pact pact, Interaction interaction, PactVerificationContext context) {
+    void testTemplate(Interaction interaction, PactVerificationContext context) {
         if (!"a reader lending request event".equals(interaction.getDescription())) {
             context.verifyInteraction();
         } else {
@@ -195,7 +191,7 @@ public class ReaderEventPublisherTest {
 
     private MessageAndMetadata generateMessageAndMetadata(Message<String> message) {
         HashMap<String, Object> metadata = new HashMap<>();
-        message.getHeaders().forEach((k, v) -> metadata.put(k, v));
+        metadata.putAll(message.getHeaders());
 
         return new MessageAndMetadata(message.getPayload().getBytes(), metadata);
     }
