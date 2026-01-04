@@ -605,7 +605,7 @@ EOF
                             echo ""
 
                             # Set variables for auto-scale script
-                            export SERVICE_NAME="${STACK_NAME_STAGING}_lmsbooks_command_staging"
+                            export SERVICE_NAME="\${STACK_NAME_STAGING}_lmsbooks_command_staging"
                             export RESULTS_FILE="/tmp/load_test_results.json"
                             export MIN_REPLICAS=1
                             export MAX_REPLICAS=5
@@ -624,14 +624,14 @@ EOF
                             # Try to find the service
                             ACTUAL_SERVICE=\$(docker service ls --format "{{.Name}}" | grep -E "staging.*lmsbooks|lmsbooks.*staging" | grep command | head -1 || echo "")
 
-                            if [ -z "\$ACTUAL_SERVICE" ]; then
+                            if [ -z "\${ACTUAL_SERVICE}" ]; then
                                 echo "Looking for any staging service..."
                                 ACTUAL_SERVICE=\$(docker service ls --format "{{.Name}}" | grep staging | head -1 || echo "")
                             fi
 
-                            if [ -n "\$ACTUAL_SERVICE" ]; then
-                                export SERVICE_NAME="\$ACTUAL_SERVICE"
-                                echo "Found service: \$SERVICE_NAME"
+                            if [ -n "\${ACTUAL_SERVICE}" ]; then
+                                export SERVICE_NAME="\${ACTUAL_SERVICE}"
+                                echo "Found service: \${SERVICE_NAME}"
                             fi
 
                             echo ""
@@ -647,11 +647,11 @@ EOF
                                 RPS=\$(jq -r '.results.requests_per_second' "\${RESULTS_FILE}")
                                 AVG_RESPONSE=\$(jq -r '.results.response_time_ms.average' "\${RESULTS_FILE}")
                             else
-                                RECOMMENDATION=\$(python3 -c "import json; print(json.load(open('\${RESULTS_FILE}'))['scaling']['recommendation'])")
-                                RECOMMENDED_REPLICAS=\$(python3 -c "import json; print(json.load(open('\${RESULTS_FILE}'))['scaling']['recommended_replicas'])")
-                                SUCCESS_RATE=\$(python3 -c "import json; print(json.load(open('\${RESULTS_FILE}'))['results']['success_rate'])")
-                                RPS=\$(python3 -c "import json; print(json.load(open('\${RESULTS_FILE}'))['results']['requests_per_second'])")
-                                AVG_RESPONSE=\$(python3 -c "import json; print(json.load(open('\${RESULTS_FILE}'))['results']['response_time_ms']['average'])")
+                                RECOMMENDATION=\$(python3 -c "import json; data=json.load(open('\${RESULTS_FILE}')); print(data['scaling']['recommendation'])")
+                                RECOMMENDED_REPLICAS=\$(python3 -c "import json; data=json.load(open('\${RESULTS_FILE}')); print(data['scaling']['recommended_replicas'])")
+                                SUCCESS_RATE=\$(python3 -c "import json; data=json.load(open('\${RESULTS_FILE}')); print(data['results']['success_rate'])")
+                                RPS=\$(python3 -c "import json; data=json.load(open('\${RESULTS_FILE}')); print(data['results']['requests_per_second'])")
+                                AVG_RESPONSE=\$(python3 -c "import json; data=json.load(open('\${RESULTS_FILE}')); print(data['results']['response_time_ms']['average'])")
                             fi
 
                             echo "Success Rate:          \${SUCCESS_RATE}%"
@@ -704,65 +704,11 @@ EOF
                                 echo "Reason: System is over-provisioned"
 
                             else
-                                echo "Action: NO SCALING REQUIRED"
-                                echo "Reason: Current capacity is optimal"
+                                echo "Action: NO SCALING"
+                                echo "Reason: Load test metrics indicate stable performance"
                             fi
 
-                            echo ""
-                            echo "Current Replicas:  \${CURRENT_REPLICAS}"
-                            echo "Target Replicas:   \${TARGET_REPLICAS}"
-
-                            echo ""
-                            echo "=========================================="
-                            echo "EXECUTING SCALING COMMAND"
-                            echo "=========================================="
-
-                            if [ \${TARGET_REPLICAS} -ne \${CURRENT_REPLICAS} ]; then
-                                echo "Executing: docker service scale \${SERVICE_NAME}=\${TARGET_REPLICAS}"
-                                echo ""
-
-                                docker service scale "\${SERVICE_NAME}=\${TARGET_REPLICAS}"
-
-                                echo ""
-                                echo "Waiting 15 seconds for scaling to complete..."
-                                sleep 15
-
-                                echo ""
-                                echo "=========================================="
-                                echo "SCALING VERIFICATION"
-                                echo "=========================================="
-
-                                NEW_REPLICAS=\$(docker service inspect "\${SERVICE_NAME}" --format '{{.Spec.Mode.Replicated.Replicas}}')
-                                RUNNING=\$(docker service ps "\${SERVICE_NAME}" --filter "desired-state=running" --format "{{.ID}}" 2>/dev/null | wc -l)
-
-                                echo "Desired Replicas:  \${NEW_REPLICAS}"
-                                echo "Running Replicas:  \${RUNNING}"
-                                echo ""
-
-                                docker service ps "\${SERVICE_NAME}" --format "table {{.Name}}\t{{.CurrentState}}\t{{.Node}}" | head -10
-
-                                echo ""
-                                if [ \${RUNNING} -ge \${TARGET_REPLICAS} ]; then
-                                    echo "✅ SCALING SUCCESSFUL"
-                                    echo "Service \${SERVICE_NAME} scaled from \${CURRENT_REPLICAS} to \${TARGET_REPLICAS} replicas"
-                                else
-                                    echo "⚠️ Scaling in progress - some replicas still starting"
-                                fi
-                            else
-                                echo "✅ No scaling action needed"
-                                echo "Service already at optimal replica count (\${CURRENT_REPLICAS})"
-                            fi
-
-                            echo ""
-                            echo "=========================================="
-                            echo "FINAL SERVICE STATUS"
-                            echo "=========================================="
-                            docker service ls --filter "name=\${SERVICE_NAME}"
-
-                            echo ""
-                            echo "=========================================="
-                            echo "AUTO-SCALING OPERATION COMPLETE"
-                            echo "=========================================="
+                            echo "Target Replicas:       \${TARGET_REPLICAS}"
                         """
                     }
                 }
