@@ -605,7 +605,7 @@ EOF
                             echo ""
 
                             # Set variables for auto-scale script
-                            export SERVICE_NAME="${STACK_NAME_STAGING}_lmsbooks_command_staging"
+                            export SERVICE_NAME="\${STACK_NAME_STAGING}_lmsbooks_command_staging"
                             export RESULTS_FILE="/tmp/load_test_results.json"
                             export MIN_REPLICAS=1
                             export MAX_REPLICAS=5
