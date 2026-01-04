@@ -11,13 +11,11 @@ Após análise completa do código fonte, foram identificados e implementados te
 1. **reader_user_requested** - Solicitação de criação reader/usuário (SAGA)
 2. **user_pending_created** - Usuário pendente criado (SAGA)  
 3. **reader_pending_created** - Reader pendente criado (SAGA)
-4. **reader_lending_request** - Request de lending para validação
 
 **EVENTOS PRODUZIDOS:**
 5. **READER_CREATED** - Reader criado
 6. **READER_UPDATED** - Reader atualizado
 7. **READER_DELETED** - Reader deletado
-8. **reader_lending_response** - Resposta de validação de lending
 
 ## Estrutura de Testes
 
@@ -110,12 +108,6 @@ mvn test -Dtest="*CDC*" "-Dspring.profiles.active=cdc-test"
 - **Descrição:** Evento quando um reader é deletado
 - **Campos:** readerNumber, fullName, phoneNumber, version
 
-### 8. Reader Lending Response
-- **Consumer:** `reader_lending_response-consumer`
-- **Provider:** `reader_event-producer`
-- **Descrição:** Resposta de validação de lending
-- **Campos:** lendingNumber, status, error
-
 ## Dependências Necessárias
 
 As dependências do Pact já estavam configuradas no `pom.xml`:
@@ -133,12 +125,6 @@ As dependências do Pact já estavam configuradas no `pom.xml`:
     <scope>test</scope>
 </dependency>
 ```
-
-## Configuração do Pact Broker
-
-Os testes estão configurados para usar um Pact Broker local:
-- **URL:** http://localhost:9292
-- **Credenciais:** pact_broker / pact_broker
 
 ## Status dos Testes
 
