@@ -584,7 +584,7 @@ EOF
                     }
                 }
             }
-        } */
+        }
 
         stage('Auto-Scale Based on Load Tests (Staging)') {
             when {
