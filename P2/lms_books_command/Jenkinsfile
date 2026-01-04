@@ -26,14 +26,6 @@ pipeline {
         STACK_NAME_STAGING = 'lmsbooks-staging'
         STACK_NAME_PROD    = 'lmsbooks-prod'
 
-        // Blue/Green Deployment - Staging
-        STACK_NAME_STAGING_BLUE  = 'lmsbooks-staging-blue'
-        STACK_NAME_STAGING_GREEN = 'lmsbooks-staging-green'
-        STAGING_BLUE_PORT  = '8091'
-        STAGING_GREEN_PORT = '8092'
-        STAGING_LIVE_ENV_FILE = '/tmp/lmsbooks_staging_live_env.txt'
-        STAGING_BLUE_IMAGE_FILE = '/tmp/lmsbooks_staging_blue_image.txt'
-        STAGING_GREEN_IMAGE_FILE = '/tmp/lmsbooks_staging_green_image.txt'
 
         // Blue/Green Deployment - Production
         STACK_NAME_PROD_BLUE  = 'lmsbooks-prod-blue'
