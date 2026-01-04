@@ -13,7 +13,7 @@ services:
       - spring.datasource.driver-class-name=org.postgresql.Driver
       - spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
       - spring.jpa.hibernate.ddl-auto=validate
-      - spring.rabbitmq.host=lms_shared_rabbitmq
+      - spring.rabbitmq.host=lms_shared_rabbitmq_prod
       - spring.rabbitmq.port=5672
       - spring.rabbitmq.username=guest
       - spring.rabbitmq.password=guest
@@ -82,5 +82,3 @@ networks:
 
 volumes:
   postgres_readers_command_data_prod:
-
-

@@ -13,7 +13,9 @@ services:
     volumes:
       - rabbitmq_data_staging:/var/lib/rabbitmq
     networks:
-      - lms_network
+      lms_network:
+        aliases:
+          - lms_shared_rabbitmq_staging
     deploy:
       replicas: 1
       placement:
