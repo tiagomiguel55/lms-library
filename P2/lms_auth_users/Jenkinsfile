@@ -56,6 +56,19 @@ pipeline {
             }
         }
 
+        stage('Compile') {
+            when {
+                expression { params.ENVIRONMENT != 'prod' }
+            }
+            steps {
+                dir("${WORK_DIR}") {
+                    sh """
+                        ${MAVEN_HOME}/bin/mvn clean compile test-compile
+                    """
+                }
+            }
+        }
+
         stage('CDC Tests') {
             when {
                 expression { params.ENVIRONMENT == 'staging' } // CDC tests apenas em staging
