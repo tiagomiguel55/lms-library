@@ -713,7 +713,7 @@ EOF
                     }
                 }
             }
-        } */
+        }
 
         stage('Release Validation Tests (Staging)') {
             when {
