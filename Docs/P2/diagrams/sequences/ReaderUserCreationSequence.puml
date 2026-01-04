@@ -1,0 +1,83 @@
+@startuml
+Title Reader User Creation SAGA — Microservices Communication Flow
+
+participant HttpClient
+participant ReadersCmd
+participant MessageBroker
+participant AuthUsers
+participant ReadersQuery
+
+' Queue Subscriptions
+AuthUsers -> MessageBroker: subscribes to ReaderUserRequested, ReaderCreatedFailed, UserCreated
+ReadersCmd -> MessageBroker: subscribes to UserPendingCreated, UserCreatedFailed, ReaderPendingCreated, ReaderCreatedFailed, UserCreated, ReaderCreated
+ReadersQuery -> MessageBroker: subscribes to ReaderCreated, UserCreated
+
+HttpClient -> ReadersCmd: POST /api/readers/create-complete\n(username, password, fullName, birthDate, phoneNumber)
+activate ReadersCmd
+ReadersCmd -> ReadersCmd: create PendingReaderUserRequest
+ReadersCmd -> MessageBroker: publish ReaderUserRequested\n(readerId, username, password, fullName, birthDate, phoneNumber)
+ReadersCmd --> HttpClient: respond 202 Accepted\n(readerId)
+deactivate ReadersCmd
+
+note over MessageBroker: Asynchronous Communication via Message Broker
+MessageBroker -> ReadersCmd: receive ReaderUserRequested\n(readerId, userId)
+activate ReadersCmd
+ReadersCmd -> ReadersCmd: create Reader (PENDING)
+alt Reader Creation Succeeded
+    ReadersCmd -> MessageBroker: publish ReaderPendingCreated\n(readerId, userId)
+else Reader Creation Failed
+    ReadersCmd -> MessageBroker: publish UserCreatedFailed\n(readerId, userId)
+end
+deactivate ReadersCmd
+
+MessageBroker -> AuthUsers: receive ReaderUserRequested\n(readerId, username, password, fullName, birthDate, phoneNumber)
+activate AuthUsers
+AuthUsers -> AuthUsers: create User (PENDING)
+alt User Creation Succeeded
+    AuthUsers -> MessageBroker: publish UserPendingCreated\n(readerId, userId)
+else User Creation Failed
+    AuthUsers -> MessageBroker: publish ReaderCreatedFailed\n(readerId)
+end
+deactivate AuthUsers
+
+note over ReadersCmd: In case of failures, the corresponding failure messages would be handled here to roll back or clean up pending creations
+MessageBroker -> ReadersCmd: receive ReaderPendingCreated\n(readerId)
+activate ReadersCmd
+ReadersCmd -> ReadersCmd: update PendingReaderUserRequest.userCreatedReceived to true
+ReadersCmd --> ReadersCmd: check ReaderUserRequested status
+deactivate ReadersCmd
+
+MessageBroker -> ReadersCmd: receive UserPendingCreated\n(readerId)
+activate ReadersCmd
+ReadersCmd -> ReadersCmd: update PendingReaderUserRequest.readerCreatedReceived to true
+ReadersCmd --> ReadersCmd: check ReaderUserRequested status
+alt Both readerCreatedReceived and userCreatedReceived are true
+    ReadersCmd -> MessageBroker: publish readerCreated(readerId) and userCreated(userId)
+end
+deactivate ReadersCmd
+
+MessageBroker -> AuthUsers: receive userCreated(userId)
+activate AuthUsers
+AuthUsers -> AuthUsers: Finalize User
+AuthUsers --> MessageBroker: publish userCreated(userId)
+deactivate AuthUsers
+
+MessageBroker -> ReadersQuery: receive userCreated(userId)
+activate ReadersQuery
+ReadersQuery -> ReadersQuery: Update Read Model with new User
+ReadersQuery -> MessageBroker: publish userCreated(userId)
+deactivate ReadersQuery
+
+MessageBroker -> ReadersCmd: receive readerCreated(readerId)
+activate ReadersCmd
+ReadersCmd -> ReadersCmd: Finalize Reader
+ReadersCmd --> MessageBroker: publish readerCreated(readerId)
+deactivate ReadersCmd
+
+MessageBroker -> ReadersQuery: receive readerCreated(readerId)
+activate ReadersQuery
+ReadersQuery -> ReadersQuery: Update Read Model with new Reader
+ReadersQuery -> MessageBroker: publish readerCreated(readerId)
+deactivate ReadersQuery
+
+@enduml
