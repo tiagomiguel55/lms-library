@@ -93,13 +93,40 @@ public class FeatureFlagConfig {
         }
 
         try {
-            var field = FeatureToggles.class.getDeclaredField(featureName);
+            // Convert kebab-case to camelCase (e.g., "batch-operations" -> "batchOperations")
+            String fieldName = toCamelCase(featureName);
+            var field = FeatureToggles.class.getDeclaredField(fieldName);
             field.setAccessible(true);
             return (boolean) field.get(features);
         } catch (Exception e) {
             // Default to disabled if feature not found
             return false;
         }
+    }
+
+    /**
+     * Convert kebab-case to camelCase
+     */
+    private String toCamelCase(String kebabCase) {
+        if (kebabCase == null || kebabCase.isEmpty()) {
+            return kebabCase;
+        }
+
+        StringBuilder result = new StringBuilder();
+        boolean capitalizeNext = false;
+
+        for (char c : kebabCase.toCharArray()) {
+            if (c == '-') {
+                capitalizeNext = true;
+            } else if (capitalizeNext) {
+                result.append(Character.toUpperCase(c));
+                capitalizeNext = false;
+            } else {
+                result.append(c);
+            }
+        }
+
+        return result.toString();
     }
 
     /**
