@@ -50,15 +50,13 @@ public class BooksProducerCDCIT {
         bookView.setAuthorIds(List.of(1L));
         bookView.setVersion(1L);
 
-        String payload = new BookMessageBuilder()
-                .withBook(bookView)
-                .build()
-                .getPayload();
+        byte[] payload = new com.fasterxml.jackson.databind.ObjectMapper()
+                .writeValueAsBytes(bookView);
 
         Map<String, Object> metadata = new HashMap<>();
-        metadata.put("Content-Type", "application/json");
+        metadata.put("contentType", "application/json");
 
-        return new MessageAndMetadata(payload.getBytes(), metadata);
+        return new MessageAndMetadata(payload, metadata);
     }
 
     @PactVerifyProvider("a book updated event")
@@ -71,15 +69,13 @@ public class BooksProducerCDCIT {
         bookView.setAuthorIds(List.of(1L));
         bookView.setVersion(2L);
 
-        String payload = new BookMessageBuilder()
-                .withBook(bookView)
-                .build()
-                .getPayload();
+        byte[] payload = new com.fasterxml.jackson.databind.ObjectMapper()
+                .writeValueAsBytes(bookView);
 
         Map<String, Object> metadata = new HashMap<>();
-        metadata.put("Content-Type", "application/json");
+        metadata.put("contentType", "application/json");
 
-        return new MessageAndMetadata(payload.getBytes(), metadata);
+        return new MessageAndMetadata(payload, metadata);
     }
 
     @PactVerifyProvider("a book deleted event")
@@ -88,13 +84,13 @@ public class BooksProducerCDCIT {
         deletedBookData.put("isbn", "9780140449136");
         deletedBookData.put("deletedAt", "2026-01-03T10:30:00");
 
-        String payload = new com.fasterxml.jackson.databind.ObjectMapper()
-                .writeValueAsString(deletedBookData);
+        byte[] payload = new com.fasterxml.jackson.databind.ObjectMapper()
+                .writeValueAsBytes(deletedBookData);
 
         Map<String, Object> metadata = new HashMap<>();
-        metadata.put("Content-Type", "application/json");
+        metadata.put("contentType", "application/json");
 
-        return new MessageAndMetadata(payload.getBytes(), metadata);
+        return new MessageAndMetadata(payload, metadata);
     }
 
     @PactVerifyProvider("a book requested event")
@@ -105,15 +101,13 @@ public class BooksProducerCDCIT {
         bookRequestedEvent.setAuthorName("Homer");
         bookRequestedEvent.setGenreName("Classic Literature");
 
-        String payload = new BookMessageBuilder()
-                .withBookRequested(bookRequestedEvent)
-                .build()
-                .getPayload();
+        byte[] payload = new com.fasterxml.jackson.databind.ObjectMapper()
+                .writeValueAsBytes(bookRequestedEvent);
 
         Map<String, Object> metadata = new HashMap<>();
-        metadata.put("Content-Type", "application/json");
+        metadata.put("contentType", "application/json");
 
-        return new MessageAndMetadata(payload.getBytes(), metadata);
+        return new MessageAndMetadata(payload, metadata);
     }
 
     @PactVerifyProvider("a book finalized event")
@@ -126,15 +120,13 @@ public class BooksProducerCDCIT {
         bookFinalizedEvent.setTitle("The Odyssey");
         bookFinalizedEvent.setDescription("An epic poem by Homer");
 
-        String payload = new BookMessageBuilder()
-                .withBookFinalized(bookFinalizedEvent)
-                .build()
-                .getPayload();
+        byte[] payload = new com.fasterxml.jackson.databind.ObjectMapper()
+                .writeValueAsBytes(bookFinalizedEvent);
 
         Map<String, Object> metadata = new HashMap<>();
-        metadata.put("Content-Type", "application/json");
+        metadata.put("contentType", "application/json");
 
-        return new MessageAndMetadata(payload.getBytes(), metadata);
+        return new MessageAndMetadata(payload, metadata);
     }
 
     @PactVerifyProvider("a lending validation response event")
@@ -146,15 +138,13 @@ public class BooksProducerCDCIT {
         response.setIsbn("9780140449136");
         response.setMessage("Book is available for lending");
 
-        String payload = new BookMessageBuilder()
-                .withLendingValidationResponse(response)
-                .build()
-                .getPayload();
+        byte[] payload = new com.fasterxml.jackson.databind.ObjectMapper()
+                .writeValueAsBytes(response);
 
         Map<String, Object> metadata = new HashMap<>();
-        metadata.put("Content-Type", "application/json");
+        metadata.put("contentType", "application/json");
 
-        return new MessageAndMetadata(payload.getBytes(), metadata);
+        return new MessageAndMetadata(payload, metadata);
     }
 
     @PactVerifyProvider("an author created event")
@@ -165,13 +155,13 @@ public class BooksProducerCDCIT {
         authorData.put("bio", "Bestselling novelist");
         authorData.put("version", "1");
 
-        String payload = new com.fasterxml.jackson.databind.ObjectMapper()
-                .writeValueAsString(authorData);
+        byte[] payload = new com.fasterxml.jackson.databind.ObjectMapper()
+                .writeValueAsBytes(authorData);
 
         Map<String, Object> metadata = new HashMap<>();
-        metadata.put("Content-Type", "application/json");
+        metadata.put("contentType", "application/json");
 
-        return new MessageAndMetadata(payload.getBytes(), metadata);
+        return new MessageAndMetadata(payload, metadata);
     }
 
     @PactVerifyProvider("a genre created event")
@@ -180,13 +170,13 @@ public class BooksProducerCDCIT {
         genreData.put("genre", "Mystery");
         genreData.put("version", "1");
 
-        String payload = new com.fasterxml.jackson.databind.ObjectMapper()
-                .writeValueAsString(genreData);
+        byte[] payload = new com.fasterxml.jackson.databind.ObjectMapper()
+                .writeValueAsBytes(genreData);
 
         Map<String, Object> metadata = new HashMap<>();
-        metadata.put("Content-Type", "application/json");
+        metadata.put("contentType", "application/json");
 
-        return new MessageAndMetadata(payload.getBytes(), metadata);
+        return new MessageAndMetadata(payload, metadata);
     }
 
     @PactVerifyProvider("an author pending created event")
@@ -197,13 +187,13 @@ public class BooksProducerCDCIT {
         authorPendingData.put("requestId", "req-12345");
         authorPendingData.put("timestamp", "2026-01-03T10:30:00");
 
-        String payload = new com.fasterxml.jackson.databind.ObjectMapper()
-                .writeValueAsString(authorPendingData);
+        byte[] payload = new com.fasterxml.jackson.databind.ObjectMapper()
+                .writeValueAsBytes(authorPendingData);
 
         Map<String, Object> metadata = new HashMap<>();
-        metadata.put("Content-Type", "application/json");
+        metadata.put("contentType", "application/json");
 
-        return new MessageAndMetadata(payload.getBytes(), metadata);
+        return new MessageAndMetadata(payload, metadata);
     }
 
     @PactVerifyProvider("a genre pending created event")
@@ -213,13 +203,13 @@ public class BooksProducerCDCIT {
         genrePendingData.put("requestId", "genre-req-12345");
         genrePendingData.put("timestamp", "2026-01-03T10:30:00");
 
-        String payload = new com.fasterxml.jackson.databind.ObjectMapper()
-                .writeValueAsString(genrePendingData);
+        byte[] payload = new com.fasterxml.jackson.databind.ObjectMapper()
+                .writeValueAsBytes(genrePendingData);
 
         Map<String, Object> metadata = new HashMap<>();
-        metadata.put("Content-Type", "application/json");
+        metadata.put("contentType", "application/json");
 
-        return new MessageAndMetadata(payload.getBytes(), metadata);
+        return new MessageAndMetadata(payload, metadata);
     }
 
     @PactVerifyProvider("an author creation failed event")
@@ -230,13 +220,13 @@ public class BooksProducerCDCIT {
         authorFailedData.put("errorMessage", "Author name validation failed");
         authorFailedData.put("timestamp", "2026-01-03T10:45:00");
 
-        String payload = new com.fasterxml.jackson.databind.ObjectMapper()
-                .writeValueAsString(authorFailedData);
+        byte[] payload = new com.fasterxml.jackson.databind.ObjectMapper()
+                .writeValueAsBytes(authorFailedData);
 
         Map<String, Object> metadata = new HashMap<>();
-        metadata.put("Content-Type", "application/json");
+        metadata.put("contentType", "application/json");
 
-        return new MessageAndMetadata(payload.getBytes(), metadata);
+        return new MessageAndMetadata(payload, metadata);
     }
 
     @PactVerifyProvider("a genre creation failed event")
@@ -247,13 +237,13 @@ public class BooksProducerCDCIT {
         genreFailedData.put("errorMessage", "Genre validation failed");
         genreFailedData.put("timestamp", "2026-01-03T10:45:00");
 
-        String payload = new com.fasterxml.jackson.databind.ObjectMapper()
-                .writeValueAsString(genreFailedData);
+        byte[] payload = new com.fasterxml.jackson.databind.ObjectMapper()
+                .writeValueAsBytes(genreFailedData);
 
         Map<String, Object> metadata = new HashMap<>();
-        metadata.put("Content-Type", "application/json");
+        metadata.put("contentType", "application/json");
 
-        return new MessageAndMetadata(payload.getBytes(), metadata);
+        return new MessageAndMetadata(payload, metadata);
     }
 
     @PactVerifyProvider("a lending validation request event")
@@ -264,13 +254,12 @@ public class BooksProducerCDCIT {
         requestData.put("readerNumber", "2024/1");
         requestData.put("requestedAt", "2026-01-03T12:00:00");
 
-        String payload = new com.fasterxml.jackson.databind.ObjectMapper()
-                .writeValueAsString(requestData);
+        byte[] payload = new com.fasterxml.jackson.databind.ObjectMapper()
+                .writeValueAsBytes(requestData);
 
         Map<String, Object> metadata = new HashMap<>();
-        metadata.put("Content-Type", "application/json");
+        metadata.put("contentType", "application/json");
 
-        return new MessageAndMetadata(payload.getBytes(), metadata);
+        return new MessageAndMetadata(payload, metadata);
     }
 }
-

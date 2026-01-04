@@ -2,8 +2,6 @@ package pt.psoft.g1.psoftg1.CDCTests.producer;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.messaging.Message;
-import org.springframework.messaging.support.MessageBuilder;
 import pt.psoft.g1.psoftg1.bookmanagement.api.BookViewAMQP;
 import pt.psoft.g1.psoftg1.bookmanagement.api.BookRequestedEvent;
 import pt.psoft.g1.psoftg1.bookmanagement.api.BookFinalizedEvent;
@@ -50,27 +48,22 @@ public class BookMessageBuilder {
         return this;
     }
 
-    public Message<String> build() throws JsonProcessingException {
-        String payload;
-
+    // New method to get JSON string directly for CDC tests
+    public String getPayload() throws JsonProcessingException {
         if (bookViewAMQP != null) {
-            payload = this.mapper.writeValueAsString(this.bookViewAMQP);
+            return this.mapper.writeValueAsString(this.bookViewAMQP);
         } else if (bookRequestedEvent != null) {
-            payload = this.mapper.writeValueAsString(this.bookRequestedEvent);
+            return this.mapper.writeValueAsString(this.bookRequestedEvent);
         } else if (bookFinalizedEvent != null) {
-            payload = this.mapper.writeValueAsString(this.bookFinalizedEvent);
+            return this.mapper.writeValueAsString(this.bookFinalizedEvent);
         } else if (lendingValidationResponse != null) {
-            payload = this.mapper.writeValueAsString(this.lendingValidationResponse);
+            return this.mapper.writeValueAsString(this.lendingValidationResponse);
         } else if (authorPendingCreated != null) {
-            payload = this.mapper.writeValueAsString(this.authorPendingCreated);
+            return this.mapper.writeValueAsString(this.authorPendingCreated);
         } else if (genrePendingCreated != null) {
-            payload = this.mapper.writeValueAsString(this.genrePendingCreated);
+            return this.mapper.writeValueAsString(this.genrePendingCreated);
         } else {
             throw new IllegalStateException("No payload object set");
         }
-
-        return MessageBuilder.withPayload(payload)
-                .setHeader("Content-Type", "application/json; charset=utf-8")
-                .build();
     }
 }
