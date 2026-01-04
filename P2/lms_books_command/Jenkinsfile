@@ -605,13 +605,13 @@ EOF
                             echo ""
 
                             # Set variables for auto-scale script
-                            export SERVICE_NAME="\${STACK_NAME_STAGING}_lmsbooks_command_staging"
+                            export SERVICE_NAME="${STACK_NAME_STAGING}_lmsbooks_command_staging"
                             export RESULTS_FILE="/tmp/load_test_results.json"
                             export MIN_REPLICAS=1
                             export MAX_REPLICAS=5
 
                             # Check if results file exists
-                            if [ ! -f "\${RESULTS_FILE}" ]; then
+                            if [ ! -f "\$RESULTS_FILE" ]; then
                                 echo "⚠️ Load test results not found. Skipping auto-scaling."
                                 exit 0
                             fi
@@ -619,19 +619,19 @@ EOF
                             echo "=========================================="
                             echo "CURRENT SERVICE STATUS"
                             echo "=========================================="
-                            docker service ls --filter "name=\${SERVICE_NAME}" || echo "Service not found with exact name"
+                            docker service ls --filter "name=\$SERVICE_NAME" || echo "Service not found with exact name"
 
                             # Try to find the service
                             ACTUAL_SERVICE=\$(docker service ls --format "{{.Name}}" | grep -E "staging.*lmsbooks|lmsbooks.*staging" | grep command | head -1 || echo "")
 
-                            if [ -z "\${ACTUAL_SERVICE}" ]; then
+                            if [ -z "\$ACTUAL_SERVICE" ]; then
                                 echo "Looking for any staging service..."
                                 ACTUAL_SERVICE=\$(docker service ls --format "{{.Name}}" | grep staging | head -1 || echo "")
                             fi
 
-                            if [ -n "\${ACTUAL_SERVICE}" ]; then
-                                export SERVICE_NAME="\${ACTUAL_SERVICE}"
-                                echo "Found service: \${SERVICE_NAME}"
+                            if [ -n "\$ACTUAL_SERVICE" ]; then
+                                export SERVICE_NAME="\$ACTUAL_SERVICE"
+                                echo "Found service: \$SERVICE_NAME"
                             fi
 
                             echo ""
@@ -641,63 +641,63 @@ EOF
 
                             # Read scaling recommendation from results
                             if command -v jq &> /dev/null; then
-                                RECOMMENDATION=\$(jq -r '.scaling.recommendation' "\${RESULTS_FILE}")
-                                RECOMMENDED_REPLICAS=\$(jq -r '.scaling.recommended_replicas' "\${RESULTS_FILE}")
-                                SUCCESS_RATE=\$(jq -r '.results.success_rate' "\${RESULTS_FILE}")
-                                RPS=\$(jq -r '.results.requests_per_second' "\${RESULTS_FILE}")
-                                AVG_RESPONSE=\$(jq -r '.results.response_time_ms.average' "\${RESULTS_FILE}")
+                                RECOMMENDATION=\$(jq -r '.scaling.recommendation' "\$RESULTS_FILE")
+                                RECOMMENDED_REPLICAS=\$(jq -r '.scaling.recommended_replicas' "\$RESULTS_FILE")
+                                SUCCESS_RATE=\$(jq -r '.results.success_rate' "\$RESULTS_FILE")
+                                RPS=\$(jq -r '.results.requests_per_second' "\$RESULTS_FILE")
+                                AVG_RESPONSE=\$(jq -r '.results.response_time_ms.average' "\$RESULTS_FILE")
                             else
-                                RECOMMENDATION=\$(python3 -c "import json; data=json.load(open('\${RESULTS_FILE}')); print(data['scaling']['recommendation'])")
-                                RECOMMENDED_REPLICAS=\$(python3 -c "import json; data=json.load(open('\${RESULTS_FILE}')); print(data['scaling']['recommended_replicas'])")
-                                SUCCESS_RATE=\$(python3 -c "import json; data=json.load(open('\${RESULTS_FILE}')); print(data['results']['success_rate'])")
-                                RPS=\$(python3 -c "import json; data=json.load(open('\${RESULTS_FILE}')); print(data['results']['requests_per_second'])")
-                                AVG_RESPONSE=\$(python3 -c "import json; data=json.load(open('\${RESULTS_FILE}')); print(data['results']['response_time_ms']['average'])")
+                                RECOMMENDATION=\$(python3 -c "import json; data=json.load(open('\$RESULTS_FILE')); print(data['scaling']['recommendation'])")
+                                RECOMMENDED_REPLICAS=\$(python3 -c "import json; data=json.load(open('\$RESULTS_FILE')); print(data['scaling']['recommended_replicas'])")
+                                SUCCESS_RATE=\$(python3 -c "import json; data=json.load(open('\$RESULTS_FILE')); print(data['results']['success_rate'])")
+                                RPS=\$(python3 -c "import json; data=json.load(open('\$RESULTS_FILE')); print(data['results']['requests_per_second'])")
+                                AVG_RESPONSE=\$(python3 -c "import json; data=json.load(open('\$RESULTS_FILE')); print(data['results']['response_time_ms']['average'])")
                             fi
 
-                            echo "Success Rate:          \${SUCCESS_RATE}%"
-                            echo "Requests/Second:       \${RPS} RPS"
-                            echo "Avg Response Time:     \${AVG_RESPONSE} ms"
-                            echo "Recommendation:        \${RECOMMENDATION}"
-                            echo "Recommended Replicas:  \${RECOMMENDED_REPLICAS}"
+                            echo "Success Rate:          \$SUCCESS_RATE%"
+                            echo "Requests/Second:       \$RPS RPS"
+                            echo "Avg Response Time:     \$AVG_RESPONSE ms"
+                            echo "Recommendation:        \$RECOMMENDATION"
+                            echo "Recommended Replicas:  \$RECOMMENDED_REPLICAS"
 
                             # Get current replicas
-                            CURRENT_REPLICAS=\$(docker service inspect "\${SERVICE_NAME}" --format '{{.Spec.Mode.Replicated.Replicas}}' 2>/dev/null || echo "1")
+                            CURRENT_REPLICAS=\$(docker service inspect "\$SERVICE_NAME" --format '{{.Spec.Mode.Replicated.Replicas}}' 2>/dev/null || echo "1")
                             echo ""
-                            echo "Current Replicas:      \${CURRENT_REPLICAS}"
+                            echo "Current Replicas:      \$CURRENT_REPLICAS"
 
                             echo ""
                             echo "=========================================="
                             echo "SCALING DECISION"
                             echo "=========================================="
 
-                            TARGET_REPLICAS=\${CURRENT_REPLICAS}
+                            TARGET_REPLICAS=\$CURRENT_REPLICAS
 
-                            if [ "\${RECOMMENDATION}" = "scale_up" ]; then
-                                TARGET_REPLICAS=\${RECOMMENDED_REPLICAS}
+                            if [ "\$RECOMMENDATION" = "scale_up" ]; then
+                                TARGET_REPLICAS=\$RECOMMENDED_REPLICAS
 
                                 # Enforce max replicas
-                                if [ \${TARGET_REPLICAS} -gt \${MAX_REPLICAS} ]; then
-                                    TARGET_REPLICAS=\${MAX_REPLICAS}
-                                    echo "⚠️ Capping at max replicas: \${MAX_REPLICAS}"
+                                if [ \$TARGET_REPLICAS -gt \$MAX_REPLICAS ]; then
+                                    TARGET_REPLICAS=\$MAX_REPLICAS
+                                    echo "⚠️ Capping at max replicas: \$MAX_REPLICAS"
                                 fi
 
                                 # Ensure we're actually scaling up
-                                if [ \${TARGET_REPLICAS} -le \${CURRENT_REPLICAS} ]; then
+                                if [ \$TARGET_REPLICAS -le \$CURRENT_REPLICAS ]; then
                                     TARGET_REPLICAS=\$((CURRENT_REPLICAS + 1))
-                                    if [ \${TARGET_REPLICAS} -gt \${MAX_REPLICAS} ]; then
-                                        TARGET_REPLICAS=\${MAX_REPLICAS}
+                                    if [ \$TARGET_REPLICAS -gt \$MAX_REPLICAS ]; then
+                                        TARGET_REPLICAS=\$MAX_REPLICAS
                                     fi
                                 fi
 
                                 echo "Action: SCALE UP"
                                 echo "Reason: Load test metrics indicate need for more capacity"
 
-                            elif [ "\${RECOMMENDATION}" = "scale_down" ]; then
+                            elif [ "\$RECOMMENDATION" = "scale_down" ]; then
                                 TARGET_REPLICAS=\$((CURRENT_REPLICAS - 1))
 
                                 # Enforce min replicas
-                                if [ \${TARGET_REPLICAS} -lt \${MIN_REPLICAS} ]; then
-                                    TARGET_REPLICAS=\${MIN_REPLICAS}
+                                if [ \$TARGET_REPLICAS -lt \$MIN_REPLICAS ]; then
+                                    TARGET_REPLICAS=\$MIN_REPLICAS
                                 fi
 
                                 echo "Action: SCALE DOWN"
@@ -708,7 +708,7 @@ EOF
                                 echo "Reason: Load test metrics indicate stable performance"
                             fi
 
-                            echo "Target Replicas:       \${TARGET_REPLICAS}"
+                            echo "Target Replicas:       \$TARGET_REPLICAS"
                         """
                     }
                 }
