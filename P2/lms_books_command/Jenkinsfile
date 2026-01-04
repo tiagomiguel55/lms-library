@@ -1787,9 +1787,9 @@ EOF
 
                                     if [ "\$LIVE" = "blue" ]; then
                                         echo "  📍 Access at: http://localhost:${env.BLUE_PORT}"
-                                    } else {
+                                    else
                                         echo "  📍 Access at: http://localhost:${env.GREEN_PORT}"
-                                    }
+                                    fi
                                 else
                                     echo "  ⚠️ Live environment file not found"
                                 fi
