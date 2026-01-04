@@ -56,6 +56,28 @@ pipeline {
             }
         }
 
+        stage('CDC Tests') {
+            when {
+                expression { params.ENVIRONMENT == 'staging' } // CDC tests apenas em staging
+            }
+            steps {
+                dir("${WORK_DIR}") {
+                    sh """
+                        docker build -f DockerfileTests -t ${IMAGE_NAME}-tests:cdc .
+                        docker run --rm -e TEST_TYPE=CDCTests ${IMAGE_NAME}-tests:cdc
+                    """
+                }
+            }
+            post {
+                success {
+                    echo "✅ CDC Tests passed!"
+                }
+                failure {
+                    echo "❌ CDC Tests failed!"
+                }
+            }
+        }
+
         stage('Build & Package') {
             when {
                 expression { params.ENVIRONMENT != 'prod' }
