@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  traefik:
+    image: traefik:v2.10
+    command:
+      # Enable Docker provider
+      - "--providers.docker=true"
+      - "--providers.docker.swarmMode=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=lms_network_staging"
+
+      # Entry points
+      - "--entrypoints.web.address=:80"
+
+      # API and Dashboard
+      - "--api.dashboard=true"
+      - "--api.insecure=true"
+
+      # Logging
+      - "--log.level=INFO"
+      - "--accesslog=true"
+    ports:
+      # Main entry point for staging blue/green
+      - target: 80
+        published: 8093
+        protocol: tcp
+        mode: ingress
+      # Traefik Dashboard
+      - target: 8080
+        published: 8094
+        protocol: tcp
+        mode: ingress
+    volumes:
+      # Access to Docker socket
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - lms_network_staging
+      - lms_network
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+      labels:
+        - "traefik.enable=true"
+        # Dashboard router
+        - "traefik.http.routers.traefik-dashboard.rule=PathPrefix(`/api`) || PathPrefix(`/dashboard`)"
+        - "traefik.http.routers.traefik-dashboard.service=api@internal"
+        - "traefik.http.routers.traefik-dashboard.entrypoints=web"
+
+networks:
+  lms_network_staging:
+    driver: overlay
+    attachable: true
+  lms_network:
+    external: true
+

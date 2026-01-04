@@ -26,7 +26,16 @@ pipeline {
         STACK_NAME_STAGING = 'lmsbooks-staging'
         STACK_NAME_PROD    = 'lmsbooks-prod'
 
-        // Blue/Green Deployment
+        // Blue/Green Deployment - Staging
+        STACK_NAME_STAGING_BLUE  = 'lmsbooks-staging-blue'
+        STACK_NAME_STAGING_GREEN = 'lmsbooks-staging-green'
+        STAGING_BLUE_PORT  = '8091'
+        STAGING_GREEN_PORT = '8092'
+        STAGING_LIVE_ENV_FILE = '/tmp/lmsbooks_staging_live_env.txt'
+        STAGING_BLUE_IMAGE_FILE = '/tmp/lmsbooks_staging_blue_image.txt'
+        STAGING_GREEN_IMAGE_FILE = '/tmp/lmsbooks_staging_green_image.txt'
+
+        // Blue/Green Deployment - Production
         STACK_NAME_PROD_BLUE  = 'lmsbooks-prod-blue'
         STACK_NAME_PROD_GREEN = 'lmsbooks-prod-green'
         BLUE_PORT  = '8083'
@@ -493,7 +502,416 @@ EOF
                     sh """
                         export IMAGE_TAG=${IMAGE_TAG}
                         docker stack deploy -c docker-compose-swarm-staging.yml ${STACK_NAME_STAGING}
+
+                        echo ""
+                        echo "=========================================="
+                        echo "VERIFYING RABBITMQ SERVICE"
+                        echo "=========================================="
+
+                        echo "Waiting for services to stabilize..."
+                        sleep 15
+
+                        # List all services
+                        echo "All services:"
+                        docker service ls
+
+                        echo ""
+                        echo "Looking for RabbitMQ service..."
+                        docker service ls | grep rabbitmq || echo "No RabbitMQ service found!"
+
+                        echo ""
+                        echo "Checking if RabbitMQ service from staging stack exists:"
+                        docker service inspect ${STACK_NAME_STAGING}_rabbitmq_staging 2>/dev/null && echo "✅ RabbitMQ service exists" || echo "❌ RabbitMQ service NOT FOUND"
+
+                        echo ""
+                        echo "RabbitMQ service details:"
+                        docker service ps ${STACK_NAME_STAGING}_rabbitmq_staging --format "{{.Name}}: {{.CurrentState}}" 2>/dev/null || echo "Could not get RabbitMQ status"
+
+                        echo "=========================================="
                     """
+                }
+            }
+        }
+
+        stage('Deploy Shared Infrastructure (Staging Blue/Green)') {
+            when {
+                allOf {
+                    expression { params.ENVIRONMENT == 'staging' }
+                    expression { params.SKIP_DEPLOY == false }
+                    expression { params.DEPLOYMENT_STRATEGY == 'blue-green' }
+                }
+            }
+            steps {
+                dir("${WORK_DIR}") {
+                    sh """
+                        echo "=========================================="
+                        echo "DEPLOYING SHARED INFRASTRUCTURE FOR STAGING BLUE/GREEN"
+                        echo "=========================================="
+
+                        # Create lms_network_staging if it doesn't exist
+                        echo "Ensuring lms_network_staging exists..."
+                        docker network ls | grep -q lms_network_staging || \
+                        docker network create --driver overlay --attachable lms_network_staging || true
+
+                        echo ""
+                        echo "Network status:"
+                        docker network ls | grep lms_network
+
+                        # Deploy Traefik Load Balancer for Staging
+                        echo ""
+                        echo "=========================================="
+                        echo "DEPLOYING TRAEFIK LOAD BALANCER FOR STAGING"
+                        echo "=========================================="
+
+                        if docker stack ls | grep -q "lmsbooks-staging-traefik"; then
+                            echo "✅ Traefik already deployed - updating..."
+                        else
+                            echo "📦 Deploying Traefik for the first time..."
+                        fi
+
+                        docker stack deploy -c docker-compose-swarm-staging-traefik.yml lmsbooks-staging-traefik
+
+                        echo "Waiting for Traefik to be ready..."
+                        sleep 15
+
+                        TRAEFIK_SERVICE=\$(docker service ls --filter "name=lmsbooks-staging-traefik_traefik" --format "{{.Name}}" || echo "")
+                        if [ -n "\$TRAEFIK_SERVICE" ]; then
+                            echo "✅ Traefik service: \$TRAEFIK_SERVICE"
+                            docker service ps \$TRAEFIK_SERVICE --format "  {{.Name}}: {{.CurrentState}}" | head -3
+                        fi
+
+                        echo ""
+                        echo "✅ Traefik deployed successfully for Staging!"
+                        echo "   - Load Balancer Port: 8093 (main entry point)"
+                        echo "   - Dashboard: http://localhost:8094/dashboard/"
+                        echo "=========================================="
+                    """
+                }
+            }
+        }
+
+        stage('Determine Active Environment (Staging Blue/Green)') {
+            when {
+                allOf {
+                    expression { params.ENVIRONMENT == 'staging' }
+                    expression { params.SKIP_DEPLOY == false }
+                    expression { params.DEPLOYMENT_STRATEGY == 'blue-green' }
+                }
+            }
+            steps {
+                script {
+                    sh """
+                        echo "=========================================="
+                        echo "STAGING BLUE/GREEN DEPLOYMENT - ENVIRONMENT CHECK"
+                        echo "=========================================="
+
+                        # Check which environment is currently active
+                        BLUE_RUNNING=\$(docker service ls --filter "name=${STACK_NAME_STAGING_BLUE}_lmsbooks_command_staging_blue" --format "{{.Replicas}}" 2>/dev/null | grep -v "0/0" | head -1 || echo "")
+                        GREEN_RUNNING=\$(docker service ls --filter "name=${STACK_NAME_STAGING_GREEN}_lmsbooks_command_staging_green" --format "{{.Replicas}}" 2>/dev/null | grep -v "0/0" | head -1 || echo "")
+
+                        echo "Blue environment status: \${BLUE_RUNNING:-not deployed}"
+                        echo "Green environment status: \${GREEN_RUNNING:-not deployed}"
+
+                        # Read current live environment from file (if exists)
+                        if [ -f "${STAGING_LIVE_ENV_FILE}" ]; then
+                            CURRENT_LIVE=\$(cat ${STAGING_LIVE_ENV_FILE})
+                            echo "Current live environment (from file): \$CURRENT_LIVE"
+                        else
+                            CURRENT_LIVE=""
+                            echo "No live environment file found - first deployment"
+                        fi
+
+                        # Determine which environment to deploy to
+                        if [ "\$CURRENT_LIVE" = "blue" ]; then
+                            TARGET_ENV="green"
+                            INACTIVE_ENV="blue"
+                        elif [ "\$CURRENT_LIVE" = "green" ]; then
+                            TARGET_ENV="blue"
+                            INACTIVE_ENV="green"
+                        elif [ -n "\$BLUE_RUNNING" ] && [ -z "\$GREEN_RUNNING" ]; then
+                            TARGET_ENV="green"
+                            INACTIVE_ENV="blue"
+                            echo "blue" > ${STAGING_LIVE_ENV_FILE}
+                        elif [ -n "\$GREEN_RUNNING" ] && [ -z "\$BLUE_RUNNING" ]; then
+                            TARGET_ENV="blue"
+                            INACTIVE_ENV="green"
+                            echo "green" > ${STAGING_LIVE_ENV_FILE}
+                        else
+                            TARGET_ENV="blue"
+                            INACTIVE_ENV=""
+                            echo "First deployment - deploying to blue environment"
+                        fi
+
+                        echo ""
+                        echo "=========================================="
+                        echo "Deployment Plan:"
+                        echo "  - Current Live: \${CURRENT_LIVE:-none}"
+                        echo "  - Target Environment: \$TARGET_ENV"
+                        echo "  - Will become inactive: \${INACTIVE_ENV:-none}"
+                        echo "=========================================="
+
+                        # Save target environment for next stages
+                        echo "\$TARGET_ENV" > /tmp/lmsbooks_staging_target_env.txt
+                        echo "\${INACTIVE_ENV:-none}" > /tmp/lmsbooks_staging_inactive_env.txt
+                    """
+
+                    // Read target environment into pipeline variable
+                    env.STAGING_TARGET_ENV = sh(script: "cat /tmp/lmsbooks_staging_target_env.txt", returnStdout: true).trim()
+                    env.STAGING_INACTIVE_ENV = sh(script: "cat /tmp/lmsbooks_staging_inactive_env.txt", returnStdout: true).trim()
+
+                    echo "Target environment for staging deployment: ${env.STAGING_TARGET_ENV}"
+                }
+            }
+        }
+
+        stage('Deploy to Inactive Environment (Staging Blue/Green)') {
+            when {
+                allOf {
+                    expression { params.ENVIRONMENT == 'staging' }
+                    expression { params.SKIP_DEPLOY == false }
+                    expression { params.DEPLOYMENT_STRATEGY == 'blue-green' }
+                }
+            }
+            steps {
+                dir("${WORK_DIR}") {
+                    script {
+                        def targetEnv = env.STAGING_TARGET_ENV
+                        def stackName = targetEnv == 'blue' ? env.STACK_NAME_STAGING_BLUE : env.STACK_NAME_STAGING_GREEN
+                        def composeFile = targetEnv == 'blue' ? 'docker-compose-swarm-staging-blue.yml' : 'docker-compose-swarm-staging-green.yml'
+                        def port = targetEnv == 'blue' ? env.STAGING_BLUE_PORT : env.STAGING_GREEN_PORT
+
+                        echo "=========================================="
+                        echo "DEPLOYING TO STAGING ${targetEnv.toUpperCase()} ENVIRONMENT"
+                        echo "=========================================="
+                        echo "Stack: ${stackName}"
+                        echo "Compose File: ${composeFile}"
+                        echo "Port: ${port}"
+                        echo "Image: ${IMAGE_NAME}:${IMAGE_TAG}"
+
+                        sh """
+                            export IMAGE_TAG=${IMAGE_TAG}
+
+                            echo ""
+                            echo "Deploying staging ${targetEnv} environment..."
+                            docker stack deploy -c ${composeFile} ${stackName}
+
+                            echo ""
+                            echo "Waiting for ${targetEnv} environment to start..."
+                            sleep 30
+
+                            # Get service name
+                            SERVICE_NAME=\$(docker service ls --filter "label=com.docker.stack.namespace=${stackName}" --format "{{.Name}}" | grep lmsbooks | head -1)
+
+                            if [ -z "\$SERVICE_NAME" ]; then
+                                echo "❌ ERROR: Service was not created!"
+                                exit 1
+                            fi
+
+                            echo "Service name: \$SERVICE_NAME"
+
+                            # Wait for replicas to be ready
+                            EXPECTED_REPLICAS=\$(docker service inspect \$SERVICE_NAME --format '{{.Spec.Mode.Replicated.Replicas}}')
+                            echo "Expected replicas: \$EXPECTED_REPLICAS"
+
+                            MAX_WAIT=180
+                            ELAPSED=0
+
+                            while [ \$ELAPSED -lt \$MAX_WAIT ]; do
+                                RUNNING_REPLICAS=\$(docker service ps \$SERVICE_NAME --filter "desired-state=running" --format "{{.CurrentState}}" 2>/dev/null | grep -c "Running" || echo "0")
+                                echo "Running replicas: \$RUNNING_REPLICAS/\$EXPECTED_REPLICAS (elapsed: \${ELAPSED}s)"
+
+                                if [ "\$RUNNING_REPLICAS" -ge "\$EXPECTED_REPLICAS" ]; then
+                                    echo "✅ All replicas are running!"
+                                    break
+                                fi
+
+                                sleep 10
+                                ELAPSED=\$((ELAPSED + 10))
+                            done
+
+                            if [ "\$RUNNING_REPLICAS" -lt "\$EXPECTED_REPLICAS" ]; then
+                                echo "❌ Not all replicas started in time"
+                                docker service logs --tail 50 \$SERVICE_NAME || true
+                                exit 1
+                            fi
+
+                            echo ""
+                            echo "=========================================="
+                            echo "✅ STAGING ${targetEnv.toUpperCase()} environment deployed successfully!"
+                            echo "=========================================="
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Health Check New Environment (Staging Blue/Green)') {
+            when {
+                allOf {
+                    expression { params.ENVIRONMENT == 'staging' }
+                    expression { params.SKIP_DEPLOY == false }
+                    expression { params.DEPLOYMENT_STRATEGY == 'blue-green' }
+                }
+            }
+            steps {
+                script {
+                    def targetEnv = env.STAGING_TARGET_ENV
+                    def stackName = targetEnv == 'blue' ? env.STACK_NAME_STAGING_BLUE : env.STACK_NAME_STAGING_GREEN
+                    def port = targetEnv == 'blue' ? env.STAGING_BLUE_PORT : env.STAGING_GREEN_PORT
+
+                    echo "=========================================="
+                    echo "HEALTH CHECK - STAGING ${targetEnv.toUpperCase()} ENVIRONMENT"
+                    echo "=========================================="
+
+                    sh """
+                        echo "Waiting for health checks to stabilize..."
+                        sleep 30
+
+                        # Get service name
+                        SERVICE_NAME=\$(docker service ls --filter "label=com.docker.stack.namespace=${stackName}" --format "{{.Name}}" | grep lmsbooks | head -1)
+
+                        echo "Checking health of service: \$SERVICE_NAME"
+                        echo ""
+
+                        # Get expected replicas
+                        EXPECTED_REPLICAS=\$(docker service inspect \$SERVICE_NAME --format '{{.Spec.Mode.Replicated.Replicas}}')
+                        echo "Expected replicas: \$EXPECTED_REPLICAS"
+                        echo ""
+
+                        # Check service health
+                        echo "Replica Status Details:"
+                        echo "----------------------------------------"
+                        docker service ps \$SERVICE_NAME --filter "desired-state=running" --format "{{.Name}}: {{.CurrentState}}" 2>/dev/null || echo "No tasks found"
+
+                        echo ""
+                        TASKS=\$(docker service ps \$SERVICE_NAME --filter "desired-state=running" --format "{{.ID}}" 2>/dev/null)
+                        HEALTHY_COUNT=0
+                        RUNNING_COUNT=0
+
+                        for TASK in \$TASKS; do
+                            CONTAINER_ID=\$(docker inspect \$TASK --format "{{.Status.ContainerStatus.ContainerID}}" 2>/dev/null || echo "")
+                            TASK_NAME=\$(docker inspect \$TASK --format "{{.Name}}" 2>/dev/null)
+                            TASK_STATE=\$(docker inspect \$TASK --format "{{.Status.State}}" 2>/dev/null || echo "unknown")
+
+                            if [ -n "\$CONTAINER_ID" ]; then
+                                HEALTH=\$(docker inspect \$CONTAINER_ID --format "{{.State.Health.Status}}" 2>/dev/null || echo "none")
+
+                                if [ "\$TASK_STATE" = "running" ]; then
+                                    RUNNING_COUNT=\$((RUNNING_COUNT + 1))
+                                fi
+
+                                if [ "\$HEALTH" = "healthy" ]; then
+                                    echo "  ✅ \$TASK_NAME: HEALTHY"
+                                    HEALTHY_COUNT=\$((HEALTHY_COUNT + 1))
+                                elif [ "\$HEALTH" = "starting" ]; then
+                                    echo "  🔄 \$TASK_NAME: STARTING"
+                                    sleep 30
+                                    HEALTH=\$(docker inspect \$CONTAINER_ID --format "{{.State.Health.Status}}" 2>/dev/null || echo "none")
+                                    TASK_STATE=\$(docker inspect \$TASK --format "{{.Status.State}}" 2>/dev/null || echo "unknown")
+                                    if [ "\$HEALTH" = "healthy" ]; then
+                                        echo "  ✅ \$TASK_NAME: NOW HEALTHY"
+                                        HEALTHY_COUNT=\$((HEALTHY_COUNT + 1))
+                                    fi
+                                elif [ "\$TASK_STATE" = "running" ] && [ "\$HEALTH" = "none" ]; then
+                                    echo "  ℹ️  \$TASK_NAME: Running (no health check configured)"
+                                    HEALTHY_COUNT=\$((HEALTHY_COUNT + 1))
+                                fi
+                            fi
+                        done
+
+                        echo ""
+                        echo "Summary:"
+                        echo "  Running tasks: \$RUNNING_COUNT"
+                        echo "  Healthy/Ready tasks: \$HEALTHY_COUNT"
+                        echo "  Expected replicas: \$EXPECTED_REPLICAS"
+
+                        if [ "\$RUNNING_COUNT" -ge "\$EXPECTED_REPLICAS" ]; then
+                            echo ""
+                            echo "✅ Health check PASSED!"
+                            echo "   All \$RUNNING_COUNT/\$EXPECTED_REPLICAS replicas are running"
+                        else
+                            echo ""
+                            echo "❌ Health check FAILED!"
+                            echo "   Only \$RUNNING_COUNT/\$EXPECTED_REPLICAS replicas running"
+                            docker service logs --tail 50 \$SERVICE_NAME || true
+                            exit 1
+                        fi
+                    """
+                }
+            }
+        }
+
+        stage('Switch Traffic (Staging Blue/Green)') {
+            when {
+                allOf {
+                    expression { params.ENVIRONMENT == 'staging' }
+                    expression { params.SKIP_DEPLOY == false }
+                    expression { params.DEPLOYMENT_STRATEGY == 'blue-green' }
+                }
+            }
+            steps {
+                dir("${WORK_DIR}") {
+                    script {
+                        def targetEnv = env.STAGING_TARGET_ENV
+                        def inactiveEnv = env.STAGING_INACTIVE_ENV
+
+                        echo "=========================================="
+                        echo "SWITCHING TRAFFIC TO STAGING ${targetEnv.toUpperCase()}"
+                        echo "=========================================="
+
+                        sh """
+                            echo "New live environment: ${targetEnv}"
+                            echo "Previous live: ${inactiveEnv}"
+
+                            # Determine priorities
+                            if [ "${targetEnv}" = "blue" ]; then
+                                NEW_BLUE_PRIORITY=100
+                                NEW_GREEN_PRIORITY=1
+                            else
+                                NEW_BLUE_PRIORITY=1
+                                NEW_GREEN_PRIORITY=100
+                            fi
+
+                            echo ""
+                            echo "Setting Traefik routing priorities..."
+                            echo "Blue priority: \$NEW_BLUE_PRIORITY"
+                            echo "Green priority: \$NEW_GREEN_PRIORITY"
+
+                            # Get service names
+                            BLUE_SERVICE=\$(docker service ls --filter "label=com.docker.stack.namespace=${STACK_NAME_STAGING_BLUE}" --format "{{.Name}}" | grep lmsbooks | head -1)
+                            GREEN_SERVICE=\$(docker service ls --filter "label=com.docker.stack.namespace=${STACK_NAME_STAGING_GREEN}" --format "{{.Name}}" | grep lmsbooks | head -1)
+
+                            # Update priorities
+                            if [ -n "\$BLUE_SERVICE" ]; then
+                                echo "Updating Blue priority..."
+                                docker service update \\
+                                    --label-add "traefik.http.routers.lmsbooks-staging-blue.priority=\$NEW_BLUE_PRIORITY" \\
+                                    \$BLUE_SERVICE
+                            fi
+
+                            if [ -n "\$GREEN_SERVICE" ]; then
+                                echo "Updating Green priority..."
+                                docker service update \\
+                                    --label-add "traefik.http.routers.lmsbooks-staging-green.priority=\$NEW_GREEN_PRIORITY" \\
+                                    \$GREEN_SERVICE
+                            fi
+
+                            # Update the live environment file
+                            echo "${targetEnv}" > ${STAGING_LIVE_ENV_FILE}
+
+                            echo ""
+                            echo "Waiting for Traefik to update routing..."
+                            sleep 10
+
+                            echo ""
+                            echo "=========================================="
+                            echo "✅ Traffic switched to STAGING ${targetEnv.toUpperCase()}!"
+                            echo "=========================================="
+                            echo "Load Balancer: http://localhost:8093"
+                            echo "Dashboard: http://localhost:8094/dashboard/"
+                            echo "=========================================="
+                        """
+                    }
                 }
             }
         }
@@ -1753,20 +2171,30 @@ EOF
                                     CONTAINER_ID=\$(docker inspect \$TASK --format "{{.Status.ContainerStatus.ContainerID}}" 2>/dev/null || echo "")
 
                                     if [ -n "\$CONTAINER_ID" ]; then
-                                        HEALTH=\$(docker inspect \$CONTAINER_ID --format "{{.State.Health.Status}}" 2>/dev/null || echo "none")
-                                        TASK_NAME=\$(docker inspect \$TASK --format "{{.Name}}" 2>/dev/null)
+                                        echo ""
+                                        echo "Task: \$TASK"
+                                        HEALTH_STATUS=\$(docker inspect \$CONTAINER_ID --format "{{.State.Health.Status}}" 2>/dev/null || echo "no healthcheck")
 
-                                        if [ "\$HEALTH" = "healthy" ]; then
-                                            echo "  ✅ \$TASK_NAME: HEALTHY"
-                                        elif [ "\$HEALTH" = "unhealthy" ]; then
-                                            echo "  ❌ \$TASK_NAME: UNHEALTHY"
-                                        elif [ "\$HEALTH" = "starting" ]; then
-                                            echo "  🔄 \$TASK_NAME: STARTING (health checks in progress)"
+                                        if [ "\$HEALTH_STATUS" != "no healthcheck" ]; then
+                                            echo "  Health Status: \$HEALTH_STATUS"
+
+                                            # Get last health check log
+                                            LAST_CHECK=\$(docker inspect \$CONTAINER_ID --format "{{range .State.Health.Log}}{{.End}} - {{.ExitCode}} - {{.Output}}{{end}}" 2>/dev/null | tail -1 || echo "N/A")
+                                            echo "  Last Check: \$LAST_CHECK"
                                         else
-                                            echo "  ℹ️  \$TASK_NAME: No health check configured"
+                                            echo "  Health Status: Not configured or starting"
                                         fi
+
+                                        # Show replica state
+                                        REPLICA_STATE=\$(docker service ps \$SERVICE_NAME --filter "id=\$TASK" --format "{{.CurrentState}}" 2>/dev/null)
+                                        echo "  Replica State: \$REPLICA_STATE"
                                     fi
                                 done
+
+                                echo ""
+                                echo "----------------------------------------"
+                                echo "Health Check Configuration:"
+                                docker service inspect \$SERVICE --format "{{json .Spec.TaskTemplate.ContainerSpec.Healthcheck}}" 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "  Configured in docker-compose file"
                             done
 
                             echo ""
