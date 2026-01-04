@@ -73,6 +73,7 @@ class BookControllerTest {
         BookView bookView = new BookView();
         bookView.setIsbn("9780134685991");
 
+        when(featureFlagService.isFeatureEnabled(anyString())).thenReturn(true);
         when(fileStorageService.getRequestPhoto(null)).thenReturn(null);
         when(bookService.create(request, "9780134685991")).thenReturn(book);
         when(bookViewMapper.toBookView(book)).thenReturn(bookView);
@@ -88,6 +89,7 @@ class BookControllerTest {
     @Test
     void createReturnsBadRequestOnException() {
         CreateBookRequest request = new CreateBookRequest();
+        when(featureFlagService.isFeatureEnabled(anyString())).thenReturn(true);
         when(fileStorageService.getRequestPhoto(null)).thenReturn(null);
         when(bookService.create(any(), anyString())).thenThrow(new RuntimeException("boom"));
 
@@ -104,6 +106,7 @@ class BookControllerTest {
         request.setAuthorName("Alice");
         request.setGenreName("Drama");
 
+        when(featureFlagService.isFeatureEnabled(anyString())).thenReturn(true);
         when(bookService.createWithAuthorAndGenre(any())).thenReturn(null);
 
         ResponseEntity<?> response = controller.createWithAuthorAndGenre(request);
@@ -118,6 +121,8 @@ class BookControllerTest {
     void updateBookThrowsWhenIfMatchMissing() {
         WebRequest webRequest = mock(WebRequest.class);
         UpdateBookRequest updateBookRequest = new UpdateBookRequest();
+
+        when(featureFlagService.isFeatureEnabled(anyString())).thenReturn(true);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
                 () -> controller.updateBook("isbn-12", webRequest, updateBookRequest));
@@ -136,6 +141,7 @@ class BookControllerTest {
         BookView bookView = new BookView();
         bookView.setIsbn("9781617294945");
 
+        when(featureFlagService.isFeatureEnabled(anyString())).thenReturn(true);
         when(bookService.update(any(UpdateBookRequest.class), eq(3L))).thenReturn(book);
         when(bookViewMapper.toBookView(book)).thenReturn(bookView);
 
