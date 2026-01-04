@@ -20,6 +20,8 @@ import pt.psoft.g1.psoftg1.bookmanagement.services.CreateBookRequest;
 import pt.psoft.g1.psoftg1.bookmanagement.services.CreateBookWithAuthorAndGenreRequest;
 import pt.psoft.g1.psoftg1.bookmanagement.services.SearchBooksQuery;
 import pt.psoft.g1.psoftg1.bookmanagement.services.UpdateBookRequest;
+import pt.psoft.g1.psoftg1.configuration.FeatureFlagService;
+import pt.psoft.g1.psoftg1.configuration.FeatureDisabledException;
 import pt.psoft.g1.psoftg1.exceptions.ConflictException;
 import pt.psoft.g1.psoftg1.exceptions.NotFoundException;
 import pt.psoft.g1.psoftg1.shared.api.ListResponse;
@@ -44,11 +46,17 @@ public class BookController {
     private final FileStorageService fileStorageService;
 
     private final BookViewMapper bookViewMapper;
+    private final FeatureFlagService featureFlagService;
 
     @Operation(summary = "Register a new Book")
     @PutMapping(value = "/{isbn}")
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<BookView> create(CreateBookRequest resource, @PathVariable("isbn") String isbn) {
+        // Check if book creation feature is enabled
+        if (!featureFlagService.isFeatureEnabled("book-creation")) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Book creation is currently disabled");
+        }
 
         // Guarantee that the client doesn't provide a link on the body, null = no photo or error
         resource.setPhotoURI(null);
@@ -77,6 +85,11 @@ public class BookController {
     @Operation(summary = "Register a new Book with new Author(s) and Genre in one process")
     @PostMapping(value = "/create-complete")
     public ResponseEntity<?> createWithAuthorAndGenre(@Valid @RequestBody CreateBookWithAuthorAndGenreRequest resource) {
+        // Check if batch operations feature is enabled
+        if (!featureFlagService.isFeatureEnabled("batch-operations")) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Batch operations are currently disabled");
+        }
 
         // Generate ISBN from title
         String isbn = Isbn.generate(resource.getTitle());
@@ -118,6 +131,11 @@ public class BookController {
     @PatchMapping(value = "/{isbn}")
     public ResponseEntity<BookView> updateBook(@PathVariable final String isbn, final WebRequest request,
                                                @Valid final UpdateBookRequest resource) {
+        // Check if book update feature is enabled
+        if (!featureFlagService.isFeatureEnabled("book-update")) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Book updates are currently disabled");
+        }
 
         final String ifMatchValue = request.getHeader(ConcurrencyService.IF_MATCH);
         if (ifMatchValue == null || ifMatchValue.isEmpty() || ifMatchValue.equals("null")) {

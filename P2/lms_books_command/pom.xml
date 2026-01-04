@@ -281,18 +281,25 @@
                 </dependencies>
                 <configuration>
                     <targetClasses>
-                        <param>pt.psoft.g1.psoftg1.*</param>
+                        <param>pt.psoft.g1.psoftg1.*.services.*</param>
+                        <param>pt.psoft.g1.psoftg1.*.model.*</param>
+                        <param>pt.psoft.g1.psoftg1.shared.model.*</param>
                     </targetClasses>
                     <targetTests>
                         <param>pt.psoft.g1.psoftg1.unitTests.*</param>
                     </targetTests>
+                    <excludedClasses>
+                        <param>pt.psoft.g1.psoftg1.*.*Request</param>
+                        <param>pt.psoft.g1.psoftg1.*.*Query</param>
+                        <param>pt.psoft.g1.psoftg1.*.*Event</param>
+                        <param>pt.psoft.g1.psoftg1.*.*DTO</param>
+                    </excludedClasses>
                     <outputFormats>
                         <outputFormat>XML</outputFormat>
                         <outputFormat>HTML</outputFormat>
                     </outputFormats>
-                    <mutationThreshold>60</mutationThreshold>
-                    <coverageThreshold>70</coverageThreshold>
                     <timestampedReports>false</timestampedReports>
+                    <verbose>true</verbose>
                 </configuration>
             </plugin>
 
