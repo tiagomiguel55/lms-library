@@ -1,4 +1,4 @@
-package model;
+package pt.psoft.g1.psoftg1.unitTests;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

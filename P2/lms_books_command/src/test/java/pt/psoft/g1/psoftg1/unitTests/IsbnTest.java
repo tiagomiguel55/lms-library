@@ -1,23 +1,29 @@
-package model;
+package pt.psoft.g1.psoftg1.unitTests;
 
 import org.junit.jupiter.api.Test;
-import pt.psoft.g1.psoftg1.bookmanagement.model.Description;
+import pt.psoft.g1.psoftg1.bookmanagement.model.Isbn;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
-class DescriptionTest {
+class IsbnTest {
 
     @Test
-    void ensureDescriptionCanBeNull() {
-        assertDoesNotThrow(() -> new Description(null));
+    void ensureIsbnMustNotBeNull() {
+        assertThrows(IllegalArgumentException.class, () -> new Isbn(null));
+    }
+
+    @Test
+    void ensureIsbnMustNotBeBlank() {
+        assertThrows(IllegalArgumentException.class, () -> new Isbn(""));
     }
 
     /**
      * Text from <a href="https://www.lipsum.com/">Lorem Ipsum</a> generator.
      */
     @Test
-    void ensureDescriptionMustNotBeOversize() {
-        assertThrows(IllegalArgumentException.class, () -> new Description("\n" + "\n"
+    void ensureIsbnMustNotBeOversize() {
+        assertThrows(IllegalArgumentException.class, () -> new Isbn("\n" + "\n"
                 + "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nam venenatis semper nisl, eget condimentum felis tempus vitae. Morbi tempus turpis a felis luctus, ut feugiat tortor mattis. Duis gravida nunc sed augue ultricies tempor. Phasellus ultrices in dolor id viverra. Sed vitae odio ut est vestibulum lacinia sed sed neque. Mauris commodo, leo in tincidunt porta, justo mi commodo arcu, non ultricies ipsum dolor a mauris. Pellentesque convallis vulputate nisl, vel commodo felis ornare nec. Aliquam tristique diam dignissim hendrerit auctor. Mauris nec dolor hendrerit, dignissim urna non, pharetra quam. Sed diam est, convallis nec efficitur eu, sollicitudin ac nibh. In orci leo, dapibus ut eleifend et, suscipit sit amet felis. Integer lectus quam, tristique posuere vulputate sed, tristique eget sem.\n"
                 + "\n"
                 + "Mauris ac neque porttitor, faucibus velit vel, congue augue. Vestibulum porttitor ipsum eu sem facilisis sagittis. Mauris dapibus tincidunt elit. Phasellus porttitor massa nulla, quis dictum lorem aliquet in. Integer sed turpis in mauris auctor viverra. Suspendisse faucibus tempus tellus, in faucibus urna dapibus at. Nullam dolor quam, molestie nec efficitur nec, bibendum a nunc.\n"
@@ -36,16 +42,24 @@ class DescriptionTest {
     }
 
     @Test
-    void ensureDescriptionIsSet() {
-        final var description = new Description("Some description");
-        assertEquals("Some description", description.toString());
+    void ensureIsbn13IsSet() {
+        final var isbn = new Isbn("9782826012092");
+        assertEquals("9782826012092", isbn.toString());
     }
 
     @Test
-    void ensureDescriptionIsChanged() {
-        final var description = new Description("Some description");
-        description.setDescription("Some other description");
-        assertEquals("Some other description", description.toString());
+    void ensureChecksum13IsCorrect() {
+        assertThrows(IllegalArgumentException.class, () -> new Isbn("9782826012099"));
     }
 
+    @Test
+    void ensureIsbn10IsSet() {
+        final var isbn = new Isbn("8175257660");
+        assertEquals("8175257660", isbn.toString());
+    }
+
+    @Test
+    void ensureChecksum10IsCorrect() {
+        assertThrows(IllegalArgumentException.class, () -> new Isbn("8175257667"));
+    }
 }

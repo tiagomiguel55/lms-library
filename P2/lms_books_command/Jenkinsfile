@@ -70,14 +70,93 @@ pipeline {
             }
         }
 
-        stage('Build & Package') {
+        stage('Compile') {
             when {
-                expression { params.ENVIRONMENT != 'prod' } // Build apenas em dev/staging
+                expression { params.ENVIRONMENT != 'prod' } // Compile apenas em dev/staging
             }
             steps {
                 dir("${WORK_DIR}") {
                     sh """
-                        ${MAVEN_HOME}/bin/mvn clean package -DskipTests
+                        ${MAVEN_HOME}/bin/mvn clean compile test-compile
+                    """
+                }
+            }
+        }
+
+        stage('Unit Tests') {
+            when {
+                expression { params.ENVIRONMENT != 'prod' } // Testes apenas em dev/staging
+            }
+            steps {
+                dir("${WORK_DIR}") {
+                    sh """
+                        docker build -f DockerfileTests -t ${IMAGE_NAME}-tests:unit .
+                        docker run --rm -e TEST_TYPE=unit ${IMAGE_NAME}-tests:unit
+                    """
+                }
+            }
+            post {
+                success {
+                    echo "✅ Unit Tests passed!"
+                }
+                failure {
+                    echo "❌ Unit Tests failed!"
+                }
+            }
+        }
+
+        stage('CDC Tests') {
+            when {
+                expression { params.ENVIRONMENT == 'staging' } // CDC tests apenas em staging
+            }
+            steps {
+                dir("${WORK_DIR}") {
+                    sh """
+                        docker build -f DockerfileTests -t ${IMAGE_NAME}-tests:cdc .
+                        docker run --rm -e TEST_TYPE=CDCTests ${IMAGE_NAME}-tests:cdc
+                    """
+                }
+            }
+            post {
+                success {
+                    echo "✅ CDC Tests passed!"
+                }
+                failure {
+                    echo "❌ CDC Tests failed!"
+                }
+            }
+        }
+
+        stage('Mutation Tests') {
+            when {
+                expression { params.ENVIRONMENT == 'staging' } // Mutation tests apenas em staging
+            }
+            steps {
+                dir("${WORK_DIR}") {
+                    sh """
+                        docker build -f DockerfileTests -t ${IMAGE_NAME}-tests:mutation .
+                        docker run --rm -e TEST_TYPE=mutation ${IMAGE_NAME}-tests:mutation
+                    """
+                }
+            }
+            post {
+                success {
+                    echo "✅ Mutation Tests passed!"
+                }
+                failure {
+                    echo "❌ Mutation Tests failed!"
+                }
+            }
+        }
+
+        stage('Build & Package') {
+            when {
+                expression { params.ENVIRONMENT != 'prod' } // Package apenas em dev/staging DEPOIS dos testes
+            }
+            steps {
+                dir("${WORK_DIR}") {
+                    sh """
+                        ${MAVEN_HOME}/bin/mvn package -DskipTests
                     """
                 }
             }

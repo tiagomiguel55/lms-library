@@ -1,41 +1,29 @@
-package model;
+package pt.psoft.g1.psoftg1.unitTests.authormanagement.model;
 
 import org.junit.jupiter.api.Test;
-import pt.psoft.g1.psoftg1.bookmanagement.model.Title;
+import pt.psoft.g1.psoftg1.authormanagement.model.Bio;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-class TitleTest {
+public class BioTest {
 
     @Test
-    void ensureTitleMustNotBeNull() {
-        assertThrows(IllegalArgumentException.class, () -> new Title(null));
+    void ensureBioMustNotBeNull() {
+        assertThrows(IllegalArgumentException.class, () -> new Bio(null));
     }
 
     @Test
-    void ensureTitleMustNotBeBlank() {
-        assertThrows(IllegalArgumentException.class, () -> new Title(""));
-    }
-
-    @Test
-    void ensureTitleCantStartWithWhitespace() {
-        final var title = new Title(" Some title");
-        assertEquals("Some title", title.toString());
-    }
-
-    @Test
-    void ensureTitleCantEndWithWhitespace() {
-        final var title = new Title("Some title ");
-        assertEquals("Some title", title.toString());
+    void ensureBioMustNotBeBlank() {
+        assertThrows(IllegalArgumentException.class, () -> new Bio(""));
     }
 
     /**
      * Text from <a href="https://www.lipsum.com/">Lorem Ipsum</a> generator.
      */
     @Test
-    void ensureTitleMustNotBeOversize() {
-        assertThrows(IllegalArgumentException.class, () -> new Title("\n" + "\n"
+    void ensureBioMustNotBeOversize() {
+        assertThrows(IllegalArgumentException.class, () -> new Bio("\n" + "\n"
                 + "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nam venenatis semper nisl, eget condimentum felis tempus vitae. Morbi tempus turpis a felis luctus, ut feugiat tortor mattis. Duis gravida nunc sed augue ultricies tempor. Phasellus ultrices in dolor id viverra. Sed vitae odio ut est vestibulum lacinia sed sed neque. Mauris commodo, leo in tincidunt porta, justo mi commodo arcu, non ultricies ipsum dolor a mauris. Pellentesque convallis vulputate nisl, vel commodo felis ornare nec. Aliquam tristique diam dignissim hendrerit auctor. Mauris nec dolor hendrerit, dignissim urna non, pharetra quam. Sed diam est, convallis nec efficitur eu, sollicitudin ac nibh. In orci leo, dapibus ut eleifend et, suscipit sit amet felis. Integer lectus quam, tristique posuere vulputate sed, tristique eget sem.\n"
                 + "\n"
                 + "Mauris ac neque porttitor, faucibus velit vel, congue augue. Vestibulum porttitor ipsum eu sem facilisis sagittis. Mauris dapibus tincidunt elit. Phasellus porttitor massa nulla, quis dictum lorem aliquet in. Integer sed turpis in mauris auctor viverra. Suspendisse faucibus tempus tellus, in faucibus urna dapibus at. Nullam dolor quam, molestie nec efficitur nec, bibendum a nunc.\n"
@@ -54,16 +42,15 @@ class TitleTest {
     }
 
     @Test
-    void ensureTitleIsSet() {
-        final var title = new Title("Some title");
-        assertEquals("Some title", title.toString());
+    void ensureBioIsSet() {
+        final var bio = new Bio("Some bio");
+        assertEquals("Some bio", bio.toString());
     }
 
     @Test
-    void ensureTitleIsChanged() {
-        final var title = new Title("Some title");
-        title.setTitle("Some other title");
-        assertEquals("Some other title", title.toString());
+    void ensureBioIsChanged() {
+        final var bio = new Bio("Some bio");
+        bio.setBio("Some other bio");
+        assertEquals("Some other bio", bio.toString());
     }
-
 }

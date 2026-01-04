@@ -1,4 +1,4 @@
-package pt.psoft.g1.psoftg1.genremanagement.model;
+package pt.psoft.g1.psoftg1.unitTests.genremanagement.model;
 
 import org.junit.jupiter.api.Test;
 import pt.psoft.g1.psoftg1.genremanagement.model.Genre;

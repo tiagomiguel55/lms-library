@@ -1,4 +1,4 @@
-package pt.psoft.g1.psoftg1.authormanagement.model;
+package pt.psoft.g1.psoftg1.unitTests.authormanagement.model;
 
 import org.hibernate.StaleObjectStateException;
 import org.junit.jupiter.api.BeforeEach;
