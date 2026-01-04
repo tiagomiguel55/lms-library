@@ -2,6 +2,7 @@ package pt.psoft.g1.psoftg1.unitTests.bookmanagement.model;
 
 import org.junit.jupiter.api.Test;
 import pt.psoft.g1.psoftg1.authormanagement.model.Author;
+import pt.psoft.g1.psoftg1.bookmanagement.model.Book;
 import pt.psoft.g1.psoftg1.genremanagement.model.Genre;
 
 import java.util.ArrayList;
