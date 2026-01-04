@@ -32,7 +32,7 @@ services:
       update_config:
         order: start-first
     ports:
-      - "8082:8080"
+      - "8098:8080"
     networks:
       - lms_network_dev
       - lms_network
