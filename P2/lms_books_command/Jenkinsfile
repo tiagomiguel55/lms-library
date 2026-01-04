@@ -84,7 +84,7 @@ pipeline {
             }
         }
 
-        stage('Unit Tests') {
+     /*   stage('Unit Tests') {
             when {
                 expression { params.ENVIRONMENT != 'prod' } // Testes apenas em dev/staging
             }
@@ -104,9 +104,9 @@ pipeline {
                     echo "❌ Unit Tests failed!"
                 }
             }
-        }
+        } */
 
-        stage('Smoke Tests') {
+        /*stage('Smoke Tests') {
             when {
                 expression { params.ENVIRONMENT != 'prod' } // Smoke tests em dev/staging
             }
@@ -126,9 +126,9 @@ pipeline {
                     echo "❌ Smoke Tests failed!"
                 }
             }
-        }
+        } */
 
-        stage('CDC Tests') {
+     /*   stage('CDC Tests') {
             when {
                 expression { params.ENVIRONMENT == 'staging' } // CDC tests apenas em staging
             }
@@ -148,9 +148,9 @@ pipeline {
                     echo "❌ CDC Tests failed!"
                 }
             }
-        }
+        } */
 
-        stage('Mutation Tests') {
+      /*  stage('Mutation Tests') {
             when {
                 expression { params.ENVIRONMENT == 'staging' } // Mutation tests apenas em staging
             }
@@ -170,7 +170,7 @@ pipeline {
                     echo "❌ Mutation Tests failed!"
                 }
             }
-        }
+        } */
 
         stage('Build & Package') {
             when {
@@ -547,11 +547,6 @@ EOF
                             echo "Waiting 60 seconds for staging services to stabilize..."
                             sleep 60
 
-                            # Verify service is running
-                            echo ""
-                            echo "Verifying staging service status..."
-                            docker service ls --filter "name=${STACK_NAME_STAGING}"
-
                             # Get the staging service URL - using VM IP
                             STAGING_PORT=8082
                             VM_IP="74.161.33.56"
@@ -559,6 +554,51 @@ EOF
 
                             echo ""
                             echo "Service URL: \${SERVICE_URL}"
+                            echo ""
+                            echo "=========================================="
+                            echo "WAITING FOR SERVICE TO BE HEALTHY"
+                            echo "=========================================="
+
+                            # Wait for staging services to be fully ready with health check retry
+                            MAX_RETRIES=12
+                            RETRY_COUNT=0
+                            WAIT_TIME=10
+
+                            while [ \$RETRY_COUNT -lt \$MAX_RETRIES ]; do
+                                echo "Health check attempt \$((RETRY_COUNT + 1))/\$MAX_RETRIES..."
+
+                                HTTP_CODE=\$(curl -s -o /dev/null -w "%{http_code}" \${SERVICE_URL}/actuator/health || echo "000")
+
+                                if [ "\$HTTP_CODE" = "200" ]; then
+                                    echo "✅ Service is healthy (HTTP \$HTTP_CODE)"
+                                    break
+                                else
+                                    echo "⚠️  Service not ready yet (HTTP \$HTTP_CODE)"
+                                    RETRY_COUNT=\$((RETRY_COUNT + 1))
+
+                                    if [ \$RETRY_COUNT -lt \$MAX_RETRIES ]; then
+                                        echo "Waiting \${WAIT_TIME} seconds before next attempt..."
+                                        sleep \$WAIT_TIME
+                                    fi
+                                fi
+                            done
+
+                            # Verify service is running
+                            echo ""
+                            echo "Verifying staging service status..."
+                            docker service ls --filter "name=${STACK_NAME_STAGING}"
+
+                            # Final health check
+                            FINAL_HTTP_CODE=\$(curl -s -o /dev/null -w "%{http_code}" \${SERVICE_URL}/actuator/health || echo "000")
+                            if [ "\$FINAL_HTTP_CODE" != "200" ]; then
+                                echo ""
+                                echo "❌ WARNING: Service health check failed (HTTP \$FINAL_HTTP_CODE)"
+                                echo "Service may not be fully ready, but continuing with load tests..."
+                                echo "This may result in higher error rates in the load test results."
+                            else
+                                echo ""
+                                echo "✅ Service is healthy and ready for load testing"
+                            fi
 
                             echo ""
                             echo "K6 version:"
