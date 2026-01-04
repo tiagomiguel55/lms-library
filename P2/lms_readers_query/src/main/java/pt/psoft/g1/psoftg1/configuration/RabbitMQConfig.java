@@ -116,11 +116,6 @@ public class RabbitMQConfig {
             return new AnonymousQueue();
         }
 
-            @Bean
-            public Queue validateReaderQueue() {
-                return new AnonymousQueue();
-            }
-
         // Definindo bindings para as filas
 
         @Bean
@@ -253,13 +248,6 @@ public class RabbitMQConfig {
                     .with(ReaderEvents.READER_DELETED);
         }
 
-        @Bean
-        public Binding bindingValidateReader(DirectExchange direct,
-                             @Qualifier("validateReaderQueue") Queue validateReaderQueue) {
-            return BindingBuilder.bind(validateReaderQueue)
-                .to(direct)
-                .with("reader.validate");
-        }
 
         @Bean
 
