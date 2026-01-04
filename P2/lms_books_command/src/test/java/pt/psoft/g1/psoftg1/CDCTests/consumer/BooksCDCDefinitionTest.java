@@ -189,10 +189,10 @@ public class BooksCDCDefinitionTest {
     @Pact(consumer = "author_created-consumer")
     V4Pact createAuthorCreatedPact(MessagePactBuilder builder) {
         PactDslJsonBody body = new PactDslJsonBody();
-        body.integerType("authorId", 1);
+        body.integerType("authorNumber", 1L);  // ← Corrigido de "authorId" para "authorNumber"
         body.stringType("name", "Jane Smith");
         body.stringType("bio", "Bestselling novelist");
-        body.stringMatcher("version", "[0-9]+", "1");
+        body.integerType("version", 1L);  // ← Corrigido para integerType em vez de stringMatcher
 
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("Content-Type", "application/json");
@@ -207,7 +207,7 @@ public class BooksCDCDefinitionTest {
     V4Pact createGenreCreatedPact(MessagePactBuilder builder) {
         PactDslJsonBody body = new PactDslJsonBody();
         body.stringType("genre", "Mystery");
-        body.stringMatcher("version", "[0-9]+", "1");
+        body.integerType("version", 1L);  // ← Corrigido para integerType (Long)
 
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("Content-Type", "application/json");
@@ -240,10 +240,9 @@ public class BooksCDCDefinitionTest {
     @Pact(consumer = "lending_validation_request-consumer")
     V4Pact createLendingValidationRequestPact(MessagePactBuilder builder) {
         PactDslJsonBody body = new PactDslJsonBody();
-        body.stringType("lendingId", "lending-123");
+        body.stringType("requestId", "req-123");  // ← Corrigido: adicionado requestId
         body.stringType("isbn", "9780140449136");
-        body.stringType("readerNumber", "2024/1");
-        body.stringMatcher("requestedAt", "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}", "2026-01-03T12:00:00");
+        body.stringType("lendingNumber", "2024/1");  // ← Corrigido de "lendingId" e "readerNumber"
 
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("Content-Type", "application/json");

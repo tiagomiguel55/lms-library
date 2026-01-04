@@ -150,10 +150,10 @@ public class BooksProducerCDCIT {
     @PactVerifyProvider("an author created event")
     MessageAndMetadata authorCreated() throws JsonProcessingException {
         Map<String, Object> authorData = new HashMap<>();
-        authorData.put("authorId", 1);
+        authorData.put("authorNumber", 1L);  // ← Corrigido de "authorId" para "authorNumber"
         authorData.put("name", "Jane Smith");
         authorData.put("bio", "Bestselling novelist");
-        authorData.put("version", "1");
+        authorData.put("version", 1L);  // ← Corrigido de String "1" para Long
 
         byte[] payload = new com.fasterxml.jackson.databind.ObjectMapper()
                 .writeValueAsBytes(authorData);
@@ -168,7 +168,7 @@ public class BooksProducerCDCIT {
     MessageAndMetadata genreCreated() throws JsonProcessingException {
         Map<String, Object> genreData = new HashMap<>();
         genreData.put("genre", "Mystery");
-        genreData.put("version", "1");
+        genreData.put("version", 1L);  // ← Corrigido para Long
 
         byte[] payload = new com.fasterxml.jackson.databind.ObjectMapper()
                 .writeValueAsBytes(genreData);
@@ -249,10 +249,9 @@ public class BooksProducerCDCIT {
     @PactVerifyProvider("a lending validation request event")
     MessageAndMetadata lendingValidationRequest() throws JsonProcessingException {
         Map<String, Object> requestData = new HashMap<>();
-        requestData.put("lendingId", "lending-123");
+        requestData.put("requestId", "req-123");
         requestData.put("isbn", "9780140449136");
-        requestData.put("readerNumber", "2024/1");
-        requestData.put("requestedAt", "2026-01-03T12:00:00");
+        requestData.put("lendingNumber", "2024/1");  // ← Corrigido de "lendingId" e "readerNumber"
 
         byte[] payload = new com.fasterxml.jackson.databind.ObjectMapper()
                 .writeValueAsBytes(requestData);

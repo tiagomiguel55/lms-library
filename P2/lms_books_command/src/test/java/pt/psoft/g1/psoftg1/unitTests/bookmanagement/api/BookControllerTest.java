@@ -24,6 +24,7 @@ import pt.psoft.g1.psoftg1.bookmanagement.services.CreateBookRequest;
 import pt.psoft.g1.psoftg1.bookmanagement.services.CreateBookWithAuthorAndGenreRequest;
 import pt.psoft.g1.psoftg1.bookmanagement.services.SearchBooksQuery;
 import pt.psoft.g1.psoftg1.bookmanagement.services.UpdateBookRequest;
+import pt.psoft.g1.psoftg1.configuration.FeatureFlagService;
 import pt.psoft.g1.psoftg1.exceptions.NotFoundException;
 import pt.psoft.g1.psoftg1.shared.api.ListResponse;
 import pt.psoft.g1.psoftg1.shared.services.ConcurrencyService;
@@ -53,6 +54,9 @@ class BookControllerTest {
 
     @Mock
     private BookViewMapper bookViewMapper;
+
+    @Mock
+    private FeatureFlagService featureFlagService;
 
     @InjectMocks
     private BookController controller;
