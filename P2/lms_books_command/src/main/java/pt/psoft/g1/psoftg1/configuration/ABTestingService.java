@@ -38,7 +38,9 @@ public class ABTestingService {
     /**
      * Create a new A/B test experiment
      */
-    public Experiment createExperiment(String experimentId, String featureName, int trafficPercentToB) {
+    public Experiment createExperiment(String featureName, int trafficPercentToB) {
+        String experimentId = featureName; // Use featureName as experimentId for consistency
+
         Experiment experiment = new Experiment();
         experiment.setExperimentId(experimentId);
         experiment.setFeatureName(featureName);
@@ -90,8 +92,12 @@ public class ABTestingService {
     public boolean isFeatureEnabledForUser(String experimentId, String userId, String featureName) {
         String variant = assignVariant(experimentId, userId);
 
-        // Variant A (control): feature disabled
-        // Variant B (treatment): feature enabled
+        // First check if the feature is globally enabled via feature flags
+        if (!featureFlagConfig.isFeatureEnabled(featureName)) {
+            return false;
+        }
+
+        // Variant A (control) = feature disabled, Variant B = feature enabled
         boolean enabled = variant.equals("B");
 
         log.debug("Feature {} is {} for user {} (variant {})",

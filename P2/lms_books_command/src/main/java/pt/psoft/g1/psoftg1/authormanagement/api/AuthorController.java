@@ -21,6 +21,7 @@ import pt.psoft.g1.psoftg1.authormanagement.services.CreateAuthorRequest;
 import pt.psoft.g1.psoftg1.authormanagement.services.UpdateAuthorRequest;
 import pt.psoft.g1.psoftg1.bookmanagement.api.BookView;
 import pt.psoft.g1.psoftg1.bookmanagement.api.BookViewMapper;
+import pt.psoft.g1.psoftg1.configuration.FeatureFlagService;
 import pt.psoft.g1.psoftg1.exceptions.NotFoundException;
 import pt.psoft.g1.psoftg1.shared.api.ListResponse;
 import pt.psoft.g1.psoftg1.shared.services.ConcurrencyService;
@@ -40,12 +41,19 @@ public class AuthorController {
     private final ConcurrencyService concurrencyService;
     private final FileStorageService fileStorageService;
     private final BookViewMapper bookViewMapper;
+    private final FeatureFlagService featureFlagService;
 
     // Create
     @Operation(summary = "Creates a new Author")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<AuthorView> create(@Valid CreateAuthorRequest resource) {
+        // Check if author creation feature is enabled
+        if (!featureFlagService.isFeatureEnabled("author-creation")) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Author creation is currently disabled");
+        }
+
         // Guarantee that the client doesn't provide a link on the body, null = no photo or error
         resource.setPhotoURI(null);
         MultipartFile file = resource.getPhoto();
@@ -71,6 +79,11 @@ public class AuthorController {
     public ResponseEntity<AuthorView> partialUpdate(
             @PathVariable("authorNumber") @Parameter(description = "The number of the Author to find") final Long authorNumber,
             final WebRequest request, @Valid UpdateAuthorRequest resource) {
+        // Check if author update feature is enabled
+        if (!featureFlagService.isFeatureEnabled("author-update")) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Author updates are currently disabled");
+        }
 
         final String ifMatchValue = request.getHeader(ConcurrencyService.IF_MATCH);
         if (ifMatchValue == null || ifMatchValue.isEmpty() || ifMatchValue.equals("null")) {

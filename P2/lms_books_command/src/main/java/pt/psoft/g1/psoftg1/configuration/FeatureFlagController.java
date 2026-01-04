@@ -2,148 +2,176 @@ package pt.psoft.g1.psoftg1.configuration;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import lombok.Data;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
-import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
- * REST API for managing feature flags and kill switches
- * This enables runtime toggling without redeployment
- *
- * Requires LIBRARIAN role for all operations
+ * REST Controller for managing Feature Flags and A/B Testing experiments
+ * This enables runtime configuration of release strategies without deployment
  */
-@Tag(name = "Feature Flags", description = "Manage feature flags, dark launch, and kill switches")
+@Tag(name = "Feature Flags", description = "Endpoints for managing feature flags and A/B experiments")
 @RestController
-@RequestMapping("/api/admin/feature-flags")
 @RequiredArgsConstructor
-@Slf4j
+@RequestMapping("/api/admin/feature-flags")
+@PreAuthorize("hasRole('ADMIN')")
 public class FeatureFlagController {
 
-    private final FeatureFlagConfig featureFlagConfig;
     private final FeatureFlagService featureFlagService;
+    private final ABTestingService abTestingService;
 
-    @Operation(summary = "Get all feature flags status")
-    @GetMapping
-    @PreAuthorize("hasRole('LIBRARIAN')")
-    public ResponseEntity<FeatureFlagStatus> getFeatureFlags() {
-        log.info("Retrieving feature flag status");
+    // ========== Feature Flags Management ==========
 
-        FeatureFlagStatus status = new FeatureFlagStatus();
-        status.setMasterKillSwitch(featureFlagConfig.isMasterKillSwitch());
-        status.setFeatures(featureFlagConfig.getFeatures());
-        status.setDarkLaunch(featureFlagConfig.getDarkLaunch());
-        status.setTimestamp(LocalDateTime.now());
-
-        return ResponseEntity.ok(status);
+    @Operation(summary = "Get current feature flag configuration")
+    @GetMapping("/config")
+    public ResponseEntity<FeatureFlagConfig> getConfiguration() {
+        return ResponseEntity.ok(featureFlagService.getConfiguration());
     }
 
-    @Operation(summary = "Toggle master kill switch - EMERGENCY USE ONLY")
-    @PostMapping("/kill-switch")
-    @PreAuthorize("hasRole('LIBRARIAN')")
-    public ResponseEntity<Map<String, Object>> toggleMasterKillSwitch(@RequestParam boolean enabled) {
-        log.warn("MASTER KILL SWITCH toggled to: {} by admin", enabled);
-
-        featureFlagConfig.setMasterKillSwitch(enabled);
-
-        Map<String, Object> response = new HashMap<>();
-        response.put("masterKillSwitch", enabled);
-        response.put("timestamp", LocalDateTime.now());
-        response.put("message", enabled ?
-            "⚠️ MASTER KILL SWITCH ACTIVATED - All write operations disabled" :
-            "✅ Master kill switch deactivated - Service resumed");
-
-        return ResponseEntity.ok(response);
+    @Operation(summary = "Check if master kill switch is active")
+    @GetMapping("/kill-switch/status")
+    public ResponseEntity<Map<String, Object>> getKillSwitchStatus() {
+        boolean active = featureFlagService.isMasterKillSwitchActive();
+        return ResponseEntity.ok(Map.of(
+                "masterKillSwitch", active,
+                "status", active ? "ACTIVE - All features disabled" : "INACTIVE - Normal operation"
+        ));
     }
 
-    @Operation(summary = "Toggle a specific feature")
-    @PostMapping("/features/{featureName}")
-    @PreAuthorize("hasRole('LIBRARIAN')")
-    public ResponseEntity<Map<String, Object>> toggleFeature(
-            @PathVariable String featureName,
-            @RequestParam boolean enabled) {
-
-        log.info("Feature '{}' toggled to: {}", featureName, enabled);
-
-        try {
-            var field = FeatureFlagConfig.FeatureToggles.class.getDeclaredField(featureName);
-            field.setAccessible(true);
-            field.set(featureFlagConfig.getFeatures(), enabled);
-
-            Map<String, Object> response = new HashMap<>();
-            response.put("feature", featureName);
-            response.put("enabled", enabled);
-            response.put("timestamp", LocalDateTime.now());
-
-            return ResponseEntity.ok(response);
-        } catch (NoSuchFieldException e) {
-            log.error("Unknown feature: {}", featureName);
-            return ResponseEntity.badRequest().body(Map.of("error", "Unknown feature: " + featureName));
-        } catch (Exception e) {
-            log.error("Error toggling feature {}: {}", featureName, e.getMessage());
-            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
-        }
+    @Operation(summary = "Check if a specific feature is enabled")
+    @GetMapping("/features/{featureName}/status")
+    public ResponseEntity<Map<String, Object>> getFeatureStatus(@PathVariable String featureName) {
+        boolean enabled = featureFlagService.isFeatureEnabled(featureName);
+        return ResponseEntity.ok(Map.of(
+                "featureName", featureName,
+                "enabled", enabled,
+                "masterKillSwitch", featureFlagService.isMasterKillSwitchActive()
+        ));
     }
 
-    @Operation(summary = "Configure dark launch settings")
-    @PutMapping("/dark-launch")
-    @PreAuthorize("hasRole('LIBRARIAN')")
-    public ResponseEntity<Map<String, Object>> configureDarkLaunch(
-            @RequestBody DarkLaunchConfig config) {
+    // ========== A/B Testing Management ==========
 
-        log.info("Configuring dark launch: enabled={}, traffic={}%",
-                config.isEnabled(), config.getTrafficPercentage());
+    @Operation(summary = "Create a new A/B test experiment")
+    @PostMapping("/experiments")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ResponseEntity<ABTestingService.Experiment> createExperiment(
+            @RequestParam String featureName,
+            @RequestParam(defaultValue = "50") int trafficPercentToB) {
 
-        FeatureFlagConfig.DarkLaunch darkLaunch = featureFlagConfig.getDarkLaunch();
-        darkLaunch.setEnabled(config.isEnabled());
-        darkLaunch.setTrafficPercentage(config.getTrafficPercentage());
-
-        if (config.getAllowedUsers() != null) {
-            darkLaunch.setAllowedUsers(config.getAllowedUsers());
-        }
-        if (config.getAllowedRoles() != null) {
-            darkLaunch.setAllowedRoles(config.getAllowedRoles());
+        if (trafficPercentToB < 0 || trafficPercentToB > 100) {
+            return ResponseEntity.badRequest().build();
         }
 
-        Map<String, Object> response = new HashMap<>();
-        response.put("darkLaunch", darkLaunch);
-        response.put("timestamp", LocalDateTime.now());
-        response.put("message", "Dark launch configuration updated");
-
-        return ResponseEntity.ok(response);
+        ABTestingService.Experiment experiment = abTestingService.createExperiment(featureName, trafficPercentToB);
+        return ResponseEntity.status(HttpStatus.CREATED).body(experiment);
     }
 
-    @Operation(summary = "Health check with kill switch status")
+    @Operation(summary = "Get all active experiments")
+    @GetMapping("/experiments")
+    public ResponseEntity<List<ABTestingService.Experiment>> getActiveExperiments() {
+        return ResponseEntity.ok(abTestingService.getActiveExperiments());
+    }
+
+    @Operation(summary = "Get experiment results and statistics")
+    @GetMapping("/experiments/{experimentId}/results")
+    public ResponseEntity<ABTestingService.ExperimentResults> getExperimentResults(
+            @PathVariable String experimentId) {
+
+        ABTestingService.ExperimentResults results = abTestingService.getExperimentResults(experimentId);
+
+        if (results == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        return ResponseEntity.ok(results);
+    }
+
+    @Operation(summary = "Update traffic distribution for an experiment")
+    @PatchMapping("/experiments/{experimentId}/traffic")
+    public ResponseEntity<Map<String, String>> updateTrafficDistribution(
+            @PathVariable String experimentId,
+            @RequestParam int newPercentToB) {
+
+        if (newPercentToB < 0 || newPercentToB > 100) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Traffic percentage must be between 0 and 100"));
+        }
+
+        abTestingService.updateTrafficDistribution(experimentId, newPercentToB);
+        return ResponseEntity.ok(Map.of(
+                "message", "Traffic distribution updated successfully",
+                "experimentId", experimentId,
+                "newTrafficPercentToB", String.valueOf(newPercentToB)
+        ));
+    }
+
+    @Operation(summary = "Stop an active experiment")
+    @PostMapping("/experiments/{experimentId}/stop")
+    public ResponseEntity<Map<String, String>> stopExperiment(@PathVariable String experimentId) {
+        abTestingService.stopExperiment(experimentId);
+        return ResponseEntity.ok(Map.of(
+                "message", "Experiment stopped successfully",
+                "experimentId", experimentId
+        ));
+    }
+
+    @Operation(summary = "Record a success metric for an experiment")
+    @PostMapping("/experiments/{experimentId}/metrics/success")
+    public ResponseEntity<Map<String, String>> recordSuccess(
+            @PathVariable String experimentId,
+            @RequestParam String userId) {
+
+        abTestingService.recordSuccess(experimentId, userId);
+        return ResponseEntity.ok(Map.of(
+                "message", "Success metric recorded",
+                "experimentId", experimentId,
+                "userId", userId
+        ));
+    }
+
+    @Operation(summary = "Record a failure metric for an experiment")
+    @PostMapping("/experiments/{experimentId}/metrics/failure")
+    public ResponseEntity<Map<String, String>> recordFailure(
+            @PathVariable String experimentId,
+            @RequestParam String userId) {
+
+        abTestingService.recordFailure(experimentId, userId);
+        return ResponseEntity.ok(Map.of(
+                "message", "Failure metric recorded",
+                "experimentId", experimentId,
+                "userId", userId
+        ));
+    }
+
+    @Operation(summary = "Get user's assigned variant for an experiment")
+    @GetMapping("/experiments/{experimentId}/variant")
+    public ResponseEntity<Map<String, String>> getUserVariant(
+            @PathVariable String experimentId,
+            @RequestParam String userId) {
+
+        String variant = abTestingService.assignVariant(experimentId, userId);
+        return ResponseEntity.ok(Map.of(
+                "experimentId", experimentId,
+                "userId", userId,
+                "variant", variant,
+                "description", variant.equals("A") ? "Control group (feature disabled)" : "Test group (feature enabled)"
+        ));
+    }
+
+    // ========== Health & Monitoring ==========
+
+    @Operation(summary = "Health check for feature flag system")
     @GetMapping("/health")
     public ResponseEntity<Map<String, Object>> healthCheck() {
-        Map<String, Object> health = new HashMap<>();
-        health.put("status", featureFlagConfig.isMasterKillSwitch() ? "DEGRADED" : "UP");
-        health.put("masterKillSwitch", featureFlagConfig.isMasterKillSwitch());
-        health.put("darkLaunchEnabled", featureFlagConfig.getDarkLaunch().isEnabled());
-        health.put("timestamp", LocalDateTime.now());
-
-        return ResponseEntity.ok(health);
-    }
-
-    @Data
-    public static class FeatureFlagStatus {
-        private boolean masterKillSwitch;
-        private FeatureFlagConfig.FeatureToggles features;
-        private FeatureFlagConfig.DarkLaunch darkLaunch;
-        private LocalDateTime timestamp;
-    }
-
-    @Data
-    public static class DarkLaunchConfig {
-        private boolean enabled;
-        private int trafficPercentage;
-        private String[] allowedUsers;
-        private String[] allowedRoles;
+        return ResponseEntity.ok(Map.of(
+                "status", "UP",
+                "masterKillSwitch", featureFlagService.isMasterKillSwitchActive(),
+                "activeExperiments", abTestingService.getActiveExperiments().size()
+        ));
     }
 }

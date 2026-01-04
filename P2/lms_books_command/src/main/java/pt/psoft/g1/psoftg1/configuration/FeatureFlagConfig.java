@@ -2,6 +2,7 @@ package pt.psoft.g1.psoftg1.configuration;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.cloud.context.config.annotation.RefreshScope;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.stereotype.Component;
 
@@ -14,10 +15,13 @@ import java.util.Map;
  * This configuration enables toggling features on/off without redeployment
  * - Dark Launch: Deploy features hidden from users, gradually enable
  * - Kill Switch: Emergency disable of features if problems detected
+ *
+ * @RefreshScope allows runtime configuration updates via POST /actuator/refresh
  */
 @Data
 @Configuration
 @ConfigurationProperties(prefix = "feature-flags")
+@RefreshScope
 @Component
 public class FeatureFlagConfig {
 
@@ -26,6 +30,12 @@ public class FeatureFlagConfig {
      * Use this in emergency situations to make the service read-only
      */
     private boolean masterKillSwitch = false;
+
+    /**
+     * Release strategy to use per feature
+     * Options: SIMPLE, DARK_LAUNCH, AB_TESTING
+     */
+    private Map<String, String> releaseStrategy = new HashMap<>();
 
     /**
      * Enable/disable specific features
@@ -72,10 +82,6 @@ public class FeatureFlagConfig {
         // Specific users/roles allowed to access dark launch features
         private String[] allowedUsers = new String[0];
         private String[] allowedRoles = new String[0];
-
-        // A/B testing configuration
-        private boolean abTestingEnabled = false;
-        private String experimentId = "";
     }
 
     /**
