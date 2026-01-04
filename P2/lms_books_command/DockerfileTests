@@ -1,0 +1,25 @@
+# Usa a imagem do Maven com JDK
+FROM eclipse-temurin:17-jdk
+
+# Define o diretório de trabalho no contêiner
+WORKDIR /app
+
+# Copia o código do projeto para dentro do contêiner
+COPY . /app
+
+# Expondo a porta 8080 (se necessário)
+EXPOSE 8080
+
+# Define uma variável de ambiente padrão para o tipo de teste
+ENV TEST_TYPE=unit
+
+# Executa o comando Maven com base no tipo de teste
+CMD ["sh", "-c", "if [ \"$TEST_TYPE\" = \"unit\" ]; then \
+      mvn test -Dtest=pt.psoft.g1.psoftg1.unitTests.** -f pom.xml; \
+    elif [ \"$TEST_TYPE\" = \"CDCTests\" ]; then \
+      mvn test -Dtest=pt.psoft.g1.psoftg1.CDCTests.** -f pom.xml; \
+    elif [ \"$TEST_TYPE\" = \"mutation\" ]; then \
+      mvn org.pitest:pitest-maven:mutationCoverage -DtargetTests=pt.psoft.g1.psoftg1.unitTests.** -DtargetClasses=pt.psoft.g1.psoftg1.* -f pom.xml; \
+    else \
+      echo \"Tipo de teste inválido: $TEST_TYPE\" && exit 1; \
+    fi"]
