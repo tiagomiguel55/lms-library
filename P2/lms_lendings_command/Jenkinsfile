@@ -675,7 +675,8 @@ EOF
 
                     // Show health checks for production only
                     if (params.ENVIRONMENT == 'prod') {
-                        sh """
+                        def stackNameForHealthCheck = stackName
+                        sh '''
                             echo ""
                             echo "=========================================="
                             echo "POST-DEPLOYMENT HEALTH CHECK VERIFICATION"
@@ -686,29 +687,28 @@ EOF
                             sleep 30
 
                             echo "Check each service"
-                            for SERVICE in \$(docker service ls --filter "label=com.docker.stack.namespace=${stackName}" --format "{{.Name}}"); do
+                            for SERVICE in $(docker service ls --filter "label=com.docker.stack.namespace=''' + stackNameForHealthCheck + '''" --format "{{.Name}}"); do
                                 echo ""
-                                echo "Checking health of: \$SERVICE"
+                                echo "Checking health of: $SERVICE"
                                 echo "----------------------------------------"
 
-                                # Get task IDs
-                                TASKS=\$(docker service ps \$SERVICE --filter "desired-state=running" --format "{{.ID}}" 2>/dev/null)
+                                TASKS=$(docker service ps $SERVICE --filter "desired-state=running" --format "{{.ID}}" 2>/dev/null)
 
-                                for TASK in \$TASKS; do
-                                    CONTAINER_ID=\$(docker inspect \$TASK --format "{{.Status.ContainerStatus.ContainerID}}" 2>/dev/null || echo "")
+                                for TASK in $TASKS; do
+                                    CONTAINER_ID=$(docker inspect $TASK --format "{{.Status.ContainerStatus.ContainerID}}" 2>/dev/null || echo "")
 
-                                    if [ -n "\$CONTAINER_ID" ]; then
-                                        HEALTH=\$(docker inspect \$CONTAINER_ID --format "{{.State.Health.Status}}" 2>/dev/null || echo "none")
-                                        TASK_NAME=\$(docker inspect \$TASK --format "{{.Name}}" 2>/dev/null)
+                                    if [ -n "$CONTAINER_ID" ]; then
+                                        HEALTH=$(docker inspect $CONTAINER_ID --format "{{.State.Health.Status}}" 2>/dev/null || echo "none")
+                                        TASK_NAME=$(docker inspect $TASK --format "{{.Name}}" 2>/dev/null)
 
-                                        if [ "\$HEALTH" = "healthy" ]; then
-                                            echo "  ✅ \$TASK_NAME: HEALTHY"
-                                        elif [ "\$HEALTH" = "unhealthy" ]; then
-                                            echo "  ❌ \$TASK_NAME: UNHEALTHY"
-                                        elif [ "\$HEALTH" = "starting" ]; then
-                                            echo "  🔄 \$TASK_NAME: STARTING (health checks in progress)"
+                                        if [ "$HEALTH" = "healthy" ]; then
+                                            echo "  ✅ $TASK_NAME: HEALTHY"
+                                        elif [ "$HEALTH" = "unhealthy" ]; then
+                                            echo "  ❌ $TASK_NAME: UNHEALTHY"
+                                        elif [ "$HEALTH" = "starting" ]; then
+                                            echo "  🔄 $TASK_NAME: STARTING (health checks in progress)"
                                         else
-                                            echo "  ℹ️  \$TASK_NAME: No health check configured"
+                                            echo "  ℹ️  $TASK_NAME: No health check configured"
                                         fi
                                     fi
                                 done
@@ -718,7 +718,7 @@ EOF
                             echo "=========================================="
                             echo "✅ Post-deployment verification completed"
                             echo "=========================================="
-                        """
+                        '''
                     }
                 }
             }
