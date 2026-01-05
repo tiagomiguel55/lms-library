@@ -9,7 +9,8 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 	"pt.psoft.g1.psoftg1.bookmanagement.repositories",
 	"pt.psoft.g1.psoftg1.lendingmanagement.repositories",
 	"pt.psoft.g1.psoftg1.readermanagement.repositories",
-	"pt.psoft.g1.psoftg1.usermanagement.repositories"
+	"pt.psoft.g1.psoftg1.usermanagement.repositories",
+	"pt.psoft.g1.psoftg1.shared.repositories.relational"
 })
 public class PsoftG1Application {
 
