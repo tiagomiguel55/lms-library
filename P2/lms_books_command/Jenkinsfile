@@ -539,7 +539,6 @@ EOF
                         echo "K6 LOAD TESTS - STAGING ENVIRONMENT"
                         echo "=========================================="
                         echo "Testing scalability and system behavior under load"
-                        echo "Comparing microservices performance with monolith baseline"
                         echo "=========================================="
 
                         sh """
@@ -612,13 +611,11 @@ EOF
 
                             # Run k6 load tests
                             export SERVICE_URL="\${SERVICE_URL}"
-                            export MONOLITH_BASELINE_RPS=50
 
                             k6 run \\
                                 --out json=/tmp/k6_metrics.json \\
                                 --summary-export=/tmp/k6_summary.json \\
                                 -e SERVICE_URL=\${SERVICE_URL} \\
-                                -e MONOLITH_BASELINE_RPS=\${MONOLITH_BASELINE_RPS} \\
                                 load-test.js
 
                             K6_EXIT_CODE=\$?
@@ -630,36 +627,12 @@ EOF
 
                             # Display results summary
                             if [ -f /tmp/load_test_results.json ]; then
-                                echo ""
-                                echo "Load Test Results:"
-                                cat /tmp/load_test_results.json
-                            fi
-
-                            # Check thresholds
-                            if [ \$K6_EXIT_CODE -ne 0 ]; then
-                                echo ""
-                                echo "⚠️ WARNING: Some K6 thresholds were not met"
-                                echo "This may trigger auto-scaling in the next stage"
-                            else
-                                echo ""
-                                echo "✅ All K6 thresholds passed"
-                            fi
-
-                            echo ""
-                            echo "=========================================="
-                            echo "LOAD TEST METRICS SUMMARY"
-                            echo "=========================================="
-
-                            if [ -f /tmp/load_test_results.json ]; then
                                 # Extract and display key metrics
                                 if command -v jq &> /dev/null; then
                                     echo "Success Rate:          \$(jq -r '.results.success_rate' /tmp/load_test_results.json)%"
                                     echo "Requests per Second:   \$(jq -r '.results.requests_per_second' /tmp/load_test_results.json) RPS"
                                     echo "Avg Response Time:     \$(jq -r '.results.response_time_ms.average' /tmp/load_test_results.json) ms"
                                     echo "P95 Response Time:     \$(jq -r '.results.response_time_ms.p95' /tmp/load_test_results.json) ms"
-                                    echo ""
-                                    echo "Monolith Baseline:     \$(jq -r '.comparison.monolith_baseline_rps' /tmp/load_test_results.json) RPS"
-                                    echo "Performance Diff:      \$(jq -r '.comparison.performance_improvement_percent' /tmp/load_test_results.json)%"
                                     echo ""
                                     echo "Scaling Recommendation: \$(jq -r '.scaling.recommendation' /tmp/load_test_results.json)"
                                     echo "Recommended Replicas:   \$(jq -r '.scaling.recommended_replicas' /tmp/load_test_results.json)"
