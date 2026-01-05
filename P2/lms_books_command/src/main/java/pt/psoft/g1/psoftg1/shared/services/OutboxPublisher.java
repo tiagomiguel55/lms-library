@@ -47,24 +47,33 @@ public class OutboxPublisher {
                         continue;
                     }
 
-                    // Publish to RabbitMQ - determine exchange based on aggregate type
-                    String exchangeName = determineExchange(event.getAggregateType());
+                    // Publish to both the specific exchange and LMS.direct for cross-service communication
+                    String specificExchange = determineSpecificExchange(event.getAggregateType());
 
-                    log.info("Publishing event {} - Type: {} - Aggregate: {} - Exchange: {}",
-                        event.getId(), event.getEventType(), event.getAggregateId(), exchangeName);
+                    log.info("Publishing event {} - Type: {} - Aggregate: {} - Exchanges: {} and LMS.direct",
+                        event.getId(), event.getEventType(), event.getAggregateId(), specificExchange);
 
                     // Send the JSON string directly - RabbitMQ will handle it as a string message
                     // The payload is already a JSON string from OutboxService
+
+                    // Publish to specific exchange (for books_query, etc)
                     rabbitTemplate.convertAndSend(
-                        exchangeName,
+                        specificExchange,
                         event.getEventType(),
-                        event.getPayload()  // This is the JSON string
+                        event.getPayload()
+                    );
+
+                    // Also publish to LMS.direct (for lendings_query, readers_query, etc)
+                    rabbitTemplate.convertAndSend(
+                        "LMS.direct",
+                        event.getEventType(),
+                        event.getPayload()
                     );
 
                     // Mark as processed
                     outboxService.markAsProcessed(event.getId());
 
-                    log.info("Successfully published event {} with payload: {}", event.getId(), event.getPayload());
+                    log.info("Successfully published event {} to both exchanges with payload: {}", event.getId(), event.getPayload());
 
                 } catch (Exception e) {
                     log.error("Failed to publish event {} - Retry count: {}",
@@ -99,17 +108,24 @@ public class OutboxPublisher {
                 log.info("Retrying event {} (attempt {}/{})",
                     event.getId(), event.getRetryCount() + 1, maxRetries);
 
-                String exchangeName = determineExchange(event.getAggregateType());
+                String specificExchange = determineSpecificExchange(event.getAggregateType());
+
+                // Publish to both exchanges
+                rabbitTemplate.convertAndSend(
+                    specificExchange,
+                    event.getEventType(),
+                    event.getPayload()
+                );
 
                 rabbitTemplate.convertAndSend(
-                    exchangeName,
+                    "LMS.direct",
                     event.getEventType(),
                     event.getPayload()
                 );
 
                 outboxService.markAsProcessed(event.getId());
 
-                log.info("Successfully published event {} on retry", event.getId());
+                log.info("Successfully published event {} on retry to both exchanges", event.getId());
 
             } catch (Exception e) {
                 log.error("Retry failed for event {}", event.getId(), e);
@@ -119,9 +135,9 @@ public class OutboxPublisher {
     }
 
     /**
-     * Determine which exchange to use based on aggregate type
+     * Determine which specific exchange to use based on aggregate type
      */
-    private String determineExchange(String aggregateType) {
+    private String determineSpecificExchange(String aggregateType) {
         return switch (aggregateType) {
             case "Author" -> "authors.exchange";
             case "Genre" -> "genres.exchange";
