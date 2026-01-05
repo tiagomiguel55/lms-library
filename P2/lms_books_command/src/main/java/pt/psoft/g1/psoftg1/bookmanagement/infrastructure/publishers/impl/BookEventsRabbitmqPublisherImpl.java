@@ -34,6 +34,13 @@ public class BookEventsRabbitmqPublisherImpl implements BookEventsPublisher {
         return sendBookEvent(book, currentVersion, BookEvents.BOOK_DELETED);
     }
 
+    /**
+     * Sends BOOK_REQUESTED event from an existing Book entity.
+     * Used when you already have a Book object with authors and genre loaded.
+     *
+     * @param book The complete Book entity from the database
+     * @return BookRequestedEvent that was saved to outbox
+     */
     @Override
     public BookRequestedEvent sendBookRequested(Book book) {
         System.out.println("Save Book Requested event to Outbox: " + book.getTitle());
@@ -56,6 +63,16 @@ public class BookEventsRabbitmqPublisherImpl implements BookEventsPublisher {
         }
     }
 
+    /**
+     * Sends BOOK_REQUESTED event for the /create-complete SAGA.
+     * Used when creating a book with author and genre (entities don't exist yet).
+     * This is the starting point of the SAGA where Author and Genre will be created/validated.
+     *
+     * @param bookId ISBN of the book to be created
+     * @param authorName Name of the author (may not exist yet)
+     * @param genreName Name of the genre (may not exist yet)
+     * @return BookRequestedEvent that was saved to outbox
+     */
     @Override
     public BookRequestedEvent sendBookRequestedEvent(String bookId, String authorName, String genreName) {
         System.out.println("Save Book Requested event to Outbox: " + bookId + " - " + authorName + " - " + genreName);

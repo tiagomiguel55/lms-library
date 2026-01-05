@@ -436,13 +436,37 @@ public class BookRabbitmqController {
                 if (pendingRequestOpt.isPresent()) {
                     PendingBookRequest pendingRequest = pendingRequestOpt.get();
 
-                    // Mark the request as FAILED
+                    // 🔄 SAGA COMPENSATION: Clean up temporary entities created before failure
+                    System.out.println(" [x] 🔄 Starting SAGA compensation - cleaning up temporary entities...");
+
+                    // 1. Clean up temporary Author (if it was created with finalized=false)
+                    if (pendingRequest.getAuthorName() != null && !pendingRequest.getAuthorName().isEmpty()) {
+                        List<Author> tempAuthors = authorRepository.searchByNameName(pendingRequest.getAuthorName());
+                        for (Author author : tempAuthors) {
+                            if (!author.isFinalized()) {
+                                authorRepository.delete(author);
+                                System.out.println(" [x] 🗑️ Deleted temporary Author: " + pendingRequest.getAuthorName());
+                            }
+                        }
+                    }
+
+                    // 2. Clean up temporary Genre (if it exists with finalized=false)
+                    // Note: Genre creation failed, but we check in case it was partially created
+                    if (event.getGenreName() != null && !event.getGenreName().isEmpty()) {
+                        Optional<Genre> tempGenre = genreRepository.findByString(event.getGenreName());
+                        if (tempGenre.isPresent() && !tempGenre.get().isFinalized()) {
+                            genreRepository.delete(tempGenre.get());
+                            System.out.println(" [x] 🗑️ Deleted temporary Genre: " + event.getGenreName());
+                        }
+                    }
+
+                    // 3. Mark the request as FAILED
                     pendingRequest.setStatus(PendingBookRequest.RequestStatus.FAILED);
                     pendingRequest.setErrorMessage("Genre creation failed: " + event.getErrorMessage());
                     pendingBookRequestRepository.save(pendingRequest);
 
                     System.out.println(" [x] ✅ Marked pending book request as FAILED for ISBN: " + event.getBookId());
-                    System.out.println(" [x] 🔄 SAGA COMPENSATION COMPLETED - Book creation aborted");
+                    System.out.println(" [x] 🔄 SAGA COMPENSATION COMPLETED - Book creation aborted and temporary data cleaned");
                 } else {
                     System.out.println(" [x] ⚠️ No pending request found for ISBN: " + event.getBookId());
                 }
