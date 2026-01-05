@@ -54,8 +54,9 @@ pipeline {
             defaultValue: true,
             description: 'Auto-scale services based on load test results'
         )
-        }
+    }
 
+    stages {
         stage('Build & Package') {
             when {
                 expression { params.ENVIRONMENT != 'prod' }
