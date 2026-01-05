@@ -16,6 +16,9 @@ services:
       - spring.rabbitmq.port=5672
       - spring.rabbitmq.username=guest
       - spring.rabbitmq.password=guest
+      - feature-flags.master-kill-switch=false
+      - feature-flags.features.batch-operations=true
+      - feature-flags.release-strategy.batch-operations=SIMPLE
     healthcheck:
       test: ["CMD-SHELL", "pgrep -f 'java.*app.jar' || exit 1"]
       interval: 30s

@@ -11,6 +11,9 @@ services:
       - file.upload-dir=/tmp/uploads-psoft-g1-instance1
       - spring.rabbitmq.host=rabbitmq
       - bootstrap.mode=static
+      - feature-flags.master-kill-switch=false
+      - feature-flags.features.batch-operations=true
+      - feature-flags.release-strategy.batch-operations=SIMPLE
     volumes:
       - "uploaded_files_volume_1:/tmp"
     deploy:
