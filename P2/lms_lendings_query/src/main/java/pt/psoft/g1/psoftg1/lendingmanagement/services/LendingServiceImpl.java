@@ -238,8 +238,9 @@ public class LendingServiceImpl implements LendingService{
         }
 
         // Retry logic to wait for book/reader to be synced from other services
-        final var book = findBookWithRetry(resource.getIsbn(), 3);
-        final var readerDetails = findReaderWithRetry(resource.getReaderNumber(), 3);
+        // Increased retries to 10 with 1 second interval (total 10 seconds)
+        final var book = findBookWithRetry(resource.getIsbn(), 10);
+        final var readerDetails = findReaderWithRetry(resource.getReaderNumber(), 10);
 
         LocalDate startDate = LocalDate.parse(resource.getStartDate());
         LocalDate limitDate = LocalDate.parse(resource.getLimitDate());
@@ -280,9 +281,9 @@ public class LendingServiceImpl implements LendingService{
                 return bookOpt.get();
             }
             if (i < maxRetries - 1) {
-                System.out.println(" [DEBUG] Book not found yet (attempt " + (i + 1) + "/" + maxRetries + "), retrying in 500ms: " + isbn);
+                System.out.println(" [DEBUG] Book not found yet (attempt " + (i + 1) + "/" + maxRetries + "), retrying in 1000ms: " + isbn);
                 try {
-                    Thread.sleep(500);
+                    Thread.sleep(1000);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     break;
@@ -300,9 +301,9 @@ public class LendingServiceImpl implements LendingService{
                 return readerOpt.get();
             }
             if (i < maxRetries - 1) {
-                System.out.println(" [DEBUG] Reader not found yet (attempt " + (i + 1) + "/" + maxRetries + "), retrying in 500ms: " + readerNumber);
+                System.out.println(" [DEBUG] Reader not found yet (attempt " + (i + 1) + "/" + maxRetries + "), retrying in 1000ms: " + readerNumber);
                 try {
-                    Thread.sleep(500);
+                    Thread.sleep(1000);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     break;
@@ -316,8 +317,9 @@ public class LendingServiceImpl implements LendingService{
     public Lending update(LendingViewAMQP lending) {
         Optional<Lending> existing = lendingRepository.findByLendingNumber(lending.getLendingNumber());
 
-        Book book = findBookWithRetry(lending.getIsbn(), 3);
-        ReaderDetails readerDetails = findReaderWithRetry(lending.getReaderNumber(), 3);
+        // Use the same increased retry logic as in create method
+        Book book = findBookWithRetry(lending.getIsbn(), 10);
+        ReaderDetails readerDetails = findReaderWithRetry(lending.getReaderNumber(), 10);
 
         LocalDate startDate = LocalDate.parse(lending.getStartDate());
         LocalDate limitDate = LocalDate.parse(lending.getLimitDate());
