@@ -369,20 +369,6 @@ EOF
             }
         }
 
-        stage('Manual Approval for Production') {
-            when {
-                allOf {
-                    expression { params.ENVIRONMENT == 'prod' }
-                    expression { params.SKIP_DEPLOY == false }
-                }
-            }
-            steps {
-                script {
-                    input message: 'Deploy to Production?', ok: 'Deploy'
-                }
-            }
-        }
-
         stage('Deploy to Production') {
             when {
                 allOf {
