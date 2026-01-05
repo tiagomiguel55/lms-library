@@ -377,269 +377,41 @@ EOF
             }
             steps {
                 script {
+                    input message: 'Deploy to Production?', ok: 'Deploy'
+                }
+            }
+        }
 
-        stage('Run K6 Load Tests (Staging)') {
+        stage('Deploy to Production') {
             when {
                 allOf {
-                    expression { params.ENVIRONMENT == 'staging' }
+                    expression { params.ENVIRONMENT == 'prod' }
                     expression { params.SKIP_DEPLOY == false }
-                    expression { params.RUN_LOAD_TESTS == true }
                 }
             }
             steps {
                 dir("${WORK_DIR}") {
-                    script {
-                        sh """
-                            echo "=========================================="
-                            echo "K6 LOAD TESTING - STAGING ENVIRONMENT"
-                            echo "=========================================="
-                            echo ""
-                            echo "Testing scalability and system behavior under load"
-                            echo "Comparing microservice performance metrics"
-                            echo ""
+                    sh """
+                        export IMAGE_TAG=${IMAGE_TAG}
+                        docker stack deploy -c docker-compose-swarm-prod.yml ${STACK_NAME_PROD}
 
-                            echo "Wait for service to be fully ready"
-                            echo "Waiting 60 seconds for services to be fully ready..."
-                            sleep 60
+                        echo ""
+                        echo "=========================================="
+                        echo "VERIFYING DEPLOYMENT"
+                        echo "=========================================="
 
-                            echo "Verify service is responding"
-                            echo "Verifying service health before load test..."
-                            SERVICE_URL="http://localhost:8091"
+                        echo "Waiting for services to stabilize..."
+                        sleep 15
 
-                            MAX_RETRIES=10
-                            RETRY_COUNT=0
-                            while [ \$RETRY_COUNT -lt \$MAX_RETRIES ]; do
-                                if curl -s -o /dev/null -w "%{http_code}" "\${SERVICE_URL}/actuator/health" | grep -q "200"; then
-                                    echo "✅ Service is healthy and ready for load testing"
-                                    break
-                                fi
-                                echo "Waiting for service to be ready... (attempt \$((RETRY_COUNT + 1))/\$MAX_RETRIES)"
-                                sleep 10
-                                RETRY_COUNT=\$((RETRY_COUNT + 1))
-                            done
+                        echo "Service replicas:"
+                        docker stack services ${STACK_NAME_PROD}
 
-                            if [ \$RETRY_COUNT -eq \$MAX_RETRIES ]; then
-                                echo "⚠️ WARNING: Service health check failed, proceeding with caution"
-                            fi
-
-                            echo "Check if k6 is installed, if not use Docker"
-                            if command -v k6 &> /dev/null; then
-                                echo "Using native k6 installation"
-                                K6_CMD="k6"
-                            else
-                                echo "Using k6 via Docker"
-                                K6_CMD="docker run --rm -i --network host -v \$(pwd)/k6:/scripts grafana/k6"
-                            fi
-
-                            echo ""
-                            echo "=========================================="
-                            echo "STARTING LOAD TEST"
-                            echo "=========================================="
-                            echo "Test Script: k6/quick-load-test.js"
-                            echo "Target URL: \${SERVICE_URL}"
-                            echo ""
-
-                            echo "Record start time and initial replica count"
-                            INITIAL_REPLICAS=\$(docker service inspect ${STACK_NAME_STAGING}_lmslendings_command --format '{{.Spec.Mode.Replicated.Replicas}}' 2>/dev/null || echo "2")
-                            echo "Initial replica count: \${INITIAL_REPLICAS}"
-                            echo ""
-
-                            echo "Run K6 load test"
-                            if command -v k6 &> /dev/null; then
-                                k6 run --env BASE_URL=\${SERVICE_URL} --env ENVIRONMENT=staging k6/quick-load-test.js
-                            else
-                                docker run --rm -i --network host \\
-                                    -v \$(pwd)/k6:/scripts \\
-                                    -e BASE_URL=\${SERVICE_URL} \\
-                                    -e ENVIRONMENT=staging \\
-                                    grafana/k6 run /scripts/quick-load-test.js
-                            fi
-
-                            echo ""
-                            echo "=========================================="
-                            echo "LOAD TEST COMPLETED"
-                            echo "=========================================="
-
-                            echo "Display current service metrics after load test"
-                            echo ""
-                            echo "Service status after load test:"
-                            docker stack services ${STACK_NAME_STAGING}
-
-                            echo ""
-                            echo "Container resource usage:"
-                            docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}" \$(docker ps -q --filter "label=com.docker.stack.namespace=${STACK_NAME_STAGING}") 2>/dev/null || echo "Stats not available"
-
-                            echo ""
-                            echo "=========================================="
-                            echo "MICROSERVICE VS MONOLITH COMPARISON"
-                            echo "=========================================="
-                            echo ""
-                            echo "Microservice Architecture Benefits Demonstrated:"
-                            echo "  ✓ Independent scaling of lendings service"
-                            echo "  ✓ Isolated failure domain"
-                            echo "  ✓ Resource efficiency per service"
-                            echo "  ✓ Multiple instances handling concurrent load"
-                            echo ""
-                            echo "Current deployment:"
-                            echo "  - Replicas: \${INITIAL_REPLICAS}"
-                            echo "  - Load balanced across instances"
-                            echo "  - Each instance handles portion of traffic"
-                            echo ""
-                            echo "In a monolith architecture:"
-                            echo "  - Would need to scale entire application"
-                            echo "  - All modules share same resources"
-                            echo "  - Single point of failure"
-                            echo "  - Less efficient resource utilization"
-                            echo "=========================================="
-                        """
-                    }
+                        echo "=========================================="
+                    """
                 }
             }
         }
 
-        stage('Auto-Scale Based on Load Test Results') {
-            when {
-                allOf {
-                    expression { params.ENVIRONMENT == 'staging' }
-                    expression { params.SKIP_DEPLOY == false }
-                    expression { params.RUN_LOAD_TESTS == true }
-                    expression { params.AUTO_SCALE == true }
-                }
-            }
-            steps {
-                dir("${WORK_DIR}") {
-                    script {
-                        sh """
-                            echo "=========================================="
-                            echo "AUTO-SCALING BASED ON LOAD TEST RESULTS"
-                            echo "=========================================="
-                            echo ""
-
-                            SERVICE_NAME="${STACK_NAME_STAGING}_lmslendings_command"
-
-                            echo "Get current replica count"
-                            CURRENT_REPLICAS=\$(docker service inspect \${SERVICE_NAME} --format '{{.Spec.Mode.Replicated.Replicas}}' 2>/dev/null || echo "2")
-                            echo "Current replica count: \${CURRENT_REPLICAS}"
-
-                            echo "Read load test results if available"
-                            if [ -f "load-test-results.json" ]; then
-                                echo "Reading load test results..."
-
-                                echo "Parse JSON results using jq or grep"
-                                if command -v jq &> /dev/null; then
-                                    SCALING_ACTION=\$(jq -r '.scalingRecommendation.action' load-test-results.json)
-                                    RECOMMENDED_REPLICAS=\$(jq -r '.scalingRecommendation.recommendedReplicas' load-test-results.json)
-                                    P95_LATENCY=\$(jq -r '.metrics.http_req_duration_p95' load-test-results.json)
-                                    ERROR_RATE=\$(jq -r '.metrics.http_req_failed' load-test-results.json)
-                                else
-                                    echo "Fallback parsing without jq"
-                                    SCALING_ACTION=\$(grep -o '"action":"[^"]*"' load-test-results.json | cut -d'"' -f4 || echo "MAINTAIN")
-                                    RECOMMENDED_REPLICAS=\$(grep -o '"recommendedReplicas":[0-9]*' load-test-results.json | cut -d':' -f2 || echo "2")
-                                    P95_LATENCY="N/A"
-                                    ERROR_RATE="N/A"
-                                fi
-
-                                echo ""
-                                echo "Load Test Metrics:"
-                                echo "  - P95 Latency: \${P95_LATENCY} ms"
-                                echo "  - Error Rate: \${ERROR_RATE}"
-                                echo "  - Scaling Action: \${SCALING_ACTION}"
-                                echo "  - Recommended Replicas: \${RECOMMENDED_REPLICAS}"
-                            else
-                                echo "⚠️ Load test results file not found"
-                                echo "Using default scaling logic based on service metrics..."
-
-                                echo "Default scaling logic based on resource usage"
-                                CPU_USAGE=\$(docker stats --no-stream --format "{{.CPUPerc}}" \$(docker ps -q --filter "label=com.docker.swarm.service.name=\${SERVICE_NAME}" | head -1) 2>/dev/null | tr -d '%' || echo "0")
-
-                                if [ "\${CPU_USAGE%.*}" -gt 80 ]; then
-                                    SCALING_ACTION="SCALE_UP"
-                                    RECOMMENDED_REPLICAS=\$((CURRENT_REPLICAS + 1))
-                                elif [ "\${CPU_USAGE%.*}" -lt 20 ] && [ "\${CURRENT_REPLICAS}" -gt 1 ]; then
-                                    SCALING_ACTION="SCALE_DOWN"
-                                    RECOMMENDED_REPLICAS=\$((CURRENT_REPLICAS - 1))
-                                else
-                                    SCALING_ACTION="MAINTAIN"
-                                    RECOMMENDED_REPLICAS=\${CURRENT_REPLICAS}
-                                fi
-
-                                echo "CPU Usage: \${CPU_USAGE}%"
-                            fi
-
-                            echo ""
-                            echo "=========================================="
-                            echo "SCALING DECISION"
-                            echo "=========================================="
-
-                            echo "Apply scaling based on recommendation"
-                            case "\${SCALING_ACTION}" in
-                                SCALE_UP)
-                                    if [ "\${RECOMMENDED_REPLICAS}" -gt "\${CURRENT_REPLICAS}" ]; then
-                                        echo "📈 SCALING UP: \${CURRENT_REPLICAS} → \${RECOMMENDED_REPLICAS} replicas"
-                                        echo ""
-                                        echo "Executing: docker service scale \${SERVICE_NAME}=\${RECOMMENDED_REPLICAS}"
-                                        docker service scale \${SERVICE_NAME}=\${RECOMMENDED_REPLICAS}
-
-                                        echo ""
-                                        echo "Waiting for scaling to complete..."
-                                        sleep 30
-
-                                        echo "Verify scaling"
-                                        NEW_REPLICAS=\$(docker service inspect \${SERVICE_NAME} --format '{{.Spec.Mode.Replicated.Replicas}}')
-                                        echo "✅ Scaling completed: \${NEW_REPLICAS} replicas now running"
-                                    else
-                                        echo "ℹ️ Already at or above recommended replicas (\${CURRENT_REPLICAS})"
-                                    fi
-                                    ;;
-                                SCALE_DOWN)
-                                    if [ "\${RECOMMENDED_REPLICAS}" -lt "\${CURRENT_REPLICAS}" ] && [ "\${RECOMMENDED_REPLICAS}" -ge 1 ]; then
-                                        echo "📉 SCALING DOWN: \${CURRENT_REPLICAS} → \${RECOMMENDED_REPLICAS} replicas"
-                                        echo ""
-                                        echo "Executing: docker service scale \${SERVICE_NAME}=\${RECOMMENDED_REPLICAS}"
-                                        docker service scale \${SERVICE_NAME}=\${RECOMMENDED_REPLICAS}
-
-                                        echo ""
-                                        echo "Waiting for scaling to complete..."
-                                        sleep 20
-
-                                        echo "Verify scaling"
-                                        NEW_REPLICAS=\$(docker service inspect \${SERVICE_NAME} --format '{{.Spec.Mode.Replicated.Replicas}}')
-                                        echo "✅ Scaling completed: \${NEW_REPLICAS} replicas now running"
-                                    else
-                                        echo "ℹ️ Minimum replicas reached or no scaling needed (\${CURRENT_REPLICAS})"
-                                    fi
-                                    ;;
-                                MAINTAIN|*)
-                                    echo "➡️ MAINTAINING current replica count: \${CURRENT_REPLICAS}"
-                                    echo "Performance metrics are within acceptable thresholds"
-                                    ;;
-                            esac
-
-                            echo ""
-                            echo "=========================================="
-                            echo "POST-SCALING SERVICE STATUS"
-                            echo "=========================================="
-                            docker stack services ${STACK_NAME_STAGING}
-
-                            echo ""
-                            echo "Service tasks:"
-                            docker service ps \${SERVICE_NAME} --format "table {{.Name}}\t{{.CurrentState}}\t{{.Node}}"
-
-                            echo ""
-                            echo "=========================================="
-                            echo "✅ Auto-scaling stage completed"
-                            echo "=========================================="
-                        """
-                    }
-                }
-            }
-        }
-                            echo "=========================================="
-                        """
-                    }
-                }
-            }
-        }
 
         stage('Post-Deployment Verification') {
             when {
