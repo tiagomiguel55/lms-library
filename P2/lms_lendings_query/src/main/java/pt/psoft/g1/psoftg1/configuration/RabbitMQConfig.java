@@ -61,22 +61,22 @@ public class RabbitMQConfig {
 
     @Bean
     public Queue lendingCreatedQueue() {
-        return new AnonymousQueue();
+        return new Queue("lending.created.events", true);  // Named durable queue
     }
 
     @Bean
     public Queue lendingUpdatedQueue() {
-        return new AnonymousQueue();
+        return new Queue("lending.updated.events", true);  // Named durable queue
     }
 
     @Bean
     public Queue lendingDeletedQueue() {
-        return new AnonymousQueue();
+        return new Queue("lending.deleted.events", true);  // Named durable queue
     }
 
     @Bean
     public Queue lendingReturnedQueue() {
-        return new AnonymousQueue();
+        return new Queue("lending.returned.events", true);  // Named durable queue
     }
 
     @Bean
