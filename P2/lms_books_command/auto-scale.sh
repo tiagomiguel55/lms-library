@@ -49,16 +49,12 @@ if command -v jq &> /dev/null; then
     SUCCESS_RATE=$(jq -r '.results.success_rate' "${RESULTS_FILE}")
     RPS=$(jq -r '.results.requests_per_second' "${RESULTS_FILE}")
     AVG_RESPONSE_TIME=$(jq -r '.results.response_time_ms.average' "${RESULTS_FILE}")
-    MONOLITH_BASELINE=$(jq -r '.comparison.monolith_baseline_rps' "${RESULTS_FILE}")
-    PERFORMANCE_DIFF=$(jq -r '.comparison.performance_improvement_percent' "${RESULTS_FILE}")
 elif command -v python3 &> /dev/null; then
     RECOMMENDATION=$(python3 -c "import json; data=json.load(open('${RESULTS_FILE}')); print(data['scaling']['recommendation'])")
     RECOMMENDED_REPLICAS=$(python3 -c "import json; data=json.load(open('${RESULTS_FILE}')); print(data['scaling']['recommended_replicas'])")
     SUCCESS_RATE=$(python3 -c "import json; data=json.load(open('${RESULTS_FILE}')); print(data['results']['success_rate'])")
     RPS=$(python3 -c "import json; data=json.load(open('${RESULTS_FILE}')); print(data['results']['requests_per_second'])")
     AVG_RESPONSE_TIME=$(python3 -c "import json; data=json.load(open('${RESULTS_FILE}')); print(data['results']['response_time_ms']['average'])")
-    MONOLITH_BASELINE=$(python3 -c "import json; data=json.load(open('${RESULTS_FILE}')); print(data['comparison']['monolith_baseline_rps'])")
-    PERFORMANCE_DIFF=$(python3 -c "import json; data=json.load(open('${RESULTS_FILE}')); print(data['comparison']['performance_improvement_percent'])")
 else
     echo -e "${RED}❌ ERROR: Neither jq nor python3 is available for JSON parsing${NC}"
     exit 1
@@ -71,10 +67,6 @@ echo -e "${BLUE}Performance Metrics:${NC}"
 echo "  Success Rate:            ${SUCCESS_RATE}%"
 echo "  Requests per Second:     ${RPS} RPS"
 echo "  Avg Response Time:       ${AVG_RESPONSE_TIME} ms"
-echo ""
-echo -e "${BLUE}Comparison with Monolith:${NC}"
-echo "  Monolith Baseline:       ${MONOLITH_BASELINE} RPS"
-echo "  Performance Difference:  ${PERFORMANCE_DIFF}%"
 echo ""
 echo -e "${BLUE}Scaling Analysis:${NC}"
 echo "  Recommendation:          ${RECOMMENDATION}"
@@ -230,4 +222,3 @@ EOF
 
 echo ""
 echo "Scaling result saved to: /tmp/scaling_result.json"
-

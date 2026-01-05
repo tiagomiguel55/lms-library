@@ -4,7 +4,6 @@
  * This script performs load testing on the staging environment to:
  * - Demonstrate scalability with multiple instances
  * - Test system behavior under load
- * - Compare microservices performance vs monolith baseline
  * - Output metrics for auto-scaling decisions
  * ============================================================================
  */
@@ -21,7 +20,6 @@ const requestsFailed = new Counter('requests_failed');
 
 // Configuration from environment variables
 const SERVICE_URL = __ENV.SERVICE_URL || 'http://74.161.33.56:8082';
-const MONOLITH_BASELINE_RPS = parseFloat(__ENV.MONOLITH_BASELINE_RPS) || 50;
 
 // Test configuration
 export const options = {
@@ -81,7 +79,6 @@ export function setup() {
     console.log('LMS BOOKS COMMAND - K6 LOAD TEST');
     console.log('========================================');
     console.log(`Service URL: ${SERVICE_URL}`);
-    console.log(`Monolith Baseline RPS: ${MONOLITH_BASELINE_RPS}`);
     console.log('========================================');
 
     // Health check using create-complete endpoint
@@ -108,7 +105,6 @@ export function setup() {
 
     return {
         serviceUrl: SERVICE_URL,
-        monolithBaseline: MONOLITH_BASELINE_RPS,
         startTime: new Date().toISOString(),
     };
 }
@@ -189,11 +185,6 @@ export function handleSummary(data) {
     const testDuration = data.state.testRunDurationMs / 1000;
     const requestsPerSecond = testDuration > 0 ? totalRequests / testDuration : 0;
 
-    // Calculate performance comparison with monolith
-    const performanceImprovement = MONOLITH_BASELINE_RPS > 0
-        ? ((requestsPerSecond - MONOLITH_BASELINE_RPS) / MONOLITH_BASELINE_RPS) * 100
-        : 0;
-
     // Determine scaling recommendation
     let scaleRecommendation = 'none';
     let recommendedReplicas = 1;
@@ -202,9 +193,6 @@ export function handleSummary(data) {
         scaleRecommendation = 'scale_up';
         recommendedReplicas = 3;
     } else if (avgResponseTime > 500) {
-        scaleRecommendation = 'scale_up';
-        recommendedReplicas = 2;
-    } else if (requestsPerSecond < MONOLITH_BASELINE_RPS) {
         scaleRecommendation = 'scale_up';
         recommendedReplicas = 2;
     } else if (successRateValue >= 99 && avgResponseTime < 100) {
@@ -234,11 +222,6 @@ export function handleSummary(data) {
                 p95: parseFloat(p95ResponseTime.toFixed(2)),
             },
         },
-        comparison: {
-            monolith_baseline_rps: MONOLITH_BASELINE_RPS,
-            microservice_rps: parseFloat(requestsPerSecond.toFixed(2)),
-            performance_improvement_percent: parseFloat(performanceImprovement.toFixed(2)),
-        },
         scaling: {
             recommendation: scaleRecommendation,
             recommended_replicas: recommendedReplicas,
@@ -262,12 +245,6 @@ export function handleSummary(data) {
     console.log('----------------------------------------');
     console.log(`Test Duration:         ${testDuration.toFixed(2)} seconds`);
     console.log(`Requests/Second:       ${requestsPerSecond.toFixed(2)} RPS`);
-    console.log('========================================');
-    console.log('COMPARISON WITH MONOLITH');
-    console.log('========================================');
-    console.log(`Monolith Baseline:     ${MONOLITH_BASELINE_RPS} RPS`);
-    console.log(`Microservice:          ${requestsPerSecond.toFixed(2)} RPS`);
-    console.log(`Performance Diff:      ${performanceImprovement >= 0 ? '+' : ''}${performanceImprovement.toFixed(2)}%`);
     console.log('========================================');
     console.log('SCALING RECOMMENDATION');
     console.log('========================================');
