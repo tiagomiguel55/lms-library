@@ -436,8 +436,8 @@ public class BookRabbitmqController {
                 if (pendingRequestOpt.isPresent()) {
                     PendingBookRequest pendingRequest = pendingRequestOpt.get();
 
-                    // 🔄 SAGA COMPENSATION: Clean up temporary entities created before failure
-                    System.out.println(" [x] 🔄 Starting SAGA compensation - cleaning up temporary entities...");
+                    // SAGA COMPENSATION: Clean up temporary entities created before failure
+                    System.out.println(" [x] Starting SAGA compensation - cleaning up temporary entities...");
 
                     // 1. Clean up temporary Author (if it was created with finalized=false)
                     if (pendingRequest.getAuthorName() != null && !pendingRequest.getAuthorName().isEmpty()) {
