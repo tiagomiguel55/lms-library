@@ -191,7 +191,7 @@ pipeline {
                     ENVIRONMENT="${params.ENVIRONMENT}"
                     STACK_NAME="lms_shared_\${ENVIRONMENT}"
 
-                    # Define environment-specific ports
+                    echo "Define environment-specific ports"
                     case "\${ENVIRONMENT}" in
                         dev)
                             RABBITMQ_PORT=5672
@@ -221,7 +221,7 @@ pipeline {
                     echo "Volume Name: \${VOLUME_NAME}"
                     echo ""
 
-                    # Generate environment-specific docker-compose file
+                    echo "Generate environment-specific docker-compose file"
                     COMPOSE_FILE="${WORKSPACE}/docker-compose-rabbitmq-\${ENVIRONMENT}-generated.yml"
 
                     cat > "\${COMPOSE_FILE}" <<EOF
@@ -265,7 +265,7 @@ EOF
                     echo "✅ Generated compose file: \${COMPOSE_FILE}"
                     echo ""
 
-                    # Check if lms_shared stack already exists
+                    echo "Check if lms_shared stack already exists"
                     if docker stack ls | grep -q "\${STACK_NAME}"; then
                         echo "✅ \${STACK_NAME} stack already deployed"
                         echo ""
@@ -324,7 +324,7 @@ EOF
                         echo "Waiting for services to stabilize..."
                         sleep 15
 
-                        # List all services
+                        echo "List all services"
                         echo "All services in stack:"
                         docker service ls --filter "label=com.docker.stack.namespace=${STACK_NAME_DEV}"
 
@@ -398,11 +398,11 @@ EOF
                             echo "Comparing microservice performance metrics"
                             echo ""
 
-                            # Wait for service to be fully ready
+                            echo "Wait for service to be fully ready"
                             echo "Waiting 60 seconds for services to be fully ready..."
                             sleep 60
 
-                            # Verify service is responding
+                            echo "Verify service is responding"
                             echo "Verifying service health before load test..."
                             SERVICE_URL="http://localhost:8091"
 
@@ -422,7 +422,7 @@ EOF
                                 echo "⚠️ WARNING: Service health check failed, proceeding with caution"
                             fi
 
-                            # Check if k6 is installed, if not use Docker
+                            echo "Check if k6 is installed, if not use Docker"
                             if command -v k6 &> /dev/null; then
                                 echo "Using native k6 installation"
                                 K6_CMD="k6"
@@ -439,12 +439,12 @@ EOF
                             echo "Target URL: \${SERVICE_URL}"
                             echo ""
 
-                            # Record start time and initial replica count
+                            echo "Record start time and initial replica count"
                             INITIAL_REPLICAS=\$(docker service inspect ${STACK_NAME_STAGING}_lmslendings_command --format '{{.Spec.Mode.Replicated.Replicas}}' 2>/dev/null || echo "2")
                             echo "Initial replica count: \${INITIAL_REPLICAS}"
                             echo ""
 
-                            # Run K6 load test
+                            echo "Run K6 load test"
                             if command -v k6 &> /dev/null; then
                                 k6 run --env BASE_URL=\${SERVICE_URL} --env ENVIRONMENT=staging k6/quick-load-test.js
                             else
@@ -460,7 +460,7 @@ EOF
                             echo "LOAD TEST COMPLETED"
                             echo "=========================================="
 
-                            # Display current service metrics after load test
+                            echo "Display current service metrics after load test"
                             echo ""
                             echo "Service status after load test:"
                             docker stack services ${STACK_NAME_STAGING}
@@ -517,22 +517,22 @@ EOF
 
                             SERVICE_NAME="${STACK_NAME_STAGING}_lmslendings_command"
 
-                            # Get current replica count
+                            echo "Get current replica count"
                             CURRENT_REPLICAS=\$(docker service inspect \${SERVICE_NAME} --format '{{.Spec.Mode.Replicated.Replicas}}' 2>/dev/null || echo "2")
                             echo "Current replica count: \${CURRENT_REPLICAS}"
 
-                            # Read load test results if available
+                            echo "Read load test results if available"
                             if [ -f "load-test-results.json" ]; then
                                 echo "Reading load test results..."
 
-                                # Parse JSON results using jq or grep
+                                echo "Parse JSON results using jq or grep"
                                 if command -v jq &> /dev/null; then
                                     SCALING_ACTION=\$(jq -r '.scalingRecommendation.action' load-test-results.json)
                                     RECOMMENDED_REPLICAS=\$(jq -r '.scalingRecommendation.recommendedReplicas' load-test-results.json)
                                     P95_LATENCY=\$(jq -r '.metrics.http_req_duration_p95' load-test-results.json)
                                     ERROR_RATE=\$(jq -r '.metrics.http_req_failed' load-test-results.json)
                                 else
-                                    # Fallback parsing without jq
+                                    echo "Fallback parsing without jq"
                                     SCALING_ACTION=\$(grep -o '"action":"[^"]*"' load-test-results.json | cut -d'"' -f4 || echo "MAINTAIN")
                                     RECOMMENDED_REPLICAS=\$(grep -o '"recommendedReplicas":[0-9]*' load-test-results.json | cut -d':' -f2 || echo "2")
                                     P95_LATENCY="N/A"
@@ -549,7 +549,7 @@ EOF
                                 echo "⚠️ Load test results file not found"
                                 echo "Using default scaling logic based on service metrics..."
 
-                                # Default scaling logic based on resource usage
+                                echo "Default scaling logic based on resource usage"
                                 CPU_USAGE=\$(docker stats --no-stream --format "{{.CPUPerc}}" \$(docker ps -q --filter "label=com.docker.swarm.service.name=\${SERVICE_NAME}" | head -1) 2>/dev/null | tr -d '%' || echo "0")
 
                                 if [ "\${CPU_USAGE%.*}" -gt 80 ]; then
@@ -571,7 +571,7 @@ EOF
                             echo "SCALING DECISION"
                             echo "=========================================="
 
-                            # Apply scaling based on recommendation
+                            echo "Apply scaling based on recommendation"
                             case "\${SCALING_ACTION}" in
                                 SCALE_UP)
                                     if [ "\${RECOMMENDED_REPLICAS}" -gt "\${CURRENT_REPLICAS}" ]; then
@@ -584,7 +584,7 @@ EOF
                                         echo "Waiting for scaling to complete..."
                                         sleep 30
 
-                                        # Verify scaling
+                                        echo "Verify scaling"
                                         NEW_REPLICAS=\$(docker service inspect \${SERVICE_NAME} --format '{{.Spec.Mode.Replicated.Replicas}}')
                                         echo "✅ Scaling completed: \${NEW_REPLICAS} replicas now running"
                                     else
@@ -602,7 +602,7 @@ EOF
                                         echo "Waiting for scaling to complete..."
                                         sleep 20
 
-                                        # Verify scaling
+                                        echo "Verify scaling"
                                         NEW_REPLICAS=\$(docker service inspect \${SERVICE_NAME} --format '{{.Spec.Mode.Replicated.Replicas}}')
                                         echo "✅ Scaling completed: \${NEW_REPLICAS} replicas now running"
                                     else
@@ -656,7 +656,7 @@ EOF
                         echo "Environment: ${params.ENVIRONMENT}"
                         echo "=========================================="
 
-                        # Wait for Docker Swarm to update replica status
+                        echo "Wait for Docker Swarm to update replica status"
                         echo ""
                         echo "Waiting 15 seconds for Docker Swarm to update replica status..."
                         sleep 15
@@ -681,11 +681,11 @@ EOF
                             echo "POST-DEPLOYMENT HEALTH CHECK VERIFICATION"
                             echo "=========================================="
 
-                            # Wait a bit for health checks to stabilize
+                            echo "Wait a bit for health checks to stabilize"
                             echo "Waiting 30 seconds for health checks to stabilize..."
                             sleep 30
 
-                            # Check each service
+                            echo "Check each service"
                             for SERVICE in \$(docker service ls --filter "label=com.docker.stack.namespace=${stackName}" --format "{{.Name}}"); do
                                 echo ""
                                 echo "Checking health of: \$SERVICE"
@@ -794,4 +794,3 @@ EOF
         }
     }
 }
-
