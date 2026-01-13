@@ -1645,7 +1645,7 @@ EOF
                                         fi
 
                                         # Show replica state
-                                        REPLICA_STATE=\$(docker service ps \$SERVICE_NAME --filter "id=\$TASK_ID" --format "{{.CurrentState}}" 2>/dev/null)
+                                        REPLICA_STATE=\$(docker service ps \$SERVICE --filter "id=\$TASK" --format "{{.CurrentState}}" 2>/dev/null)
                                         echo "  Replica State: \$REPLICA_STATE"
                                     fi
                                 done
@@ -1808,7 +1808,7 @@ EOF
                                         fi
 
                                         # Show replica state
-                                        REPLICA_STATE=\$(docker service ps \$SERVICE_NAME --filter "id=\$TASK" --format "{{.CurrentState}}" 2>/dev/null)
+                                        REPLICA_STATE=\$(docker service ps \$SERVICE --filter "id=\$TASK" --format "{{.CurrentState}}" 2>/dev/null)
                                         echo "  Replica State: \$REPLICA_STATE"
                                     fi
                                 done
